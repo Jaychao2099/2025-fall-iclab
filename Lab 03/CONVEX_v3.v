@@ -338,15 +338,16 @@ always @(posedge clk or negedge rst_n) begin
     if (!rst_n) drop_num_reg <= 7'd0;
     else if (current_state == S_SOLVING) begin
         if (new_is_out == 1'b1) begin      // drop 0 ~ n old dots
-            if (zero_cnt == 1 && neg_cnt == 0) drop_num_reg = 1;
+            if (zero_cnt == 1 && neg_cnt == 0)      drop_num_reg = 1;
             else if (start_drop_idx > end_drop_idx) drop_num_reg <= (hull_size - start_drop_idx) + (end_drop_idx) - 1;
-            else                                            drop_num_reg <= end_drop_idx - start_drop_idx - 1;
+            else                                    drop_num_reg <= end_drop_idx - start_drop_idx - 1;
         end
         else begin      // drop new dots
             drop_num_reg <= 7'd1;
         end
     end
-    else drop_num_reg <= drop_num_reg;
+    else if (current_state == S_OUTPUT && pt_cnt > 3) drop_num_reg <= drop_num_reg;
+    else drop_num_reg <= 7'd0;
 end
 
 
@@ -388,8 +389,8 @@ always @(posedge clk or negedge rst_n) begin
         end
     end
     else begin
-        out_x <= out_x;
-        out_y <= out_y;
+        out_x <= 10'd0;
+        out_y <= 10'd0;
     end
 end
 
