@@ -9,8 +9,8 @@
 // MODIFICATION HISTORY:
 // Date                 Description
 // 2025/9/25            V1 - Initial release for Convex Hull verification.
-// 2025/9/26            V2 - Corrected golden model logic for collinear points
-//                      that extend a hull edge. Added is_between function.
+// 2025/9/26            V2 - Implemented robust tangent-finding logic to
+//                      correctly handle collinear extension cases.
 /**************************************************************************/
 
 `ifdef RTL
@@ -137,13 +137,14 @@ initial begin
             // Wait for DUT response and check result
             wait_and_check_result;
             
-            $display("Pattern [%3d/%3d], Point [%3d/%3d] PASS. Latency: %4d cycles.", 
+            $display("Pattern [%3d/%3d], Point [%3d/%3d] ({%d, %d}) PASS. Latency: %4d cycles.", 
                      current_pattern_idx + 1, num_patterns, 
                      current_point_idx + 1, num_points_in_pattern, 
+                     temp_x, temp_y, 
                      latency_counter);
         end
     end
-    
+
     // Final success message
     $display("------------------------------------------------------------");
     $display("                  Congratulations!               ");
@@ -304,7 +305,7 @@ begin
             $display("------------------------------------------------------------");
             $display("                    SPEC-8 FAIL                   ");
             $display("FAIL: Mismatch in dropped point coordinates.");
-            $display("Pattern: %d, Point: %d", current_pattern_idx+1, current_point_idx+1);
+            $display("Pattern: %d, Point: %d ({%d, %d})", current_pattern_idx+1, current_point_idx+1, temp_x, temp_y);
             $display("Mismatch at index %d after sorting.", i);
             $display("Expected: {%d, %d}, DUT: {%d, %d}", golden_dropped_points[i][19:10], golden_dropped_points[i][9:0], dut_dropped_points[i][19:10], dut_dropped_points[i][9:0]);
             $display("--- Golden Dropped Points ---");
@@ -369,7 +370,6 @@ begin
         hull_size = hull_size + 1;
         
         if (hull_size == 3) begin
-            // Ensure CCW order. The first 3 points are guaranteed not to be collinear by spec.
             if (cross_product(hull_x[0], hull_y[0], hull_x[1], hull_y[1], hull_x[2], hull_y[2]) < 0) begin
                 {temp_x, temp_y} = {hull_x[1], hull_y[1]};
                 {hull_x[1], hull_y[1]} = {hull_x[2], hull_y[2]};
@@ -400,23 +400,25 @@ begin
     end
 
     if (!is_strictly_outside) begin
-        // If not strictly outside, it's inside, on a vertex, or collinear but not between (on a vertex).
-        // Per spec, these cases all result in the new point being discarded.
         golden_drop_num = 1;
         golden_dropped_points[0] = {px, py};
         return;
     end
     
     // Case 3: Point is strictly outside, find tangents and rebuild hull
-    for(i = 0; i < hull_size; i=i+1) begin
+    // This logic now correctly handles collinear extensions.
+    for(i = 0; i < hull_size; i = i + 1) begin
         j = (i + 1) % hull_size;
         k = (i + hull_size - 1) % hull_size;
-        // Upper tangent (right or zero turn, then left turn)
+        
+        // Upper Tangent: turn from (>=0) to (<0)
         if (cross_product(px, py, hull_x[i], hull_y[i], hull_x[j], hull_y[j]) >= 0 && cross_product(px, py, hull_x[k], hull_y[k], hull_x[i], hull_y[i]) < 0) begin
             end_tangent_idx = i;
         end
+        
+        // Lower Tangent: turn from (<=0) to (>0)
         // Lower tangent (left turn, then right or zero turn)
-        if (cross_product(px, py, hull_x[i], hull_y[i], hull_x[j], hull_y[j]) < 0 && cross_product(px, py, hull_x[k], hull_y[k], hull_x[i], hull_y[i]) >= 0) begin
+        if (cross_product(px, py, hull_x[i], hull_y[i], hull_x[j], hull_y[j]) <= 0 && cross_product(px, py, hull_x[k], hull_y[k], hull_x[i], hull_y[i]) > 0) begin
             start_tangent_idx = i;
         end
     end

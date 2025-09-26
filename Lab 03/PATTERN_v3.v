@@ -80,11 +80,6 @@ reg [19:0] dut_dropped_points [0:MAX_HULL_POINTS-1];
 // Latency Counter
 integer latency_counter;
 parameter MAX_LATENCY = 1000;
-			
-//---------------------------------------------------------------------
-//   REG & WIRE DECLARATION
-//---------------------------------------------------------------------
-// (Additional regs are declared within the parameter section)
 
 //---------------------------------------------------------------------
 //  CLOCK
@@ -128,11 +123,16 @@ initial begin
         for (current_point_idx = 0; current_point_idx < num_points_in_pattern; current_point_idx = current_point_idx + 1) begin
             ret = $fscanf(file_descriptor, "%d %d", temp_x, temp_y);
             
-            // Calculate golden answer before applying stimulus
-            update_golden_hull(temp_x, temp_y);
-            
             // Apply stimulus
             apply_stimulus(num_points_in_pattern, temp_x, temp_y);
+            
+            // Calculate golden answer before applying stimulus
+            update_golden_hull(temp_x, temp_y);
+
+            // $display("Pattern [%3d/%3d], Point [%3d/%3d] ({%d, %d})", 
+            //          current_pattern_idx + 1, num_patterns, 
+            //          current_point_idx + 1, num_points_in_pattern, 
+            //          temp_x, temp_y);
             
             // Wait for DUT response and check result
             wait_and_check_result;
@@ -145,7 +145,6 @@ initial begin
         end
     end
 
-    // Final success message
     $display("------------------------------------------------------------");
     $display("                  Congratulations!               ");
     $display("              All patterns passed successfully.            ");
@@ -262,6 +261,15 @@ begin
     // First valid cycle
     total_latency = total_latency + latency_counter;
     dut_drop_num = drop_num;
+    
+    if ( drop_num == 7'b0 && (out_x !== 10'b0 || out_y !== 10'b0)) begin
+        $display("------------------------------------------------------------");
+        $display("                    SPEC-5 FAIL                   ");
+        $display("FAIL: out_x/out_y must be 0 when drop_num is 0.");
+        $display("Time: %t", $time);
+        $display("------------------------------------------------------------");
+        $finish;
+    end
 
     // Check if drop_num matches
     if (dut_drop_num != golden_drop_num) begin
@@ -294,6 +302,16 @@ begin
     // After collecting, out_valid should be low
     if (out_valid === 1'b1) begin
        $display("Warning: out_valid stayed high for longer than drop_num cycles.");
+    end
+
+    // SPEC-5 Check before waiting
+    if (drop_num !== 7'b0 || out_x !== 10'b0 || out_y !== 10'b0) begin
+        $display("------------------------------------------------------------");
+        $display("                    SPEC-5 FAIL                   ");
+        $display("FAIL: drop_num/out_x/out_y must be 0 when out_valid is low.");
+        $display("Time: %t", $time);
+        $display("------------------------------------------------------------");
+        $finish;
     end
 
     // Compare DUT results with golden results (order-independent)
@@ -340,15 +358,6 @@ function signed [63:0] cross_product;
     end
 endfunction
 
-// --- is_between: Checks if collinear point C is between A and B
-function integer is_between;
-    input [9:0] ax, ay, bx, by, cx, cy;
-    begin
-        is_between = (cx >= ((ax < bx) ? ax : bx)) && (cx <= ((ax > bx) ? ax : bx)) &&
-                     (cy >= ((ay < by) ? ay : by)) && (cy <= ((ay > by) ? ay : by));
-    end
-endfunction
-
 // --- update_golden_hull: The core golden model logic
 task update_golden_hull;
     input [9:0] px, py;
@@ -359,9 +368,13 @@ task update_golden_hull;
     integer start_tangent_idx, end_tangent_idx;
     reg is_strictly_outside;
     reg signed [63:0] orientation_sign;
+    integer temp_hull_x, temp_hull_y;
+    integer zero_cnt, neg_cnt;
     
 begin
     golden_drop_num = 0;
+    zero_cnt = 0;
+    neg_cnt = 0;
     
     // Case 1: First 3 points form a triangle
     if (hull_size < 3) begin
@@ -371,9 +384,9 @@ begin
         
         if (hull_size == 3) begin
             if (cross_product(hull_x[0], hull_y[0], hull_x[1], hull_y[1], hull_x[2], hull_y[2]) < 0) begin
-                {temp_x, temp_y} = {hull_x[1], hull_y[1]};
+                {temp_hull_x, temp_hull_y} = {hull_x[1], hull_y[1]};
                 {hull_x[1], hull_y[1]} = {hull_x[2], hull_y[2]};
-                {hull_x[2], hull_y[2]} = {temp_x, temp_y};
+                {hull_x[2], hull_y[2]} = {temp_hull_x, temp_hull_y};
             end
         end
         return;
@@ -387,19 +400,15 @@ begin
 
         if (orientation_sign < 0) begin // Strictly to the right -> definitely outside
             is_strictly_outside = 1'b1;
-            break;
+            neg_cnt = neg_cnt + 1;
         end
         if (orientation_sign == 0) begin // Collinear
-            if (is_between(hull_x[i], hull_y[i], hull_x[j], hull_y[j], px, py)) begin
-                // On an edge segment, discard new point
-                golden_drop_num = 1;
-                golden_dropped_points[0] = {px, py};
-                return;
-            end
+            is_strictly_outside = 1'b1;
+            zero_cnt = zero_cnt + 1;
         end
     end
 
-    if (!is_strictly_outside) begin
+    if (!is_strictly_outside || zero_cnt == 1 && neg_cnt == 0) begin
         golden_drop_num = 1;
         golden_dropped_points[0] = {px, py};
         return;
@@ -412,13 +421,13 @@ begin
         k = (i + hull_size - 1) % hull_size;
         
         // Upper Tangent: turn from (>=0) to (<0)
-        if (cross_product(px, py, hull_x[i], hull_y[i], hull_x[j], hull_y[j]) >= 0 && cross_product(px, py, hull_x[k], hull_y[k], hull_x[i], hull_y[i]) < 0) begin
+        if (cross_product(px, py, hull_x[i], hull_y[i], hull_x[j], hull_y[j]) >  0 && cross_product(px, py, hull_x[k], hull_y[k], hull_x[i], hull_y[i]) <= 0) begin
             end_tangent_idx = i;
         end
         
         // Lower Tangent: turn from (<=0) to (>0)
         // Lower tangent (left turn, then right or zero turn)
-        if (cross_product(px, py, hull_x[i], hull_y[i], hull_x[j], hull_y[j]) <= 0 && cross_product(px, py, hull_x[k], hull_y[k], hull_x[i], hull_y[i]) > 0) begin
+        if (cross_product(px, py, hull_x[i], hull_y[i], hull_x[j], hull_y[j]) <= 0 && cross_product(px, py, hull_x[k], hull_y[k], hull_x[i], hull_y[i]) >  0) begin
             start_tangent_idx = i;
         end
     end
