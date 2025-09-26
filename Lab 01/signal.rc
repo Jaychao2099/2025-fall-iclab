@@ -1,0 +1,173 @@
+Magic 271485
+Revision Verdi_P-2019.06
+
+; Window Layout <x> <y> <width> <height> <signalwidth> <valuewidth>
+viewPort 0 23 1536 793 287 665
+
+; File list:
+; openDirFile [-d delimiter] [-s time_offset] [-rf auto_bus_rule_file] path_name file_name
+openDirFile -d / "" "/RAID2/COURSE/2025_Fall/iclab/iclab049/Lab01_2025F/Exercise/01_RTL/MPCA.fsdb"
+
+; file time scale:
+; fileTimeScale ### s|ms|us|ns|ps
+
+; signal spacing:
+signalSpacing 5
+
+; windowTimeUnit is used for zoom, cursor & marker
+; waveform viewport range
+zoom 21402.383942 38463.782971
+cursor 31025.000000
+marker 0.000000
+
+; user define markers
+; userMarker time_pos marker_name color linestyle
+; visible top row signal index
+top 10
+; marker line index
+markerPos 46
+
+; Run Time Signal and Member
+; userBusMem member ...
+; saveRunSig name
+activeDirFile "" "/RAID2/COURSE/2025_Fall/iclab/iclab049/Lab01_2025F/Exercise/01_RTL/MPCA.fsdb"
+userBusMem /TESTBED/channel_capacity[8]
+userBusMem /TESTBED/channel_capacity[7]
+userBusMem /TESTBED/channel_capacity[6]
+saveRunSig "ori_channel_capacity_2[2:0]"
+
+; Run Time Signal and Member
+; userBusMem member ...
+; saveRunSig name
+userBusMem /TESTBED/channel_capacity[5]
+userBusMem /TESTBED/channel_capacity[4]
+userBusMem /TESTBED/channel_capacity[3]
+saveRunSig "ori_channel_capacity_1[2:0]"
+
+; Run Time Signal and Member
+; userBusMem member ...
+; saveRunSig name
+userBusMem /TESTBED/channel_capacity[2]
+userBusMem /TESTBED/channel_capacity[1]
+userBusMem /TESTBED/channel_capacity[0]
+saveRunSig "ori_channel_capacity_0[2:0]"
+
+; event list
+; addEvent event_name event_expression
+; curEvent event_name
+
+
+
+COMPLEX_EVENT_BEGIN
+
+
+COMPLEX_EVENT_END
+
+
+
+; toolbar current search type
+; curSTATUS search_type
+curSTATUS ByChange
+
+
+addGroup "G1"
+activeDirFile "" "/RAID2/COURSE/2025_Fall/iclab/iclab049/Lab01_2025F/Exercise/01_RTL/MPCA.fsdb"
+addSignal -h 15 /TESTBED/My_PATTERN/clk
+addSignal -h 15 /TESTBED/packets[127:0]
+addSignal -h 15 -UNSIGNED -HEX -holdScope channel_load[11:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope channel_capacity[8:0]
+addSignal -h 15 -UNSIGNED -UDEC /ori_channel_capacity_2[2:0]
+addSignal -h 15 -UNSIGNED -UDEC /ori_channel_capacity_1[2:0]
+addSignal -h 15 -UNSIGNED -UDEC /ori_channel_capacity_0[2:0]
+addSignal -h 15 /TESTBED/KEY[63:0]
+addGroup "G8"
+addSignal -h 15 -UNSIGNED -BIN /TESTBED/grant_channel[15:0]
+addSignal -h 15 -UNSIGNED -BIN /TESTBED/My_PATTERN/golden_grant_channel_a[15:0]
+addSignal -h 15 -holdScope golden_grant_channel[0:7]
+addGroup "G7"
+addSignal -h 15 /TESTBED/DUT_MPCA/k[0:3]
+addGroup "G6"
+addSignal -expanded -h 15 -UNSIGNED -BIN /TESTBED/DUT_MPCA/de_packet_x[0:3]
+addSignal -h 15 -UNSIGNED -BIN -holdScope de_packet_x[0][15:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope de_packet_x[1][15:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope de_packet_x[2][15:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope de_packet_x[3][15:0]
+addSignal -h 15 -holdScope de_packet_y[0:3]
+addGroup "G9"
+addSignal -h 15 -UNSIGNED -BIN /TESTBED/DUT_MPCA/req_valid[0:7]
+addSignal -h 15 -holdScope qos[0:7]
+addSignal -h 15 -2COMP -UDEC -holdScope qos_signed[0:7]
+addSignal -h 15 -UNSIGNED -BIN -holdScope pkt_len[0:7]
+addSignal -h 15 -UNSIGNED -BIN -holdScope pkt_len_signed[0:7]
+addSignal -h 15 -UNSIGNED -BIN -holdScope congestion[0:7]
+addSignal -h 15 -UNSIGNED -BIN -holdScope congestion_signed[0:7]
+addSignal -h 15 -2COMP -UDEC -holdScope congestion_signed_m3[0:7]
+addSignal -h 15 -UNSIGNED -BIN -holdScope src_hint[0:7]
+addSignal -h 15 -UNSIGNED -BIN -holdScope src_hint_signed[0:7]
+addSignal -h 15 -UNSIGNED -BIN -holdScope mode[0:7]
+addGroup "G4"
+addSignal -h 15 /TESTBED/DUT_MPCA/ch_load[0:2]
+addSignal -h 15 -holdScope ch_load_new[0:2]
+addGroup "G5"
+addSignal -expanded -h 15 -UNSIGNED -BIN /TESTBED/DUT_MPCA/prefer_ch[0:7]
+addSignal -h 15 -UNSIGNED -BIN -holdScope prefer_ch[0][1:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope prefer_ch[1][1:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope prefer_ch[2][1:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope prefer_ch[3][1:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope prefer_ch[4][1:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope prefer_ch[5][1:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope prefer_ch[6][1:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope prefer_ch[7][1:0]
+addSignal -h 15 -holdScope div_3_result[0:2]
+addSignal -h 15 -holdScope threshold[0:7]
+addSignal -h 15 -holdScope failed[0:7]
+addGroup "G3"
+addSignal -h 15 /TESTBED/DUT_MPCA/ch_cap[0:2]
+addSignal -h 15 -holdScope ch_cap_1[0:2]
+addSignal -h 15 -holdScope ch_cap_2[0:2]
+addSignal -h 15 -holdScope ch_cap_3[0:2]
+addSignal -h 15 -holdScope ch_cap_4[0:2]
+addSignal -h 15 -holdScope ch_cap_5[0:2]
+addSignal -h 15 -holdScope ch_cap_6[0:2]
+addSignal -h 15 -holdScope ch_cap_7[0:2]
+addSignal -h 15 -holdScope ch_cap_final[0:2]
+addGroup "G2"
+addSignal -h 15 /TESTBED/DUT_MPCA/alloc_channel[0:7]
+addSignal -h 15 -holdScope idx[3:0]
+addSignal -h 15 -holdScope mask[0:7]
+addSignal -h 15 -holdScope mask_score[0:7]
+addSignal -h 15 -holdScope max_ch[1:0]
+addSignal -h 15 -holdScope mod_pivot_1[1:0]
+addSignal -h 15 -holdScope mod_pivot_2[1:0]
+addSignal -h 15 -holdScope p_ch[1:0]
+addSignal -h 15 -holdScope packet_x[0:3]
+addSignal -h 15 -holdScope packet_y[0:3]
+addSignal -h 15 -holdScope packets[127:0]
+addSignal -h 15 -holdScope pivot[0:7]
+addSignal -h 15 -holdScope priority_score[0:7]
+addSignal -h 15 -holdScope rank_idx[0:7]
+addSignal -h 15 -holdScope rebalance_packet[2:0]
+addSignal -h 15 -holdScope tmp_prio[6:0]
+addSignal -h 15 -holdScope total_load[5:0]
+addGroup "G10"
+
+; getSignalForm Scope Hierarchy Status
+; active file of getSignalForm
+activeDirFile "" "/RAID2/COURSE/2025_Fall/iclab/iclab049/Lab01_2025F/Exercise/01_RTL/MPCA.fsdb"
+
+GETSIGNALFORM_SCOPE_HIERARCHY_BEGIN
+getSignalForm close
+
+"/TESTBED"
+"/TESTBED/DUT_MPCA"
+"/TESTBED/My_PATTERN"
+
+SCOPE_LIST_BEGIN
+"/TESTBED"
+"/TESTBED/DUT_MPCA"
+"/TESTBED/My_PATTERN"
+SCOPE_LIST_END
+
+GETSIGNALFORM_SCOPE_HIERARCHY_END
+
+
