@@ -8,10 +8,9 @@
 // DESCRIPTION: ICLAB2025FALL / LAB3 / PATTERN
 // MODIFICATION HISTORY:
 // Date                 Description
-// 2025/9/25            Initial release for Convex Hull verification.
-//                      - Implemented a behavioral golden model for on-the-fly checking.
-//                      - Added comprehensive SPEC checks including latency timeout.
-//                      - Structured with tasks for modularity and readability.
+// 2025/9/25            V1 - Initial release for Convex Hull verification.
+// 2025/9/26            V2 - Corrected golden model logic for collinear points
+//                      that extend a hull edge. Added is_between function.
 /**************************************************************************/
 
 `ifdef RTL
@@ -320,9 +319,11 @@ end
 endtask
 
 
-// --- Behavioral Golden Model ---
+// ====================================================================
+//  Behavioral Golden Model
+// ====================================================================
 
-// cross_product: Determines orientation.
+// --- cross_product: Determines orientation.
 // > 0 for Counter-Clockwise (left turn)
 // < 0 for Clockwise (right turn)
 // = 0 for Collinear
@@ -338,13 +339,25 @@ function signed [63:0] cross_product;
     end
 endfunction
 
+// --- is_between: Checks if collinear point C is between A and B
+function integer is_between;
+    input [9:0] ax, ay, bx, by, cx, cy;
+    begin
+        is_between = (cx >= ((ax < bx) ? ax : bx)) && (cx <= ((ax > bx) ? ax : bx)) &&
+                     (cy >= ((ay < by) ? ay : by)) && (cy <= ((ay > by) ? ay : by));
+    end
+endfunction
+
+// --- update_golden_hull: The core golden model logic
 task update_golden_hull;
     input [9:0] px, py;
+    // Local variables
     reg [9:0] next_hull_x [0:MAX_HULL_POINTS];
     reg [9:0] next_hull_y [0:MAX_HULL_POINTS];
     integer next_hull_size;
-    integer orientation;
     integer start_tangent_idx, end_tangent_idx;
+    reg is_strictly_outside;
+    reg signed [63:0] orientation_sign;
     
 begin
     golden_drop_num = 0;
@@ -356,9 +369,8 @@ begin
         hull_size = hull_size + 1;
         
         if (hull_size == 3) begin
-            // Ensure CCW order
+            // Ensure CCW order. The first 3 points are guaranteed not to be collinear by spec.
             if (cross_product(hull_x[0], hull_y[0], hull_x[1], hull_y[1], hull_x[2], hull_y[2]) < 0) begin
-                // Swap p1 and p2 to make it CCW
                 {temp_x, temp_y} = {hull_x[1], hull_y[1]};
                 {hull_x[1], hull_y[1]} = {hull_x[2], hull_y[2]};
                 {hull_x[2], hull_y[2]} = {temp_x, temp_y};
@@ -367,39 +379,49 @@ begin
         return;
     end
     
-    // Case 2: Point is inside the hull -> drop the new point
-    // Check if point is to the left of all hull edges (for CCW hull)
+    // Case 2: Point is inside, on an edge, or on a vertex
+    is_strictly_outside = 1'b0;
     for (i = 0; i < hull_size; i = i + 1) begin
         j = (i + 1) % hull_size;
-        if (cross_product(hull_x[i], hull_y[i], hull_x[j], hull_y[j], px, py) < 0) begin
-            orientation = -1; // Outside at least one edge
+        orientation_sign = cross_product(hull_x[i], hull_y[i], hull_x[j], hull_y[j], px, py);
+
+        if (orientation_sign < 0) begin // Strictly to the right -> definitely outside
+            is_strictly_outside = 1'b1;
             break;
         end
-        orientation = 1; // Inside all edges so far
+        if (orientation_sign == 0) begin // Collinear
+            if (is_between(hull_x[i], hull_y[i], hull_x[j], hull_y[j], px, py)) begin
+                // On an edge segment, discard new point
+                golden_drop_num = 1;
+                golden_dropped_points[0] = {px, py};
+                return;
+            end
+        end
     end
-    
-    if (orientation == 1) begin
+
+    if (!is_strictly_outside) begin
+        // If not strictly outside, it's inside, on a vertex, or collinear but not between (on a vertex).
+        // Per spec, these cases all result in the new point being discarded.
         golden_drop_num = 1;
         golden_dropped_points[0] = {px, py};
         return;
     end
     
-    // Case 3: Point is outside, find tangents and rebuild hull
-    // Find upper and lower tangent points
+    // Case 3: Point is strictly outside, find tangents and rebuild hull
     for(i = 0; i < hull_size; i=i+1) begin
         j = (i + 1) % hull_size;
         k = (i + hull_size - 1) % hull_size;
-        // Upper tangent (right turn, then left turn)
+        // Upper tangent (right or zero turn, then left turn)
         if (cross_product(px, py, hull_x[i], hull_y[i], hull_x[j], hull_y[j]) >= 0 && cross_product(px, py, hull_x[k], hull_y[k], hull_x[i], hull_y[i]) < 0) begin
             end_tangent_idx = i;
         end
-        // Lower tangent (left turn, then right turn)
+        // Lower tangent (left turn, then right or zero turn)
         if (cross_product(px, py, hull_x[i], hull_y[i], hull_x[j], hull_y[j]) < 0 && cross_product(px, py, hull_x[k], hull_y[k], hull_x[i], hull_y[i]) >= 0) begin
             start_tangent_idx = i;
         end
     end
     
-    // Rebuild the hull and identify dropped points
+    // Rebuild the hull: from end_tangent to start_tangent
     next_hull_size = 0;
     i = end_tangent_idx;
     while(i != start_tangent_idx) begin
@@ -417,7 +439,7 @@ begin
     next_hull_y[next_hull_size] = py;
     next_hull_size = next_hull_size + 1;
     
-    // Identify dropped points
+    // Identify dropped points (those between start and end tangents)
     i = (start_tangent_idx + 1) % hull_size;
     while(i != end_tangent_idx) begin
         golden_dropped_points[golden_drop_num] = {hull_x[i], hull_y[i]};
