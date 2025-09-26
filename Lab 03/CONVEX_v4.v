@@ -67,6 +67,7 @@ reg [8:0] hull_size;
 
 reg [9:0] drop_array_x [0:127], drop_array_y [0:127];
 reg [6:0] drop_num_reg;
+reg	[6:0] prev_drop_num_reg;
 reg [6:0] drop_cnt;
 
 reg [8:0] end_drop_idx, start_drop_idx;
@@ -148,9 +149,6 @@ end
 always @(*) begin
     case (current_state)
         S_IDLE: begin
-            // if      (in_valid && pt_cnt < 9'd3) next_state = S_OUTPUT;   // input 只有 1 cycle
-            // else if (in_valid)                  next_state = S_SOLVING;
-            // else                                next_state = S_IDLE;
             if (in_valid) next_state = S_SOLVING;
             else          next_state = S_IDLE;
         end
@@ -158,8 +156,8 @@ always @(*) begin
             next_state = S_OUTPUT;
         end
         S_OUTPUT: begin
-            if (drop_cnt == drop_num_reg) next_state = S_IDLE;
-            else                          next_state = S_OUTPUT;   // drop_num_reg > 1
+            if (drop_cnt + 1 == prev_drop_num_reg || pt_cnt <= 3) next_state = S_IDLE;
+            else next_state = S_OUTPUT;   // drop_num_reg > 1
         end
         default: next_state = current_state;
     endcase
@@ -322,8 +320,8 @@ always @(posedge clk or negedge rst_n) begin
         end
         else begin      // drop new dots
             for (i = 0; i < 128; i = i + 1) begin
-                drop_array_x[i] <= (i == 1) ? in_x_reg : drop_array_x[i];
-                drop_array_y[i] <= (i == 1) ? in_y_reg : drop_array_y[i];
+                drop_array_x[i] <= (i == 0) ? in_x_reg : drop_array_x[i];
+                drop_array_y[i] <= (i == 0) ? in_y_reg : drop_array_y[i];
             end
         end
     end
@@ -333,28 +331,33 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
-// reg	[6:0] drop_num_reg;
+// reg	[6:0] prev_drop_num_reg;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) drop_num_reg <= 7'd0;
-    else if (current_state == S_SOLVING) begin
+    if (!rst_n) prev_drop_num_reg <= 7'd0;
+    else prev_drop_num_reg <= drop_num_reg;
+end
+
+// reg	[6:0] drop_num_reg;
+always @(*) begin
+    if (current_state == S_SOLVING) begin
         if (new_is_out == 1'b1) begin      // drop 0 ~ n old dots
             if (zero_cnt == 1 && neg_cnt == 0)      drop_num_reg = 1;
-            else if (start_drop_idx > end_drop_idx) drop_num_reg <= (hull_size - start_drop_idx) + (end_drop_idx) - 1;
-            else                                    drop_num_reg <= end_drop_idx - start_drop_idx - 1;
+            else if (start_drop_idx > end_drop_idx) drop_num_reg = (hull_size - start_drop_idx) + (end_drop_idx) - 1;
+            else                                    drop_num_reg = end_drop_idx - start_drop_idx - 1;
         end
         else begin      // drop new dots
-            drop_num_reg <= 7'd1;
+            drop_num_reg = 7'd1;
         end
     end
-    else if (current_state == S_OUTPUT && pt_cnt > 3) drop_num_reg <= drop_num_reg;
-    else drop_num_reg <= 7'd0;
+    else if (current_state == S_OUTPUT && pt_cnt > 3) drop_num_reg = prev_drop_num_reg;
+    else drop_num_reg = 7'd0;
 end
 
 
 // reg [6:0] drop_cnt;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) drop_cnt <= 7'd0;
-    else if (current_state == S_OUTPUT && drop_cnt < drop_num_reg) drop_cnt <= drop_cnt + 1;
+    else if (current_state == S_OUTPUT && drop_cnt < prev_drop_num_reg) drop_cnt <= drop_cnt + 1;
     else drop_cnt <= 7'd0;
 end
 
@@ -363,7 +366,7 @@ end
 // output reg			out_valid;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) out_valid <= 1'b0;
-    else if (current_state == S_OUTPUT && drop_cnt < drop_num_reg) out_valid <= 1'b1;
+    else if (current_state == S_OUTPUT && drop_cnt < prev_drop_num_reg) out_valid <= 1'b1;
     else out_valid <= 1'b0;
 end
 
@@ -378,7 +381,7 @@ always @(posedge clk or negedge rst_n) begin
         out_x <= 10'd0;
         out_y <= 10'd0;
     end
-    else if (current_state == S_OUTPUT && drop_cnt < drop_num_reg) begin
+    else if (current_state == S_OUTPUT && drop_cnt < prev_drop_num_reg) begin
         if (pt_cnt <= 3) begin
             out_x <= 10'd0;
             out_y <= 10'd0;
@@ -397,9 +400,9 @@ end
 // output reg	[6:0]	drop_num;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) drop_num <= 7'd0;
-    else if (current_state == S_OUTPUT && drop_cnt < drop_num_reg) begin
+    else if (current_state == S_OUTPUT && drop_cnt < prev_drop_num_reg) begin
         if (pt_cnt <= 3) drop_num <= 7'd0;
-        else             drop_num <= drop_num_reg;
+        else             drop_num <= prev_drop_num_reg;
     end
     else drop_num <= 7'd0;
 end
@@ -426,8 +429,8 @@ always @(*) begin
     if (current_state == S_SOLVING && pt_cnt > 2) begin
         for (i = 0; i < 128; i = i + 1) begin
             if (i < hull_size && new_is_out != 0) begin
-                if      (cross_product_result[(i+hull_size-1)%hull_size] == 0 && cross_product_result[i] == 1) end_drop_idx = i;
-                else if (cross_product_result[(i+hull_size-1)%hull_size] == 1 && cross_product_result[i] == 0) start_drop_idx = i;
+                if      (cross_product_result[(i+hull_size-1)%hull_size] <= 0 && cross_product_result[i] == 1) end_drop_idx = i;
+                else if (cross_product_result[(i+hull_size-1)%hull_size] == 1 && cross_product_result[i] <= 0) start_drop_idx = i;
             end
         end
     end
