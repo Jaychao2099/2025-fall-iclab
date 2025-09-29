@@ -64,7 +64,7 @@ reg [8:0] pt_cnt;
 
 reg [9:0] hull_array_x [0:127], hull_array_y [0:127];
 reg [9:0] hull_array_x_reg [0:127], hull_array_y_reg [0:127];
-reg [6:0] hull_size;
+reg [7:0] hull_size;
 
 reg [9:0] drop_array_x [0:127], drop_array_y [0:127];
 reg [6:0] drop_num_reg;
@@ -76,7 +76,7 @@ wire new_is_out;
 
 reg signed [1:0] cross_product_result [0:127];
 wire signed [1:0] current_cp_result;
-reg [6:0] cal_cnt;
+reg [7:0] cal_cnt;
 reg [6:0] zero_cnt;
 reg [6:0] neg_cnt;
 
@@ -262,11 +262,11 @@ always @(*) begin
     end
 end
 
-// reg [6:0] hull_size;
+// reg [7:0] hull_size;     // 0 ~ 128
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                                   hull_size <= 7'd0;
-    else if (pt_cnt == pt_num_reg)                     hull_size <= 7'd0;
-    else if (current_state == S_SOLVING && pt_cnt < 3) hull_size <= hull_size + 7'd1;
+    if      (!rst_n)                                   hull_size <= 8'd0;
+    else if (pt_cnt == pt_num_reg)                     hull_size <= 8'd0;
+    else if (current_state == S_SOLVING && pt_cnt < 3) hull_size <= hull_size + 8'd1;
     else if (current_state == S_SOLVING)               hull_size <= hull_size + 1 - drop_num_reg;
     else                                               hull_size <= hull_size;
 end
@@ -346,14 +346,14 @@ end
 always @(*) begin
     // if (!rst_n) drop_num_reg <= 7'd0;
     if (current_state == S_SOLVING && new_is_out == 1'b1) begin      // drop 0 ~ n old dots
-        if (zero_cnt == 1 && neg_cnt == 0)       drop_num_reg <= 1;
-        else if (start_drop_idx > end_drop_idx)  drop_num_reg <= (hull_size - start_drop_idx) + (end_drop_idx) - 1;
-        else if (start_drop_idx != end_drop_idx) drop_num_reg <= end_drop_idx - start_drop_idx - 1;
-        else drop_num_reg <= 7'd0;
+        if (zero_cnt == 1 && neg_cnt == 0)       drop_num_reg = 1;
+        else if (start_drop_idx > end_drop_idx)  drop_num_reg = (hull_size - start_drop_idx) + (end_drop_idx) - 1;
+        else if (start_drop_idx != end_drop_idx) drop_num_reg = end_drop_idx - start_drop_idx - 1;
+        else drop_num_reg = 7'd0;
     end
-    else if (current_state == S_SOLVING)              drop_num_reg <= 7'd1;       // drop new dots
-    else if (current_state == S_OUTPUT && pt_cnt > 3) drop_num_reg <= prev_drop_num_reg;
-    else drop_num_reg <= 7'd0;
+    else if (current_state == S_SOLVING)              drop_num_reg = 7'd1;       // drop new dots
+    else if (current_state == S_OUTPUT && pt_cnt > 3) drop_num_reg = prev_drop_num_reg;
+    else drop_num_reg = 7'd0;
 end
 
 
@@ -454,12 +454,12 @@ assign current_cp_result = cross_product(in_x_reg                               
                                          hull_array_x_reg[(cal_cnt+1)%hull_size], hull_array_y_reg[(cal_cnt+1)%hull_size]);
 
 // reg signed [1:0] cross_product_result [0:127];
-// reg [6:0] cal_cnt;
+// reg [7:0] cal_cnt;
 always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
         for (i = 0; i < 128; i = i + 1) cross_product_result[i] <= 0;
-        cal_cnt <= 7'd0;
+        cal_cnt <= 8'd0;
         zero_cnt <= 7'd0;
         neg_cnt <= 7'd0;
     end
@@ -471,7 +471,7 @@ always @(posedge clk or negedge rst_n) begin
     end
     else if (current_state == S_CP && pt_cnt > 2 && cal_cnt < hull_size) begin
         cross_product_result[cal_cnt] <= current_cp_result;
-        cal_cnt <= cal_cnt + 7'd1;
+        cal_cnt <= cal_cnt + 8'd1;
         zero_cnt <= (current_cp_result == 0) ? zero_cnt + 7'd1 : zero_cnt;
         neg_cnt <= (current_cp_result == -1) ? neg_cnt + 7'd1 : neg_cnt;
     end

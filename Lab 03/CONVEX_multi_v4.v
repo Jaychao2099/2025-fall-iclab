@@ -44,11 +44,11 @@ output reg	[6:0]	drop_num;
 //---------------------------------------------------------------------
 //   PARAMETER & INTEGER DECLARATION
 //---------------------------------------------------------------------
-parameter S_IDLE    = 0;
-parameter S_CP      = 1;
-parameter S_SOLVING = 2;
-parameter S_REBUILD_HULL = 3;
-parameter S_OUTPUT  = 4;
+parameter S_IDLE         = 3'd0;
+parameter S_CP           = 3'd1;
+parameter S_SOLVING      = 3'd2;
+parameter S_REBUILD_HULL = 3'd3;
+parameter S_OUTPUT       = 3'd4;
 
 genvar g;
 
@@ -80,7 +80,7 @@ reg [6:0] drop_num_reg;
 reg [6:0] drop_cnt;
 
 reg [6:0] end_drop_idx, start_drop_idx;
-reg new_is_out;
+wire new_is_out;
 
 reg signed [1:0] cross_product_result [0:127];
 wire signed [1:0] current_cp_result;
@@ -128,7 +128,7 @@ endfunction
 // input [8:0] pt_num_reg;     // 4 ~ 500
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) pt_num_reg <= 9'd0;
-    else if (in_valid && pt_num > 0) pt_num_reg <= pt_num;
+    else if (in_valid && pt_cnt == 0) pt_num_reg <= pt_num;
     else pt_num_reg <= pt_num_reg;
 end
 
@@ -154,6 +154,9 @@ always @(posedge clk or negedge rst_n) begin
     else        current_state <= next_state;
 end
 
+wire output_done;
+assign output_done = (drop_cnt + 1 == drop_num_reg) || (drop_num_reg == 0) || (pt_cnt <= 3);
+
 // reg [2:0] next_state;
 always @(*) begin
     case (current_state)
@@ -174,7 +177,7 @@ always @(*) begin
             else                       next_state = S_REBUILD_HULL;
         end
         S_OUTPUT: begin
-            if (drop_cnt + 1 == drop_num_reg || drop_num_reg == 0 || pt_cnt <= 3) next_state = S_IDLE;
+            if (output_done) next_state = S_IDLE;
             else next_state = S_OUTPUT;   // drop_num_reg > 1
         end
         default: next_state = current_state;
@@ -183,10 +186,21 @@ end
 
 // reg [8:0] pt_cnt;
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                                          pt_cnt <= 9'd0;
-    else if (current_state == S_SOLVING)                      pt_cnt <= pt_cnt + 9'd1;
-    else if (current_state == S_IDLE && pt_cnt == pt_num_reg) pt_cnt <= 9'd0;
-    else                                                      pt_cnt <= pt_cnt;
+    if (!rst_n) pt_cnt <= 9'd0;
+    else begin
+        case (current_state)
+            S_IDLE: begin
+                if (pt_cnt == pt_num_reg) pt_cnt <= 9'd0;
+                else pt_cnt <= pt_cnt;
+            end
+            S_SOLVING: begin
+                pt_cnt <= pt_cnt + 9'd1;
+            end
+            default: begin
+                pt_cnt <= pt_cnt;
+            end
+        endcase
+    end
 end
 
 // ------------------------ data structure ------------------------
@@ -207,14 +221,34 @@ always @(posedge clk or negedge rst_n) begin
         read_ptr <= 8'd0;
         write_ptr <= 8'd0;
     end
-    else if (current_state == S_SOLVING) begin
-        read_ptr <= 8'd0;
-        write_ptr <= 8'd0;
+    else begin
+        case (current_state)
+            S_SOLVING: begin
+                read_ptr <= 8'd0;
+                write_ptr <= 8'd0;
+            end
+            S_REBUILD_HULL: begin
+                read_ptr <= read_ptr + 1;
+                write_ptr <= write_ptr + {7'b0, ~is_dropped} + {7'b0, insert_new};
+            end
+            default: begin
+                read_ptr <= read_ptr;
+                write_ptr <= write_ptr;
+            end
+        endcase
     end
-    else if (current_state == S_REBUILD_HULL) begin
-        read_ptr <= read_ptr + 1;
-        write_ptr <= write_ptr + {7'b0, ~is_dropped} + {7'b0, insert_new};
-    end
+    // else if (current_state == S_SOLVING) begin
+    //     read_ptr <= 8'd0;
+    //     write_ptr <= 8'd0;
+    // end
+    // else if (current_state == S_REBUILD_HULL) begin
+    //     read_ptr <= read_ptr + 1;
+    //     write_ptr <= write_ptr + {7'b0, ~is_dropped} + {7'b0, insert_new};
+    // end
+    // else begin
+    //     read_ptr <= read_ptr;
+    //     write_ptr <= write_ptr;
+    // end
 end
 
 // reg [9:0] hull_array_x_reg [0:127], hull_array_y_reg [0:127];
@@ -226,12 +260,6 @@ always @(posedge clk or negedge rst_n) begin
             hull_array_y_reg[i] <= 10'd0;
         end
     end
-    // else if (current_state == S_IDLE && pt_cnt == pt_num_reg) begin
-    //     for (i = 0; i < 128; i = i + 1) begin
-    //         hull_array_x_reg[i] <= 10'd0;
-    //         hull_array_y_reg[i] <= 10'd0;
-    //     end
-    // end
     else if (current_state == S_SOLVING && pt_cnt < 3 || (next_state == S_OUTPUT && current_state == S_REBUILD_HULL)) begin    // write back
         hull_array_x_reg <= hull_array_x_temp;
         hull_array_y_reg <= hull_array_y_temp;
@@ -257,7 +285,7 @@ always @(posedge clk or negedge rst_n) begin
             hull_array_y[i] <= 10'd0;
         end
     end
-    if (current_state == S_SOLVING || current_state == S_REBUILD_HULL) begin
+    else if (current_state == S_SOLVING || current_state == S_REBUILD_HULL) begin
         hull_array_x <= hull_array_x_temp;
         hull_array_y <= hull_array_y_temp;
     end
@@ -400,8 +428,6 @@ always @(posedge clk or negedge rst_n) begin
     if (!rst_n) drop_num <= 7'd0;
     else if (current_state == S_OUTPUT && drop_cnt < drop_num_reg && pt_cnt > 3) begin
         drop_num <= drop_num_reg;
-        // if (pt_cnt <= 3) drop_num <= 7'd0;
-        // else             drop_num <= drop_num_reg;
     end
     else drop_num <= 7'd0;
 end
@@ -446,10 +472,8 @@ assign current_cp_result = cross_product(in_x_reg                               
                                          hull_array_x_reg[cal_cnt]              , hull_array_y_reg[cal_cnt],
                                          hull_array_x_reg[(cal_cnt+1)%hull_size], hull_array_y_reg[(cal_cnt+1)%hull_size]);
 
-// reg new_is_out;
-always @(*) begin
-    new_is_out = (zero_cnt > 8'd0 || neg_cnt > 8'd0) && (zero_cnt != 8'd2 || neg_cnt != 8'd0) && (zero_cnt != 8'd1 || neg_cnt != 8'd0);
-end
+// wire new_is_out;
+assign new_is_out = (zero_cnt > 8'd0 || neg_cnt > 8'd0) && (zero_cnt != 8'd2 || neg_cnt != 8'd0) && (zero_cnt != 8'd1 || neg_cnt != 8'd0);
 
 // reg signed [1:0] cross_product_result [0:127];
 // reg [7:0] cal_cnt;

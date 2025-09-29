@@ -106,6 +106,10 @@ end
 //---------------------------------------------------------------------
 initial begin
     file_descriptor = $fopen("../00_TESTBED/input.txt", "r");
+    // file_descriptor = $fopen("../00_TESTBED/input_100.txt", "r");
+    // file_descriptor = $fopen("../00_TESTBED/simple_generated.txt", "r");
+    // file_descriptor = $fopen("../00_TESTBED/multi_scale.txt", "r");
+
     if (file_descriptor == 0) begin
         $display("[ERROR] Could not open input.txt. Simulation aborted.");
         $finish;

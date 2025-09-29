@@ -41,9 +41,11 @@ input    [6:0]    drop_num;
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 integer SEED = 54875487;
 parameter DEBUG = 1; // show information in detail
-integer NUM_OF_RANDOM_PATTERN = 1000; // Only supported in MODE = 1
+integer NUM_OF_RANDOM_PATTERN = 100; // Only supported in MODE = 1
 parameter INPUT_FILE_NAME = "../00_TESTBED/input.txt";
-parameter MODE = 1; // 0 : use input.txt, 1 : use random
+// parameter INPUT_FILE_NAME = "../00_TESTBED/input_100.txt";
+// parameter MODE = 1; // 0 : use input.txt, 1 : use random
+parameter MODE = 0; // 0 : use input.txt, 1 : use random
 
 // Graph
 parameter GRAPH_SHIFT = 100;
@@ -68,19 +70,33 @@ real CYCLE = `CYCLE_TIME;
 
 // String control
 // Should use %0s
-reg[9*8:1]  reset_color       = "\033[1;0m";
-reg[10*8:1] txt_black_prefix  = "\033[1;30m";
-reg[10*8:1] txt_red_prefix    = "\033[1;31m";
-reg[10*8:1] txt_green_prefix  = "\033[1;32m";
-reg[10*8:1] txt_yellow_prefix = "\033[1;33m";
-reg[10*8:1] txt_blue_prefix   = "\033[1;34m";
+// reg[9*8:1]  reset_color       = "\033[1;0m";
+// reg[10*8:1] txt_black_prefix  = "\033[1;30m";
+// reg[10*8:1] txt_red_prefix    = "\033[1;31m";
+// reg[10*8:1] txt_green_prefix  = "\033[1;32m";
+// reg[10*8:1] txt_yellow_prefix = "\033[1;33m";
+// reg[10*8:1] txt_blue_prefix   = "\033[1;34m";
 
-reg[10*8:1] bkg_black_prefix  = "\033[40;1m";
-reg[10*8:1] bkg_red_prefix    = "\033[41;1m";
-reg[10*8:1] bkg_green_prefix  = "\033[42;1m";
-reg[10*8:1] bkg_yellow_prefix = "\033[43;1m";
-reg[10*8:1] bkg_blue_prefix   = "\033[44;1m";
-reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
+// reg[10*8:1] bkg_black_prefix  = "\033[40;1m";
+// reg[10*8:1] bkg_red_prefix    = "\033[41;1m";
+// reg[10*8:1] bkg_green_prefix  = "\033[42;1m";
+// reg[10*8:1] bkg_yellow_prefix = "\033[43;1m";
+// reg[10*8:1] bkg_blue_prefix   = "\033[44;1m";
+// reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
+
+reg[9*8:1]  reset_color       = "";
+reg[10*8:1] txt_black_prefix  = "";
+reg[10*8:1] txt_red_prefix    = "";
+reg[10*8:1] txt_green_prefix  = "";
+reg[10*8:1] txt_yellow_prefix = "";
+reg[10*8:1] txt_blue_prefix   = "";
+
+reg[10*8:1] bkg_black_prefix  = "";
+reg[10*8:1] bkg_red_prefix    = "";
+reg[10*8:1] bkg_green_prefix  = "";
+reg[10*8:1] bkg_yellow_prefix = "";
+reg[10*8:1] bkg_blue_prefix   = "";
+reg[10*8:1] bkg_white_prefix  = "";
 
 //=====================================================================
 //   ALGORITHM
