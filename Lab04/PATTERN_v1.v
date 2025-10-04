@@ -42,14 +42,14 @@ module PATTERN(
 //---------------------------------------------------------------------
 //   PORT DECLARATION          
 //---------------------------------------------------------------------
-output         clk, rst_n, in_valid;
-output [31:0]  Image;
-output [31:0]  Kernel_ch1;
-output [31:0]  Kernel_ch2;
-output [31:0]  Weight_Bias;
-output         task_number;
-output [1:0]   mode;
-output [3:0]   capacity_cost;
+output reg          clk, rst_n, in_valid;
+output reg [31:0]   Image;
+output reg [31:0]   Kernel_ch1;
+output reg [31:0]   Kernel_ch2;
+output reg [31:0]   Weight_Bias;
+output reg          task_number;
+output reg [1:0]    mode;
+output reg [3:0]    capacity_cost;
 
 input           out_valid;
 input   [31:0]  out;
@@ -119,7 +119,8 @@ end
 //---------------------------------------------------------------------
 //   TASKS for Modular Design
 //---------------------------------------------------------------------
-task reset_task; begin
+task reset_task;
+begin
     force clk = 1'b0;
     rst_n = 1'b1;
     in_valid = 1'b0;
@@ -129,12 +130,11 @@ task reset_task; begin
     Weight_Bias = 32'hxxxxxxxx;
     task_number = 1'bx;
     mode = 2'bxx;
-    capacity_cost = 4'hdx;
+    capacity_cost = 4'hx;
     
     #(`CYCLE_TIME * 2);
     rst_n = 1'b0;
     #(`CYCLE_TIME * 2);
-    rst_n = 1'b1;
 
     // Specification Assertion: Check if outputs are reset to 0
     if (out_valid !== 1'b0 || out !== 32'b0) begin
@@ -144,13 +144,20 @@ task reset_task; begin
         $display("************************************************************");
         $finish;
     end
+
+    rst_n = 1'b1;
+    #(`CYCLE_TIME);
     release clk;
-end endtask
+end
+endtask
 
 task generate_stimulus_task;
     integer i, j, k;
 begin
-    task_number_s = $urandom_range(0, 1);
+    // task_number_s = $urandom_range(0, 1);
+    task_number_s = 1'b0;
+    // task_number_s = 1'b1;
+
     mode_s = $urandom_range(0, 3);
     
     if (task_number_s == 1'b0) begin // Task 0
@@ -210,7 +217,8 @@ begin
         capacity_cost_s[3] = cost_g[2];
         capacity_cost_s[4] = cost_g[3];
     end
-end endtask
+end
+endtask
 
 task calculate_golden_model_task;
     // Layer arrays
@@ -232,7 +240,7 @@ begin
         end
 
         // --- Stage 2: Convolution (6x6x2) ---
-        for (ch = 0; ch < 2; ch = ch + 1) {conv_out[ch]} = '{default:0.0};
+        for (ch = 0; ch < 2; ch = ch + 1) conv_out[ch] = '{default:0.0};
         // Kernel 0
         for (pr=0; pr<6; pr=pr+1) for(pc=0; pc<6; pc=pc+1) for (kr=0; kr<3; kr=kr+1) for(kc=0; kc<3; kc=kc+1) begin
             conv_out[0][pr][pc] = conv_out[0][pr][pc] + padded_image[0][pr+kr][pc+kc] * kernel_ch1_g[0][kr][kc];
@@ -261,23 +269,23 @@ begin
         fc1_in[4] = activation_out[1][0][0]; fc1_in[5] = activation_out[1][0][1];
         fc1_in[6] = activation_out[1][1][0]; fc1_in[7] = activation_out[1][1][1];
 
-        for (i=0; i<5; i=i+1) {
+        for (i=0; i<5; i=i+1) begin
             fc1_out[i] = weight_bias_g[i*8+8]; // bias
-            for (j=0; j<8; j=j+1) {
+            for (j=0; j<8; j=j+1) begin
                 fc1_out[i] = fc1_out[i] + fc1_in[j] * weight_bias_g[i*8+j];
-            }
-        }
+            end
+        end
         
         // --- Stage 6: Leaky ReLU ---
         for (i=0; i<5; i=i+1) leaky_relu_out[i] = (fc1_out[i] < 0) ? 0.01 * fc1_out[i] : fc1_out[i];
 
         // --- Stage 7: Fully Connected Layer 2 (5 -> 3) ---
-        for (i=0; i<3; i=i+1) {
+        for (i=0; i<3; i=i+1) begin
             fc2_out[i] = weight_bias_g[40 + i*5 + 5]; // bias
-            for (j=0; j<5; j=j+1) {
+            for (j=0; j<5; j=j+1) begin
                 fc2_out[i] = fc2_out[i] + leaky_relu_out[j] * weight_bias_g[40 + i*5+j];
-            }
-        }
+            end
+        end
         
         // --- Stage 8: Softmax ---
         perform_softmax(fc2_out, golden_out_task0);
@@ -312,18 +320,20 @@ begin
             end
         end
     end
-end endtask
+end
+endtask
 
 task drive_and_check_task;
     integer i;
     real your_real, golden_real, abs_error;
+    reg [31:0] golden_bits;
 begin
     // Insert random delay (timing jitter) before starting
     repeat($urandom_range(2, 5)) @(negedge clk);
     
     // Drive inputs
+    @(negedge clk);
     in_valid = 1'b1;
-    @(negedge clk); 
     task_number = task_number_s;
     mode = mode_s;
     if (task_number_s == 1'b0) begin // Task 0
@@ -333,7 +343,12 @@ begin
                 Kernel_ch1 = kernel_ch1_s[i];
                 Kernel_ch2 = kernel_ch2_s[i];
             end
+            if (i >= 18) begin
+                Kernel_ch1 = 32'hxxxxxxxx;
+                Kernel_ch2 = 32'hxxxxxxxx;
+            end
             if (i < 57) Weight_Bias = weight_bias_s[i];
+            if (i >= 57) Weight_Bias = 32'hxxxxxxxx;
             if (i > 0) begin task_number = 1'bx; mode = 2'bxx; end
             @(negedge clk);
         end
@@ -344,12 +359,18 @@ begin
                 Kernel_ch1 = kernel_ch1_s[i];
                 Kernel_ch2 = kernel_ch2_s[i];
             end
+            if (i >= 18) begin
+                Kernel_ch1 = 32'hxxxxxxxx;
+                Kernel_ch2 = 32'hxxxxxxxx;
+            end
             if (i < 5) capacity_cost = capacity_cost_s[i];
+            if (i >= 5) capacity_cost = 4'hx;
             if (i > 0) begin task_number = 1'bx; mode = 2'bxx; end
             @(negedge clk);
         end
     end
     in_valid = 1'b0;
+    Image = 32'hxxxxxxxx;
 
     // Wait for output and check
     latency_counter = 0;
@@ -383,12 +404,14 @@ begin
             golden_real = golden_out_task0[i];
             abs_error = (your_real > golden_real) ? (your_real - golden_real) : (golden_real - your_real);
 
+            golden_bits = real_to_bits(golden_real);
+
             if (abs_error > `ERROR_TOLERANCE) begin
                 $display("*********************** TASK 0 FAIL ***********************");
-                $strobe("Pattern %d, Output index %d", i_pat, i);
-                $strobe("Your result (real) : %f", your_real);
-                $strobe("Golden result (real): %f", golden_real);
-                $strobe("Absolute Error     : %f > %f", abs_error, `ERROR_TOLERANCE);
+                $display("Pattern %d, Output index %d", i_pat, i);
+                $display("Your result (real) : %f (%h)", your_real, out);
+                $display("Golden result (real): %f (%h)", golden_real, golden_bits);
+                $display("Absolute Error     : %f > %f", abs_error, `ERROR_TOLERANCE);
                 $display("*********************************************************");
                 $finish;
             end
@@ -397,9 +420,9 @@ begin
     end else begin // Task 1 check
         if (out[3:0] !== golden_out_task1) begin
             $display("*********************** TASK 1 FAIL ***********************");
-            $strobe("Pattern %d", i_pat);
-            $strobe("Your result  : 4'b%b", out[3:0]);
-            $strobe("Golden result: 4'b%b", golden_out_task1);
+            $display("Pattern %d", i_pat);
+            $display("Your result  : 4'b%b", out[3:0]);
+            $display("Golden result: 4'b%b", golden_out_task1);
             $display("*********************************************************");
             $finish;
         end
@@ -411,9 +434,11 @@ begin
         $display("FAIL! 'out' signal should be zero after 'out_valid' is pulled down.");
         $finish;
     end
-end endtask
+end
+endtask
 
-task pass_task; begin
+task pass_task;
+begin
     $display ("----------------------------------------------------------------------------------------------------------------------");
     $display ("                                                  Congratulations!                                                    ");
     $display ("                                           You have passed all %4d patterns!                                            ", `PAT_NUM);
@@ -421,7 +446,8 @@ task pass_task; begin
     $display ("                                           Your clock period = %.1f ns                                                ", CYCLE);
     $display ("----------------------------------------------------------------------------------------------------------------------");     
     $finish;
-end endtask
+end
+endtask
 
 //---------------------------------------------------------------------
 //   HELPER FUNCTIONS
@@ -543,7 +569,7 @@ function real run_cnn_task1;
     integer r, c, kr, kc;
 begin
     perform_padding(image, padded_image);
-    {conv_out} = '{default:0.0};
+    conv_out = '{default:0.0};
     for(r=0; r<6; r=r+1) for(c=0; c<6; c=c+1) for(kr=0; kr<3; kr=kr+1) for(kc=0; kc<3; kc=kc+1) begin
         conv_out[r][c] = conv_out[r][c] + padded_image[r+kr][c+kc] * kernel[kr][kc];
     end
