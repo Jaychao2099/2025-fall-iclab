@@ -45,10 +45,10 @@ integer   SIMPLE_PATNUM = 100;
 // Make sure the number should be with decimal point XXX.0
 real      MIN_RANGE_OF_INPUT = -0.5;
 real      MAX_RANGE_OF_INPUT = 0.5;
-parameter PRECISION_OF_RANDOM_EXPONENT = -127; // 2^(PRECISION_OF_RANDOM_EXPONENT) ~ the exponent of MAX_RANGE_OF_INPUT
+// parameter PRECISION_OF_RANDOM_EXPONENT = -5; // 2^(PRECISION_OF_RANDOM_EXPONENT) ~ the exponent of MAX_RANGE_OF_INPUT
 // <<<<< General Pattern Parameter
 integer   SEED = 5487;
-parameter DEBUG = 0;
+parameter DEBUG = 1;
 parameter DEBUG_ASSIGN_TASK = 1; // Only for DEBUG = 2
 parameter DEBUG_ASSIGN_MODE = 0; // Only for DEBUG = 2
 parameter INPUT_HEX_CSV = "input_hex.csv";
@@ -58,7 +58,6 @@ parameter OUTPUT_FLOAT_CSV = "output_float.csv";
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 real      CYCLE = `CYCLE_TIME;
 parameter MAX_EXECUTION_CYCLE = 150;
-parameter OUTNUM = 3;
 
 parameter inst_sig_width = 23;
 parameter inst_exp_width = 8;
@@ -93,12 +92,7 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 //      DATA MODEL
 //=====================================================================
 // Parameter
-// Display
-parameter DISPLAY_ELEMENT_SIZE = 3;
-parameter DISPLAY_NUM_OF_SPACE = 2;
-parameter DISPLAY_NUM_OF_SEP = 2;
-
-// Parameter
+real RAND_DIVISOR = (2.0**32) - 1.0;
 // Input
 parameter NUM_OF_TASK = 2;
 parameter NUM_OF_MODE = 4;
@@ -219,8 +213,11 @@ initial exe_task;
 task exe_task; begin
     reset_task;
     for (pat=0 ; pat<TOTAL_PATNUM ; pat=pat+1) begin
-        input_task;
+        pre_generate_input_task;
         cal_task;
+        post_fix_input_task;
+        cal_task;
+        input_task;
         wait_task;
         check_task;
     end
@@ -352,104 +349,17 @@ begin
     end
     else begin
         // Capacity
-        flag = 0;
         for(num=0 ; num<NUM_OF_CAPACITY ; num=num+1) begin
-            _capacity[num] = $urandom() % (2**BITS_OF_CAPACITY);
-        end
-        for(num=1 ; num<NUM_OF_CAPACITY ; num=num+1) begin
-            flag = flag | (_capacity[num]<=_capacity[0]);
-        end
-        while(flag === 'd0) begin
-            for(num=0 ; num<NUM_OF_CAPACITY ; num=num+1) begin
-                _capacity[num] = $urandom() % (2**BITS_OF_CAPACITY);
-            end
-            for(num=1 ; num<NUM_OF_CAPACITY ; num=num+1) begin
-                flag = flag | (_capacity[num]<=_capacity[0]);
-            end
+            _capacity[num] = $urandom() % (2**BITS_OF_CAPACITY-1) + 1;
         end
     end
 end endtask
 
-task input_task;
-    integer count;
-    integer count_new;
-    integer num,row,col;
-begin
+task pre_generate_input_task; begin
     clear_data;
     randomize_input;
     record_pad;
-
-    repeat(($urandom() % 3) + 2) @(negedge clk);
-
-    count = 0;
-    for(num=0 ; num<_cur_num_of_image ; num=num+1) begin
-        for(row=0 ; row<SIZE_OF_IMAGE ; row=row+1) begin
-            for(col=0 ; col<SIZE_OF_IMAGE ; col=col+1) begin
-                in_valid = 'd1;
-                if(count === 'd0) begin
-                    task_number = _task_number;
-                    mode = _mode;
-                end
-                else begin
-                    task_number = 'dx;
-                    mode = 'dx;
-                end
-
-                Image = _img[num][row][col];
-                
-                if(count < NUM_OF_KERNEL_IN_CH*SIZE_OF_KERNEL*SIZE_OF_KERNEL) begin
-                    Kernel_ch1 = _kernel[1][count/(SIZE_OF_KERNEL*SIZE_OF_KERNEL)+1][count%(SIZE_OF_KERNEL*SIZE_OF_KERNEL)/SIZE_OF_KERNEL][count%SIZE_OF_KERNEL];
-                    Kernel_ch2 = _kernel[2][count/(SIZE_OF_KERNEL*SIZE_OF_KERNEL)+1][count%(SIZE_OF_KERNEL*SIZE_OF_KERNEL)/SIZE_OF_KERNEL][count%SIZE_OF_KERNEL];
-                end
-                else begin
-                    Kernel_ch1 = 'dx;
-                    Kernel_ch2 = 'dx;
-                end
-
-                if(_task_number === 'd0) begin
-                    if(count < (NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1)) begin
-                        Weight_Bias = _weight1[count/SIZE_OF_WEIGHT1][count%SIZE_OF_WEIGHT1];
-                    end
-                    else if(count < (NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 + NUM_OF_BIAS1)) begin
-                        count_new = count - NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1;
-                        Weight_Bias = _bias1[count_new%NUM_OF_BIAS1];
-                    end
-                    else if(count < (NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 + NUM_OF_BIAS1 + NUM_OF_WEIGHT2*SIZE_OF_WEIGHT2)) begin
-                        count_new = count - NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 - NUM_OF_BIAS1;
-                        Weight_Bias = _weight2[count_new/SIZE_OF_WEIGHT2][count_new%SIZE_OF_WEIGHT2];
-                    end
-                    else if(count < (NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 + NUM_OF_BIAS1 + NUM_OF_WEIGHT2*SIZE_OF_WEIGHT2 + NUM_OF_BIAS2)) begin
-                        count_new = count - NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 - NUM_OF_BIAS1 - NUM_OF_WEIGHT2*SIZE_OF_WEIGHT2;
-                        Weight_Bias = _bias2[count_new%NUM_OF_BIAS2];
-                    end
-                    else begin
-                        Weight_Bias = 'dx;
-                    end
-                end
-                else begin
-                    if(count < NUM_OF_CAPACITY) begin
-                        capacity_cost = _capacity[count];
-                    end
-                    else begin
-                        capacity_cost = 'dx;
-                    end
-                end
-
-                count = count + 1;
-                @(negedge clk);
-            end
-        end
-    end
-    in_valid ='d0;
-    task_number = 'dx;
-    mode = 'dx;
-    Image = 'dx;
-    Kernel_ch1 = 'dx;
-    Kernel_ch2 ='dx;
-    Weight_Bias = 'dx;
-    capacity_cost = 'dx;
 end endtask
-
 
 task record_pad;
     integer num;
@@ -472,7 +382,7 @@ begin
         end
     end
 
-    if(_mode==='d1 || _mode==='d1) begin
+    if(_mode==='d0 || _mode==='d1) begin
         for(num=0 ; num<_cur_num_of_image ; num=num+1) begin
             for(row=1 ; row<=SIZE_OF_PAD-1 ; row=row+1) begin
                 _pad[num][row][0] = _img[num][row-1][0];
@@ -505,8 +415,6 @@ begin
         end
     end
 end endtask
-
-
 
 // Task 0
 task record_convolution0;
@@ -613,10 +521,12 @@ begin
         for(channel=0 ; channel<SIZE_OF_CONV_SUM ; channel=channel+1) begin
             if(_capacity[channel+1]<=total_cost) begin
                 for(cost=total_cost ; cost>=0 ; cost=cost-1) begin
-                    candidate = _dp[num][cost - _capacity[channel+1]] + float_bits_to_real(_convolution1_sum[num][channel]);
-                    if(candidate > _dp[num][cost]) begin
-                        _dp[num][cost] = candidate;
-                        _select_channels[num][cost] = _select_channels[num][cost - _capacity[channel+1]] | (1 << (SIZE_OF_CONV_SUM-1-channel));
+                    if(cost>=_capacity[channel+1]) begin
+                        candidate = _dp[num][cost - _capacity[channel+1]] + float_bits_to_real(_convolution1_sum[num][channel]);
+                        if(candidate > _dp[num][cost]) begin
+                            _dp[num][cost] = candidate;
+                            _select_channels[num][cost] = _select_channels[num][cost - _capacity[channel+1]] | (1 << (SIZE_OF_CONV_SUM-1-channel));
+                        end
                     end
                 end
             end
@@ -645,6 +555,153 @@ task cal_task; begin
         export_output_to_csv(1);
     end
     @(posedge clk);
+end endtask
+
+task post_fix_input_task;
+    integer flag;
+    integer num, kernel, kernel_num, channel, row, col;
+begin
+    /*
+        Based on the spec, we need to do validation checks on the input data.
+        If the values violate the spec, they must be regenerated randomly.
+    */
+    // @Task 1
+    if(_task_number === 'd1) begin
+        /*
+            @Capacity
+            @Description :
+                There must exist a cost less than capacity
+            @Workaround :
+                Regnerate capcacity until it meet the spec
+        */
+        flag = 0;
+        for(num=1 ; num<NUM_OF_CAPACITY ; num=num+1) begin
+            flag = flag | (_capacity[num]<=_capacity[0]);
+        end
+        while(flag === 'd0) begin
+            // Capacity
+            for(num=0 ; num<NUM_OF_CAPACITY ; num=num+1) begin
+                _capacity[num] = $urandom() % (2**BITS_OF_CAPACITY-1) + 1;
+            end
+            // Check
+            for(num=1 ; num<NUM_OF_CAPACITY ; num=num+1) begin
+                flag = flag | (_capacity[num]<=_capacity[0]);
+            end
+        end
+
+        /*
+            @Convolution Sum
+            @Description :
+                Every channel's sum shouldn't be zero.
+            @Workaround :
+                Regenerate image or kernel until it meet the spec
+        */
+        for(num=0 ; num<NUM_OF_IMAGE_TASK1 ; num=num+1) begin
+            for(kernel=0 ; kernel<SIZE_OF_CONV_SUM ; kernel=kernel+1) begin
+                if(_convolution1_sum[num][kernel] === 0) begin
+                    flag = 0;
+                    while(flag === 'd0) begin
+                        // Input
+                        for(row=0 ; row<SIZE_OF_IMAGE ; row=row+1) begin
+                            for(col=0 ; col<SIZE_OF_IMAGE ; col=col+1) begin
+                                _img[num][row][col] = generate_rand_input(pat < SIMPLE_PATNUM);
+                            end
+                        end
+                        // Kernel
+                        for(channel=1 ; channel<=NUM_OF_KERNEL_CH ; channel=channel+1) begin
+                            for(kernel_num=1 ; kernel_num<=NUM_OF_KERNEL_IN_CH ; kernel_num=kernel_num+1) begin
+                                for(row=0 ; row<SIZE_OF_KERNEL ; row=row+1) begin
+                                    for(col=0 ; col<SIZE_OF_KERNEL ; col=col+1) begin
+                                        _kernel[channel][kernel_num][row][col] = generate_rand_input(pat < SIMPLE_PATNUM);
+                                    end
+                                end
+                            end
+                        end
+                        // Check
+                        #0;
+                        cal_task;
+                        flag = (_convolution1_sum[num][kernel] !== 0) ? 1 : 0;
+                    end
+                end
+            end
+        end
+    end
+end endtask
+
+task input_task;
+    integer count;
+    integer count_new;
+    integer num,row,col;
+begin
+    repeat(($urandom() % 3) + 2) @(negedge clk);
+
+    count = 0;
+    for(num=0 ; num<_cur_num_of_image ; num=num+1) begin
+        for(row=0 ; row<SIZE_OF_IMAGE ; row=row+1) begin
+            for(col=0 ; col<SIZE_OF_IMAGE ; col=col+1) begin
+                in_valid = 'd1;
+                if(count === 'd0) begin
+                    task_number = _task_number;
+                    mode = _mode;
+                end
+                else begin
+                    task_number = 'dx;
+                    mode = 'dx;
+                end
+
+                Image = _img[num][row][col];
+                
+                if(count < NUM_OF_KERNEL_IN_CH*SIZE_OF_KERNEL*SIZE_OF_KERNEL) begin
+                    Kernel_ch1 = _kernel[1][count/(SIZE_OF_KERNEL*SIZE_OF_KERNEL)+1][count%(SIZE_OF_KERNEL*SIZE_OF_KERNEL)/SIZE_OF_KERNEL][count%SIZE_OF_KERNEL];
+                    Kernel_ch2 = _kernel[2][count/(SIZE_OF_KERNEL*SIZE_OF_KERNEL)+1][count%(SIZE_OF_KERNEL*SIZE_OF_KERNEL)/SIZE_OF_KERNEL][count%SIZE_OF_KERNEL];
+                end
+                else begin
+                    Kernel_ch1 = 'dx;
+                    Kernel_ch2 = 'dx;
+                end
+
+                if(_task_number === 'd0) begin
+                    if(count < (NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1)) begin
+                        Weight_Bias = _weight1[count/SIZE_OF_WEIGHT1][count%SIZE_OF_WEIGHT1];
+                    end
+                    else if(count < (NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 + NUM_OF_BIAS1)) begin
+                        count_new = count - NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1;
+                        Weight_Bias = _bias1[count_new%NUM_OF_BIAS1];
+                    end
+                    else if(count < (NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 + NUM_OF_BIAS1 + NUM_OF_WEIGHT2*SIZE_OF_WEIGHT2)) begin
+                        count_new = count - NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 - NUM_OF_BIAS1;
+                        Weight_Bias = _weight2[count_new/SIZE_OF_WEIGHT2][count_new%SIZE_OF_WEIGHT2];
+                    end
+                    else if(count < (NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 + NUM_OF_BIAS1 + NUM_OF_WEIGHT2*SIZE_OF_WEIGHT2 + NUM_OF_BIAS2)) begin
+                        count_new = count - NUM_OF_WEIGHT1*SIZE_OF_WEIGHT1 - NUM_OF_BIAS1 - NUM_OF_WEIGHT2*SIZE_OF_WEIGHT2;
+                        Weight_Bias = _bias2[count_new%NUM_OF_BIAS2];
+                    end
+                    else begin
+                        Weight_Bias = 'dx;
+                    end
+                end
+                else begin
+                    if(count < NUM_OF_CAPACITY) begin
+                        capacity_cost = _capacity[count];
+                    end
+                    else begin
+                        capacity_cost = 'dx;
+                    end
+                end
+
+                count = count + 1;
+                @(negedge clk);
+            end
+        end
+    end
+    in_valid ='d0;
+    task_number = 'dx;
+    mode = 'dx;
+    Image = 'dx;
+    Kernel_ch1 = 'dx;
+    Kernel_ch2 ='dx;
+    Weight_Bias = 'dx;
+    capacity_cost = 'dx;
 end endtask
 
 task wait_task; begin
@@ -742,8 +799,6 @@ begin
             display_full_seperator;
             $display("      Output err is over %1.8f (%8h)", float_bits_to_real(_err_allow), _err_allow);
             for(num=0 ; num<NUM_OF_OUTPUT_TASK0 ; num=num+1) begin
-                _err_diff[num] = _err_diff_w[num];
-                _err_flag[num] = _err_flag_w[num];
                 $display("          Err Difference : %8.7f / %8h", float_bits_to_real(_err_diff[num]), _err_diff[num]);
                 $display("          Err Check      : %d", _err_flag[num]);
                 $display("          Your           : %8.7f / %8h", float_bits_to_real(_your_task0_output[num]), _your_task0_output[num]);
@@ -1167,35 +1222,38 @@ begin
             $finish;
         end
 
-        min_float_bits = real_to_float_bits(MIN_RANGE_OF_INPUT);
-        max_float_bits = real_to_float_bits(MAX_RANGE_OF_INPUT);
+        // min_float_bits = real_to_float_bits(MIN_RANGE_OF_INPUT);
+        // max_float_bits = real_to_float_bits(MAX_RANGE_OF_INPUT);
 
-        // Randomize 
-        range = MAX_RANGE_OF_INPUT - MIN_RANGE_OF_INPUT;
-        range_float_bits = real_to_float_bits(range);
-        random_exponent = (PRECISION_OF_RANDOM_EXPONENT+(2**(inst_exp_width-1)-1));
-        // (-127) + random_exponent = PRECISION_OF_RANDOM_EXPONENT
-        // => random_exponent = PRECISION_OF_RANDOM_EXPONENT + 127
-        // => random_exponent = PRECISION_OF_RANDOM_EXPONENT + (2**(inst_exp_width-1)-1)
-        if(range_float_bits[inst_sig_width+:inst_exp_width] < random_exponent) begin
-            $display("[ERROR] [PARAMETER] The PRECISION_OF_RANDOM_EXPONENT is larger than the expoent of your setting range(MAX_RANGE_OF_INPUT-MIN_RANGE_OF_INPUT)");
-            $finish;
-        end
+        // // Randomize 
+        // range = MAX_RANGE_OF_INPUT - MIN_RANGE_OF_INPUT;
+        // range_float_bits = real_to_float_bits(range);
+        // random_exponent = (PRECISION_OF_RANDOM_EXPONENT+(2**(inst_exp_width-1)-1));
+        // // (-127) + random_exponent = PRECISION_OF_RANDOM_EXPONENT
+        // // => random_exponent = PRECISION_OF_RANDOM_EXPONENT + 127
+        // // => random_exponent = PRECISION_OF_RANDOM_EXPONENT + (2**(inst_exp_width-1)-1)
+        // if(range_float_bits[inst_sig_width+:inst_exp_width] < random_exponent) begin
+        //     $display("[ERROR] [PARAMETER] The PRECISION_OF_RANDOM_EXPONENT is larger than the expoent of your setting range(MAX_RANGE_OF_INPUT-MIN_RANGE_OF_INPUT)");
+        //     $finish;
+        // end
 
-        /*
-        Intuitive method
-            @issue : not even distribution -> workaround : use a parameter to control precision by user
-        */
-        generate_rand_input = 0;
-        generate_rand_input[inst_sig_width+:inst_exp_width] = $urandom() % (range_float_bits[inst_sig_width+:inst_exp_width] + 1 - random_exponent) + random_exponent;
-        generate_rand_input[(inst_sig_width-1):0] = 
-            (generate_rand_input[inst_sig_width+:inst_exp_width] !== range_float_bits[inst_sig_width+:inst_exp_width]) ? $urandom() % (2**inst_sig_width)
-            : range_float_bits[(inst_sig_width-1):0] !== 0 ? $urandom() % (range_float_bits[(inst_sig_width-1):0])
-            : 0;
+        // /*
+        // Intuitive method
+        //     @issue : not even distribution -> workaround : use a parameter to control precision by user
+        // */
+        // generate_rand_input = 0;
+        // generate_rand_input[inst_sig_width+:inst_exp_width] = $urandom() % (range_float_bits[inst_sig_width+:inst_exp_width] + 1 - random_exponent) + random_exponent;
+        // generate_rand_input[(inst_sig_width-1):0] = 
+        //     (generate_rand_input[inst_sig_width+:inst_exp_width] !== range_float_bits[inst_sig_width+:inst_exp_width]) ? $urandom() % (2**inst_sig_width)
+        //     : range_float_bits[(inst_sig_width-1):0] !== 0 ? $urandom() % (range_float_bits[(inst_sig_width-1):0])
+        //     : 0;
 
-        // Add increment on minimal value
-        rand_out = float_bits_to_real(generate_rand_input);
-        rand_out = MIN_RANGE_OF_INPUT + rand_out;
+        // // Add increment on minimal value
+        // rand_out = float_bits_to_real(generate_rand_input);
+        // rand_out = MIN_RANGE_OF_INPUT + rand_out;
+        // generate_rand_input = real_to_float_bits(rand_out);
+
+        rand_out = (real'($urandom()) / RAND_DIVISOR) * (MAX_RANGE_OF_INPUT - MIN_RANGE_OF_INPUT) + MIN_RANGE_OF_INPUT;
         generate_rand_input = real_to_float_bits(rand_out);
     end
 end
@@ -1390,6 +1448,7 @@ begin
     if(is_hex === 1) file = $fopen(INPUT_HEX_CSV, "w");
     else file = $fopen(INPUT_FLOAT_CSV, "w");
 
+    $fdisplay(file, "Pattern,%d,", pat);
     $fdisplay(file, "Task,%2d,", _task_number);
     $fwrite(file, "Mode,%2d,", _mode);
     if(_mode === 'd0)      $fwrite(file, "Replication,tanh,\n");
@@ -1513,6 +1572,10 @@ begin
         end
         $fwrite(file, "\n");
 
+
+        $fdisplay(file, "Select Channel,#%4b", _select_channels[0][_capacity[0]][SIZE_OF_CONV_SUM-1:0]);
+        $fdisplay(file, "Sum,%f", _dp[0][_capacity[0]]);
+        
     end
 
     $fclose(file);
@@ -1548,29 +1611,10 @@ begin
     $fwrite(file, "%0s,", name);
     for(idx1=start1 ; idx1<=end1 ; idx1=idx1+1) begin
         if(is_hex === 1) $fwrite(file, "%8h,", in[idx1]);
-        else $fwrite(file, "%f,", float_bits_to_real(in[idx1]));
+        else $fwrite(file, "%f,", PATTERN.float_bits_to_real(in[idx1]));
     end
     $fwrite(file, "\n");
 end endtask;
-
-function real float_bits_to_real;
-    input reg[inst_sig_width+inst_exp_width:0] in;
-
-    reg[real_sig_width+real_exp_width:0] real_bits;
-    integer float_shift = -127;
-    integer double_shift = -1023;
-begin
-    real_bits = 0;
-    // sign
-    real_bits[real_sig_width+real_exp_width] = in[inst_sig_width+inst_exp_width];
-    // exponent
-    real_bits[real_sig_width+:real_exp_width] = in[inst_sig_width+:inst_exp_width]+float_shift-double_shift;
-    // mantissa(fraction)
-    real_bits[(real_sig_width-1)-:inst_sig_width] = in[0+:inst_sig_width];
-
-    float_bits_to_real = (in === 'dx) ? 0.0/0.0 : $bitstoreal(real_bits);
-
-end endfunction
 
 endmodule
 
@@ -1606,30 +1650,11 @@ begin
         $fwrite(file, "%0s%2d%0s,", prefix_row, idx2, postfix_row);
         for(idx1=start1 ; idx1<=end1 ; idx1=idx1+1) begin
             if(is_hex === 1) $fwrite(file, "%8h,", in[idx1][idx2]);
-            else $fwrite(file, "%f,", float_bits_to_real(in[idx1][idx2]));
+            else $fwrite(file, "%f,", PATTERN.float_bits_to_real(in[idx1][idx2]));
         end
         $fwrite(file, "\n");
     end
 end endtask;
-
-function real float_bits_to_real;
-    input reg[inst_sig_width+inst_exp_width:0] in;
-
-    reg[real_sig_width+real_exp_width:0] real_bits;
-    integer float_shift = -127;
-    integer double_shift = -1023;
-begin
-    real_bits = 0;
-    // sign
-    real_bits[real_sig_width+real_exp_width] = in[inst_sig_width+inst_exp_width];
-    // exponent
-    real_bits[real_sig_width+:real_exp_width] = in[inst_sig_width+:inst_exp_width]+float_shift-double_shift;
-    // mantissa(fraction)
-    real_bits[(real_sig_width-1)-:inst_sig_width] = in[0+:inst_sig_width];
-
-    float_bits_to_real = (in === 'dx) ? 0.0/0.0 : $bitstoreal(real_bits);
-
-end endfunction
 
 endmodule
 
@@ -1671,32 +1696,13 @@ begin
             $fwrite(file, "%2d,", idx2);
             for(idx3=start3 ; idx3<=end3 ; idx3=idx3+1) begin
                 if(is_hex === 1) $fwrite(file, "%8h,", in[idx1][idx2][idx3]);
-                else $fwrite(file, "%f,", float_bits_to_real(in[idx1][idx2][idx3]));
+                else $fwrite(file, "%f,", PATTERN.float_bits_to_real(in[idx1][idx2][idx3]));
             end
             $fwrite(file, ",");
         end
         $fwrite(file, "\n");
     end
 end endtask;
-
-function real float_bits_to_real;
-    input reg[inst_sig_width+inst_exp_width:0] in;
-
-    reg[real_sig_width+real_exp_width:0] real_bits;
-    integer float_shift = -127;
-    integer double_shift = -1023;
-begin
-    real_bits = 0;
-    // sign
-    real_bits[real_sig_width+real_exp_width] = in[inst_sig_width+inst_exp_width];
-    // exponent
-    real_bits[real_sig_width+:real_exp_width] = in[inst_sig_width+:inst_exp_width]+float_shift-double_shift;
-    // mantissa(fraction)
-    real_bits[(real_sig_width-1)-:inst_sig_width] = in[0+:inst_sig_width];
-
-    float_bits_to_real = (in === 'dx) ? 0.0/0.0 : $bitstoreal(real_bits);
-
-end endfunction
 
 endmodule
 
