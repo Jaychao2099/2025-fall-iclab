@@ -82,7 +82,7 @@ reg [inst_sig_width+inst_exp_width:0] ch1_reg [0:17], ch2_reg [0:17];
 
 reg [inst_sig_width+inst_exp_width:0] big_weight [0:56];
 reg [inst_sig_width+inst_exp_width:0] big_weight_reg [0:56];
-reg [inst_sig_width+inst_exp_width:0] weight_1_row_0 [0:4], 
+wire [inst_sig_width+inst_exp_width:0] weight_1_row_0 [0:4], 
                                       weight_1_row_1 [0:4], 
                                       weight_1_row_2 [0:4], 
                                       weight_1_row_3 [0:4], 
@@ -90,7 +90,7 @@ reg [inst_sig_width+inst_exp_width:0] weight_1_row_0 [0:4],
                                       weight_1_row_5 [0:4], 
                                       weight_1_row_6 [0:4], 
                                       weight_1_row_7 [0:4];
-reg [inst_sig_width+inst_exp_width:0] weight_2_1 [0:4], weight_2_2 [0:4], weight_2_3 [0:4];
+wire [inst_sig_width+inst_exp_width:0] weight_2_1 [0:4], weight_2_2 [0:4], weight_2_3 [0:4];
 wire [inst_sig_width+inst_exp_width:0] bias_1, bias_2;
 
 reg task_reg;
@@ -157,8 +157,7 @@ reg [inst_sig_width+inst_exp_width:0] conv_sum_a, conv_sum_b, conv_sum_c, conv_s
 // ----------------- task 1 -----------------
 
 reg [3:0] current_select_mask;
-// wire [3:0] select_test_case [1:15];
-reg [inst_sig_width+inst_exp_width:0] select_sum;
+wire [inst_sig_width+inst_exp_width:0] select_sum;
 reg [inst_sig_width+inst_exp_width:0] max_select_sum;
 reg [3:0] select_case;
 
@@ -247,7 +246,7 @@ always @(*) begin
     big_Image = big_Image_reg;
     if (in_valid) begin
         big_Image[cnt_clk] = Image;
-        if (cnt_clk == 0 && task_number || task_reg) big_Image[cnt_clk + 36] = Image;
+        if (cnt_clk == 0 && task_number || task_reg) big_Image[cnt_clk + 36] = Image;       // unknow propagate?
     end
 end
 
@@ -414,7 +413,7 @@ always @(*) begin
 end
 
 // 0~7, 8~15, 16~23, 24~31, 32~39
-// reg [inst_sig_width+inst_exp_width:0] weight_1_row_0 [0:4], 
+// wire [inst_sig_width+inst_exp_width:0] weight_1_row_0 [0:4], 
 //                                       weight_1_row_1 [0:4], 
 //                                       weight_1_row_2 [0:4], 
 //                                       weight_1_row_3 [0:4], 
@@ -422,30 +421,28 @@ end
 //                                       weight_1_row_5 [0:4], 
 //                                       weight_1_row_6 [0:4], 
 //                                       weight_1_row_7 [0:4];
-always @(*) begin
-    integer i;
-    for (i = 0; i < 5; i = i + 1) begin
-        weight_1_row_0[i] = big_weight_reg[i*8    ];
-        weight_1_row_1[i] = big_weight_reg[i*8 + 1];
-        weight_1_row_2[i] = big_weight_reg[i*8 + 2];
-        weight_1_row_3[i] = big_weight_reg[i*8 + 3];
-        weight_1_row_4[i] = big_weight_reg[i*8 + 4];
-        weight_1_row_5[i] = big_weight_reg[i*8 + 5];
-        weight_1_row_6[i] = big_weight_reg[i*8 + 6];
-        weight_1_row_7[i] = big_weight_reg[i*8 + 7];
+generate
+    for (k = 0; k < 5; k = k + 1) begin : weight_1_gen
+        assign weight_1_row_0[k] = big_weight_reg[k*8    ];
+        assign weight_1_row_1[k] = big_weight_reg[k*8 + 1];
+        assign weight_1_row_2[k] = big_weight_reg[k*8 + 2];
+        assign weight_1_row_3[k] = big_weight_reg[k*8 + 3];
+        assign weight_1_row_4[k] = big_weight_reg[k*8 + 4];
+        assign weight_1_row_5[k] = big_weight_reg[k*8 + 5];
+        assign weight_1_row_6[k] = big_weight_reg[k*8 + 6];
+        assign weight_1_row_7[k] = big_weight_reg[k*8 + 7];
     end
-end
+endgenerate
 
 // 41~45, 46~50, 51~55
-// reg [inst_sig_width+inst_exp_width:0] weight_2_1 [0:4], weight_2_2 [0:4], weight_2_3 [0:4];
-always @(*) begin
-    integer i;
-    for (i = 0; i < 5; i = i + 1) begin
-        weight_2_1[i] = big_weight_reg[i+41];
-        weight_2_2[i] = big_weight_reg[i+46];
-        weight_2_3[i] = big_weight_reg[i+51];
+// wire [inst_sig_width+inst_exp_width:0] weight_2_1 [0:4], weight_2_2 [0:4], weight_2_3 [0:4];
+generate
+    for (k = 0; k < 5; k = k + 1) begin : weight_2_gen
+        assign weight_2_1[k] = big_weight_reg[k+41];
+        assign weight_2_2[k] = big_weight_reg[k+46];
+        assign weight_2_3[k] = big_weight_reg[k+51];
     end
-end
+endgenerate
 
 // wire [inst_sig_width+inst_exp_width:0] bias_1, bias_2;
 assign bias_1 = big_weight_reg[40];
@@ -557,21 +554,6 @@ always @(*) begin
                 mult_a[i] = act_2_reg[i];
             end
         end
-        // default: begin
-        //     case (cnt_clk)
-        //         // ----------------- Fully connect 1 -----------------
-        //         83: begin for (i = 0; i < 5; i = i + 1) mult_a[i] = act_1_reg[0]; end
-        //         84: begin for (i = 0; i < 5; i = i + 1) mult_a[i] = act_1_reg[4] end
-        //         85: begin for (i = 0; i < 5; i = i + 1) mult_a[i] = act_1_reg[1] end
-        //         86: begin for (i = 0; i < 5; i = i + 1) mult_a[i] = act_1_reg[5] end
-        //         87: begin for (i = 0; i < 5; i = i + 1) mult_a[i] = act_1_reg[2] end
-        //         88: begin for (i = 0; i < 5; i = i + 1) mult_a[i] = act_1_reg[6] end
-        //         89: begin for (i = 0; i < 5; i = i + 1) mult_a[i] = act_1_reg[3] end
-        //         90: begin for (i = 0; i < 5; i = i + 1) mult_a[i] = act_1_reg[7] end
-        //         // ----------------- Leaky ReLU -----------------
-        //         92: begin for (i = 0; i < 5; i = i + 1) mult_a[i] = IEEE_0_01; end
-        //     endcase
-        // end
     endcase
 end
 
@@ -921,33 +903,11 @@ end
 
 // ----------------- task 1 select -----------------
 
-// wire [3:0] select_test_case [1:15];
-// assign select_test_case[15] = 4'b1111;
-
-// assign select_test_case[14] = 4'b1110;
-// assign select_test_case[13] = 4'b1101;
-// assign select_test_case[12] = 4'b1011;
-// assign select_test_case[11] = 4'b0111;
-
-// assign select_test_case[10] = 4'b1100;
-// assign select_test_case[9]  = 4'b1010;
-// assign select_test_case[8]  = 4'b0110;
-// assign select_test_case[7]  = 4'b1001;
-// assign select_test_case[6]  = 4'b0101;
-// assign select_test_case[5]  = 4'b0011;
-
-// assign select_test_case[4] = 4'b1000;
-// assign select_test_case[3] = 4'b0100;
-// assign select_test_case[2] = 4'b0010;
-// assign select_test_case[1] = 4'b0001;
-
-// reg [inst_sig_width+inst_exp_width:0] select_sum;
-// always @(posedge clk) begin
-//     select_sum <= sum3_z[0];
+// wire [inst_sig_width+inst_exp_width:0] select_sum;
+// always @(*) begin
+//     select_sum = block_sum_tmp[0];
 // end
-always @(*) begin
-    select_sum = block_sum_tmp[0];
-end
+assign select_sum = block_sum_tmp[0];
 
 // reg [inst_sig_width+inst_exp_width:0] max_select_sum;
 always @(posedge clk) begin
@@ -963,13 +923,6 @@ always @(posedge clk) begin
     else if (cnt_clk >= 84 && cnt_clk <= 97 && cmp_agtb[0] && prev_is_in_cap) select_case <= prev_select_mask;   // 98 ---> output
     else select_case <= select_case;
 end
-
-// wire [3:0] cost_is_zero;
-
-// assign cost_is_zero[3] = cap_reg[1] == 4'd0;    // a
-// assign cost_is_zero[2] = cap_reg[2] == 4'd0;    // b
-// assign cost_is_zero[1] = cap_reg[3] == 4'd0;    // c
-// assign cost_is_zero[0] = cap_reg[4] == 4'd0;    // d
 
 wire [3:0] a_or_not, b_or_not, c_or_not, d_or_not;
 
@@ -989,11 +942,6 @@ end
 
 // wire is_in_cap;
 assign is_in_cap = (cap_reg[0] >= cost_sum);
-
-// assign is_in_cap = ({2'b0, cap_reg[0]} >= ((select_test_case[current_select_mask][3] ? {2'b0, cap_reg[1]} : 6'd0) +   // a
-//                                            (select_test_case[current_select_mask][2] ? {2'b0, cap_reg[2]} : 6'd0) +   // b
-//                                            (select_test_case[current_select_mask][1] ? {2'b0, cap_reg[3]} : 6'd0) +   // c
-//                                            (select_test_case[current_select_mask][0] ? {2'b0, cap_reg[4]} : 6'd0)));  // d
 
 // ----------------- Max pooling -----------------
 
@@ -1244,10 +1192,8 @@ always @(posedge clk or negedge rst_n) begin
     if (!rst_n) out <= 32'b0;
     else if (!task_reg && cnt_clk >= 99 && cnt_clk <= 101) out <= div_z;
     else if (task_reg && cnt_clk == 98) out <= (cmp_agtb[0] && prev_is_in_cap) ? 
-                                        // {28'b0, current_select_mask} : 
                                         32'b1 : 
                                         {28'b0, select_case};
-                                        // {28'b0, (select_case | cost_is_zero)};
     else out <= 32'b0;
 end
 

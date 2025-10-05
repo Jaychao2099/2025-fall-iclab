@@ -73,9 +73,9 @@ reg [6:0] cnt_clk;  // 0 ~ 102 (7 bits)
 reg [6:0] next_cnt_clk;  // 0 ~ 102 (7 bits)
 
 // ------------ input buffer ------------
-reg [inst_sig_width+inst_exp_width:0] big_Image [0:71];
-reg [inst_sig_width+inst_exp_width:0] big_Image_reg [0:71];
-wire [inst_sig_width+inst_exp_width:0] Image_padding_0 [0:63], Image_padding_1 [0:63];
+reg [inst_sig_width+inst_exp_width:0] big_Image [0:35];
+reg [inst_sig_width+inst_exp_width:0] big_Image_reg [0:35];
+wire [inst_sig_width+inst_exp_width:0] Image_padding [0:63];
 
 reg [inst_sig_width+inst_exp_width:0] ch1 [0:17], ch2 [0:17];
 reg [inst_sig_width+inst_exp_width:0] ch1_reg [0:17], ch2_reg [0:17];
@@ -236,151 +236,85 @@ end
 
 // input   [31:0]  Image;
 
-// reg [inst_sig_width+inst_exp_width:0] big_Image_reg [0:71];
+// reg [inst_sig_width+inst_exp_width:0] big_Image_reg [0:35];
 always @(posedge clk) begin
     big_Image_reg <= big_Image;
 end
 
-// reg [inst_sig_width+inst_exp_width:0] big_Image [0:71];
+// reg [inst_sig_width+inst_exp_width:0] big_Image [0:35];
 always @(*) begin
     big_Image = big_Image_reg;
     if (in_valid) begin
-        big_Image[cnt_clk] = Image;
-        if (cnt_clk == 0 && task_number || task_reg) big_Image[cnt_clk + 36] = Image;       // unknow propagate?
+        if (cnt_clk <= 35) big_Image[cnt_clk] = Image;
+        else big_Image[cnt_clk - 36] = Image;       // image1 share reg with image0
     end
 end
 
-// wire [inst_sig_width+inst_exp_width:0] Image_padding_0 [0:63];
-assign Image_padding_0[0] = mode_reg[1] ? big_Image_reg[7] : big_Image_reg[0];
-assign Image_padding_0[1] = mode_reg[1] ? big_Image_reg[6] : big_Image_reg[0];
-assign Image_padding_0[2] = mode_reg[1] ? big_Image_reg[7] : big_Image_reg[1];
-assign Image_padding_0[3] = mode_reg[1] ? big_Image_reg[8] : big_Image_reg[2];
-assign Image_padding_0[4] = mode_reg[1] ? big_Image_reg[9] : big_Image_reg[3];
-assign Image_padding_0[5] = mode_reg[1] ? big_Image_reg[10] : big_Image_reg[4];
-assign Image_padding_0[6] = mode_reg[1] ? big_Image_reg[11] : big_Image_reg[5];
-assign Image_padding_0[7] = mode_reg[1] ? big_Image_reg[10] : big_Image_reg[5];
-assign Image_padding_0[8] = mode_reg[1] ? big_Image_reg[1] : big_Image_reg[0];
-assign Image_padding_0[9] = big_Image_reg[0];
-assign Image_padding_0[10] = big_Image_reg[1];
-assign Image_padding_0[11] = big_Image_reg[2];
-assign Image_padding_0[12] = big_Image_reg[3];
-assign Image_padding_0[13] = big_Image_reg[4];
-assign Image_padding_0[14] = big_Image_reg[5];
-assign Image_padding_0[15] = mode_reg[1] ? big_Image_reg[4] : big_Image_reg[5];
-assign Image_padding_0[16] = mode_reg[1] ? big_Image_reg[7] : big_Image_reg[6];
-assign Image_padding_0[17] = big_Image_reg[6];
-assign Image_padding_0[18] = big_Image_reg[7];
-assign Image_padding_0[19] = big_Image_reg[8];
-assign Image_padding_0[20] = big_Image_reg[9];
-assign Image_padding_0[21] = big_Image_reg[10];
-assign Image_padding_0[22] = big_Image_reg[11];
-assign Image_padding_0[23] = mode_reg[1] ? big_Image_reg[10] : big_Image_reg[11];
-assign Image_padding_0[24] = mode_reg[1] ? big_Image_reg[13] : big_Image_reg[12];
-assign Image_padding_0[25] = big_Image_reg[12];
-assign Image_padding_0[26] = big_Image_reg[13];
-assign Image_padding_0[27] = big_Image_reg[14];
-assign Image_padding_0[28] = big_Image_reg[15];
-assign Image_padding_0[29] = big_Image_reg[16];
-assign Image_padding_0[30] = big_Image_reg[17];
-assign Image_padding_0[31] = mode_reg[1] ? big_Image_reg[16] : big_Image_reg[17];
-assign Image_padding_0[32] = mode_reg[1] ? big_Image_reg[19] : big_Image_reg[18];
-assign Image_padding_0[33] = big_Image_reg[18];
-assign Image_padding_0[34] = big_Image_reg[19];
-assign Image_padding_0[35] = big_Image_reg[20];
-assign Image_padding_0[36] = big_Image_reg[21];
-assign Image_padding_0[37] = big_Image_reg[22];
-assign Image_padding_0[38] = big_Image_reg[23];
-assign Image_padding_0[39] = mode_reg[1] ? big_Image_reg[22] : big_Image_reg[23];
-assign Image_padding_0[40] = mode_reg[1] ? big_Image_reg[25] : big_Image_reg[24];
-assign Image_padding_0[41] = big_Image_reg[24];
-assign Image_padding_0[42] = big_Image_reg[25];
-assign Image_padding_0[43] = big_Image_reg[26];
-assign Image_padding_0[44] = big_Image_reg[27];
-assign Image_padding_0[45] = big_Image_reg[28];
-assign Image_padding_0[46] = big_Image_reg[29];
-assign Image_padding_0[47] = mode_reg[1] ? big_Image_reg[28] : big_Image_reg[29];
-assign Image_padding_0[48] = mode_reg[1] ? big_Image_reg[31] : big_Image_reg[30];
-assign Image_padding_0[49] = big_Image_reg[30];
-assign Image_padding_0[50] = big_Image_reg[31];
-assign Image_padding_0[51] = big_Image_reg[32];
-assign Image_padding_0[52] = big_Image_reg[33];
-assign Image_padding_0[53] = big_Image_reg[34];
-assign Image_padding_0[54] = big_Image_reg[35];
-assign Image_padding_0[55] = mode_reg[1] ? big_Image_reg[34] : big_Image_reg[35];
-assign Image_padding_0[56] = mode_reg[1] ? big_Image_reg[25] : big_Image_reg[30];
-assign Image_padding_0[57] = mode_reg[1] ? big_Image_reg[24] : big_Image_reg[30];
-assign Image_padding_0[58] = mode_reg[1] ? big_Image_reg[25] : big_Image_reg[31];
-assign Image_padding_0[59] = mode_reg[1] ? big_Image_reg[26] : big_Image_reg[32];
-assign Image_padding_0[60] = mode_reg[1] ? big_Image_reg[27] : big_Image_reg[33];
-assign Image_padding_0[61] = mode_reg[1] ? big_Image_reg[28] : big_Image_reg[34];
-assign Image_padding_0[62] = mode_reg[1] ? big_Image_reg[29] : big_Image_reg[35];
-assign Image_padding_0[63] = mode_reg[1] ? big_Image_reg[28] : big_Image_reg[35];
-
-// wire [inst_sig_width+inst_exp_width:0] Image_padding_1 [0:63];
-assign Image_padding_1[0] = mode_reg[1] ? big_Image_reg[43] : big_Image_reg[36];
-assign Image_padding_1[1] = mode_reg[1] ? big_Image_reg[42] : big_Image_reg[36];
-assign Image_padding_1[2] = mode_reg[1] ? big_Image_reg[43] : big_Image_reg[37];
-assign Image_padding_1[3] = mode_reg[1] ? big_Image_reg[44] : big_Image_reg[38];
-assign Image_padding_1[4] = mode_reg[1] ? big_Image_reg[45] : big_Image_reg[39];
-assign Image_padding_1[5] = mode_reg[1] ? big_Image_reg[46] : big_Image_reg[40];
-assign Image_padding_1[6] = mode_reg[1] ? big_Image_reg[47] : big_Image_reg[41];
-assign Image_padding_1[7] = mode_reg[1] ? big_Image_reg[46] : big_Image_reg[41];
-assign Image_padding_1[8] = mode_reg[1] ? big_Image_reg[37] : big_Image_reg[36];
-assign Image_padding_1[9] = big_Image_reg[36];
-assign Image_padding_1[10] = big_Image_reg[37];
-assign Image_padding_1[11] = big_Image_reg[38];
-assign Image_padding_1[12] = big_Image_reg[39];
-assign Image_padding_1[13] = big_Image_reg[40];
-assign Image_padding_1[14] = big_Image_reg[41];
-assign Image_padding_1[15] = mode_reg[1] ? big_Image_reg[40] : big_Image_reg[41];
-assign Image_padding_1[16] = mode_reg[1] ? big_Image_reg[43] : big_Image_reg[42];
-assign Image_padding_1[17] = big_Image_reg[42];
-assign Image_padding_1[18] = big_Image_reg[43];
-assign Image_padding_1[19] = big_Image_reg[44];
-assign Image_padding_1[20] = big_Image_reg[45];
-assign Image_padding_1[21] = big_Image_reg[46];
-assign Image_padding_1[22] = big_Image_reg[47];
-assign Image_padding_1[23] = mode_reg[1] ? big_Image_reg[46] : big_Image_reg[47];
-assign Image_padding_1[24] = mode_reg[1] ? big_Image_reg[49] : big_Image_reg[48];
-assign Image_padding_1[25] = big_Image_reg[48];
-assign Image_padding_1[26] = big_Image_reg[49];
-assign Image_padding_1[27] = big_Image_reg[50];
-assign Image_padding_1[28] = big_Image_reg[51];
-assign Image_padding_1[29] = big_Image_reg[52];
-assign Image_padding_1[30] = big_Image_reg[53];
-assign Image_padding_1[31] = mode_reg[1] ? big_Image_reg[52] : big_Image_reg[53];
-assign Image_padding_1[32] = mode_reg[1] ? big_Image_reg[55] : big_Image_reg[54];
-assign Image_padding_1[33] = big_Image_reg[54];
-assign Image_padding_1[34] = big_Image_reg[55];
-assign Image_padding_1[35] = big_Image_reg[56];
-assign Image_padding_1[36] = big_Image_reg[57];
-assign Image_padding_1[37] = big_Image_reg[58];
-assign Image_padding_1[38] = big_Image_reg[59];
-assign Image_padding_1[39] = mode_reg[1] ? big_Image_reg[58] : big_Image_reg[59];
-assign Image_padding_1[40] = mode_reg[1] ? big_Image_reg[61] : big_Image_reg[60];
-assign Image_padding_1[41] = big_Image_reg[60];
-assign Image_padding_1[42] = big_Image_reg[61];
-assign Image_padding_1[43] = big_Image_reg[62];
-assign Image_padding_1[44] = big_Image_reg[63];
-assign Image_padding_1[45] = big_Image_reg[64];
-assign Image_padding_1[46] = big_Image_reg[65];
-assign Image_padding_1[47] = mode_reg[1] ? big_Image_reg[64] : big_Image_reg[65];
-assign Image_padding_1[48] = mode_reg[1] ? big_Image_reg[67] : big_Image_reg[66];
-assign Image_padding_1[49] = big_Image_reg[66];
-assign Image_padding_1[50] = big_Image_reg[67];
-assign Image_padding_1[51] = big_Image_reg[68];
-assign Image_padding_1[52] = big_Image_reg[69];
-assign Image_padding_1[53] = big_Image_reg[70];
-assign Image_padding_1[54] = big_Image_reg[71];
-assign Image_padding_1[55] = mode_reg[1] ? big_Image_reg[70] : big_Image_reg[71];
-assign Image_padding_1[56] = mode_reg[1] ? big_Image_reg[61] : big_Image_reg[66];
-assign Image_padding_1[57] = mode_reg[1] ? big_Image_reg[60] : big_Image_reg[66];
-assign Image_padding_1[58] = mode_reg[1] ? big_Image_reg[61] : big_Image_reg[67];
-assign Image_padding_1[59] = mode_reg[1] ? big_Image_reg[62] : big_Image_reg[68];
-assign Image_padding_1[60] = mode_reg[1] ? big_Image_reg[63] : big_Image_reg[69];
-assign Image_padding_1[61] = mode_reg[1] ? big_Image_reg[64] : big_Image_reg[70];
-assign Image_padding_1[62] = mode_reg[1] ? big_Image_reg[65] : big_Image_reg[71];
-assign Image_padding_1[63] = mode_reg[1] ? big_Image_reg[64] : big_Image_reg[71];
+// wire [inst_sig_width+inst_exp_width:0] Image_padding [0:63];
+assign Image_padding[0] = mode_reg[1] ? big_Image_reg[7] : big_Image_reg[0];
+assign Image_padding[1] = mode_reg[1] ? big_Image_reg[6] : big_Image_reg[0];
+assign Image_padding[2] = mode_reg[1] ? big_Image_reg[7] : big_Image_reg[1];
+assign Image_padding[3] = mode_reg[1] ? big_Image_reg[8] : big_Image_reg[2];
+assign Image_padding[4] = mode_reg[1] ? big_Image_reg[9] : big_Image_reg[3];
+assign Image_padding[5] = mode_reg[1] ? big_Image_reg[10] : big_Image_reg[4];
+assign Image_padding[6] = mode_reg[1] ? big_Image_reg[11] : big_Image_reg[5];
+assign Image_padding[7] = mode_reg[1] ? big_Image_reg[10] : big_Image_reg[5];
+assign Image_padding[8] = mode_reg[1] ? big_Image_reg[1] : big_Image_reg[0];
+assign Image_padding[9] = big_Image_reg[0];
+assign Image_padding[10] = big_Image_reg[1];
+assign Image_padding[11] = big_Image_reg[2];
+assign Image_padding[12] = big_Image_reg[3];
+assign Image_padding[13] = big_Image_reg[4];
+assign Image_padding[14] = big_Image_reg[5];
+assign Image_padding[15] = mode_reg[1] ? big_Image_reg[4] : big_Image_reg[5];
+assign Image_padding[16] = mode_reg[1] ? big_Image_reg[7] : big_Image_reg[6];
+assign Image_padding[17] = big_Image_reg[6];
+assign Image_padding[18] = big_Image_reg[7];
+assign Image_padding[19] = big_Image_reg[8];
+assign Image_padding[20] = big_Image_reg[9];
+assign Image_padding[21] = big_Image_reg[10];
+assign Image_padding[22] = big_Image_reg[11];
+assign Image_padding[23] = mode_reg[1] ? big_Image_reg[10] : big_Image_reg[11];
+assign Image_padding[24] = mode_reg[1] ? big_Image_reg[13] : big_Image_reg[12];
+assign Image_padding[25] = big_Image_reg[12];
+assign Image_padding[26] = big_Image_reg[13];
+assign Image_padding[27] = big_Image_reg[14];
+assign Image_padding[28] = big_Image_reg[15];
+assign Image_padding[29] = big_Image_reg[16];
+assign Image_padding[30] = big_Image_reg[17];
+assign Image_padding[31] = mode_reg[1] ? big_Image_reg[16] : big_Image_reg[17];
+assign Image_padding[32] = mode_reg[1] ? big_Image_reg[19] : big_Image_reg[18];
+assign Image_padding[33] = big_Image_reg[18];
+assign Image_padding[34] = big_Image_reg[19];
+assign Image_padding[35] = big_Image_reg[20];
+assign Image_padding[36] = big_Image_reg[21];
+assign Image_padding[37] = big_Image_reg[22];
+assign Image_padding[38] = big_Image_reg[23];
+assign Image_padding[39] = mode_reg[1] ? big_Image_reg[22] : big_Image_reg[23];
+assign Image_padding[40] = mode_reg[1] ? big_Image_reg[25] : big_Image_reg[24];
+assign Image_padding[41] = big_Image_reg[24];
+assign Image_padding[42] = big_Image_reg[25];
+assign Image_padding[43] = big_Image_reg[26];
+assign Image_padding[44] = big_Image_reg[27];
+assign Image_padding[45] = big_Image_reg[28];
+assign Image_padding[46] = big_Image_reg[29];
+assign Image_padding[47] = mode_reg[1] ? big_Image_reg[28] : big_Image_reg[29];
+assign Image_padding[48] = mode_reg[1] ? big_Image_reg[31] : big_Image_reg[30];
+assign Image_padding[49] = big_Image_reg[30];
+assign Image_padding[50] = big_Image_reg[31];
+assign Image_padding[51] = big_Image_reg[32];
+assign Image_padding[52] = big_Image_reg[33];
+assign Image_padding[53] = big_Image_reg[34];
+assign Image_padding[54] = big_Image_reg[35];
+assign Image_padding[55] = mode_reg[1] ? big_Image_reg[34] : big_Image_reg[35];
+assign Image_padding[56] = mode_reg[1] ? big_Image_reg[25] : big_Image_reg[30];
+assign Image_padding[57] = mode_reg[1] ? big_Image_reg[24] : big_Image_reg[30];
+assign Image_padding[58] = mode_reg[1] ? big_Image_reg[25] : big_Image_reg[31];
+assign Image_padding[59] = mode_reg[1] ? big_Image_reg[26] : big_Image_reg[32];
+assign Image_padding[60] = mode_reg[1] ? big_Image_reg[27] : big_Image_reg[33];
+assign Image_padding[61] = mode_reg[1] ? big_Image_reg[28] : big_Image_reg[34];
+assign Image_padding[62] = mode_reg[1] ? big_Image_reg[29] : big_Image_reg[35];
+assign Image_padding[63] = mode_reg[1] ? big_Image_reg[28] : big_Image_reg[35];
 
 // input   [31:0]  Kernel_ch1;
 // input   [31:0]  Kernel_ch2;
@@ -563,78 +497,42 @@ always @(*) begin
     for (i = 0; i < 18; i = i + 1) mult_b[i] = 32'b0;   // avoid latch
     case (cnt_clk)
         // ----------------- convolution -----------------
-        9: begin mult_b[0] = Image_padding_0[0]; mult_b[1] = Image_padding_0[1]; mult_b[2] = Image_padding_0[2]; mult_b[3] = Image_padding_0[8]; mult_b[4] = Image_padding_0[9]; mult_b[5] = Image_padding_0[10]; mult_b[6] = Image_padding_0[16]; mult_b[7] = Image_padding_0[17]; mult_b[8] = Image_padding_0[18]; end
-        10: begin mult_b[0] = Image_padding_0[1]; mult_b[1] = Image_padding_0[2]; mult_b[2] = Image_padding_0[3]; mult_b[3] = Image_padding_0[9]; mult_b[4] = Image_padding_0[10]; mult_b[5] = Image_padding_0[11]; mult_b[6] = Image_padding_0[17]; mult_b[7] = Image_padding_0[18]; mult_b[8] = Image_padding_0[19]; end
-        11: begin mult_b[0] = Image_padding_0[2]; mult_b[1] = Image_padding_0[3]; mult_b[2] = Image_padding_0[4]; mult_b[3] = Image_padding_0[10]; mult_b[4] = Image_padding_0[11]; mult_b[5] = Image_padding_0[12]; mult_b[6] = Image_padding_0[18]; mult_b[7] = Image_padding_0[19]; mult_b[8] = Image_padding_0[20]; end
-        12: begin mult_b[0] = Image_padding_0[3]; mult_b[1] = Image_padding_0[4]; mult_b[2] = Image_padding_0[5]; mult_b[3] = Image_padding_0[11]; mult_b[4] = Image_padding_0[12]; mult_b[5] = Image_padding_0[13]; mult_b[6] = Image_padding_0[19]; mult_b[7] = Image_padding_0[20]; mult_b[8] = Image_padding_0[21]; end
-        13: begin mult_b[0] = Image_padding_0[4]; mult_b[1] = Image_padding_0[5]; mult_b[2] = Image_padding_0[6]; mult_b[3] = Image_padding_0[12]; mult_b[4] = Image_padding_0[13]; mult_b[5] = Image_padding_0[14]; mult_b[6] = Image_padding_0[20]; mult_b[7] = Image_padding_0[21]; mult_b[8] = Image_padding_0[22]; end
-        14: begin mult_b[0] = Image_padding_0[5]; mult_b[1] = Image_padding_0[6]; mult_b[2] = Image_padding_0[7]; mult_b[3] = Image_padding_0[13]; mult_b[4] = Image_padding_0[14]; mult_b[5] = Image_padding_0[15]; mult_b[6] = Image_padding_0[21]; mult_b[7] = Image_padding_0[22]; mult_b[8] = Image_padding_0[23]; end
-        15: begin mult_b[0] = Image_padding_0[8]; mult_b[1] = Image_padding_0[9]; mult_b[2] = Image_padding_0[10]; mult_b[3] = Image_padding_0[16]; mult_b[4] = Image_padding_0[17]; mult_b[5] = Image_padding_0[18]; mult_b[6] = Image_padding_0[24]; mult_b[7] = Image_padding_0[25]; mult_b[8] = Image_padding_0[26]; end
-        16: begin mult_b[0] = Image_padding_0[9]; mult_b[1] = Image_padding_0[10]; mult_b[2] = Image_padding_0[11]; mult_b[3] = Image_padding_0[17]; mult_b[4] = Image_padding_0[18]; mult_b[5] = Image_padding_0[19]; mult_b[6] = Image_padding_0[25]; mult_b[7] = Image_padding_0[26]; mult_b[8] = Image_padding_0[27]; end
-        17: begin mult_b[0] = Image_padding_0[10]; mult_b[1] = Image_padding_0[11]; mult_b[2] = Image_padding_0[12]; mult_b[3] = Image_padding_0[18]; mult_b[4] = Image_padding_0[19]; mult_b[5] = Image_padding_0[20]; mult_b[6] = Image_padding_0[26]; mult_b[7] = Image_padding_0[27]; mult_b[8] = Image_padding_0[28]; end
-        18: begin mult_b[0] = Image_padding_0[11]; mult_b[1] = Image_padding_0[12]; mult_b[2] = Image_padding_0[13]; mult_b[3] = Image_padding_0[19]; mult_b[4] = Image_padding_0[20]; mult_b[5] = Image_padding_0[21]; mult_b[6] = Image_padding_0[27]; mult_b[7] = Image_padding_0[28]; mult_b[8] = Image_padding_0[29]; end
-        19: begin mult_b[0] = Image_padding_0[12]; mult_b[1] = Image_padding_0[13]; mult_b[2] = Image_padding_0[14]; mult_b[3] = Image_padding_0[20]; mult_b[4] = Image_padding_0[21]; mult_b[5] = Image_padding_0[22]; mult_b[6] = Image_padding_0[28]; mult_b[7] = Image_padding_0[29]; mult_b[8] = Image_padding_0[30]; end
-        20: begin mult_b[0] = Image_padding_0[13]; mult_b[1] = Image_padding_0[14]; mult_b[2] = Image_padding_0[15]; mult_b[3] = Image_padding_0[21]; mult_b[4] = Image_padding_0[22]; mult_b[5] = Image_padding_0[23]; mult_b[6] = Image_padding_0[29]; mult_b[7] = Image_padding_0[30]; mult_b[8] = Image_padding_0[31]; end
-        21: begin mult_b[0] = Image_padding_0[16]; mult_b[1] = Image_padding_0[17]; mult_b[2] = Image_padding_0[18]; mult_b[3] = Image_padding_0[24]; mult_b[4] = Image_padding_0[25]; mult_b[5] = Image_padding_0[26]; mult_b[6] = Image_padding_0[32]; mult_b[7] = Image_padding_0[33]; mult_b[8] = Image_padding_0[34]; end
-        22: begin mult_b[0] = Image_padding_0[17]; mult_b[1] = Image_padding_0[18]; mult_b[2] = Image_padding_0[19]; mult_b[3] = Image_padding_0[25]; mult_b[4] = Image_padding_0[26]; mult_b[5] = Image_padding_0[27]; mult_b[6] = Image_padding_0[33]; mult_b[7] = Image_padding_0[34]; mult_b[8] = Image_padding_0[35]; end
-        23: begin mult_b[0] = Image_padding_0[18]; mult_b[1] = Image_padding_0[19]; mult_b[2] = Image_padding_0[20]; mult_b[3] = Image_padding_0[26]; mult_b[4] = Image_padding_0[27]; mult_b[5] = Image_padding_0[28]; mult_b[6] = Image_padding_0[34]; mult_b[7] = Image_padding_0[35]; mult_b[8] = Image_padding_0[36]; end
-        24: begin mult_b[0] = Image_padding_0[19]; mult_b[1] = Image_padding_0[20]; mult_b[2] = Image_padding_0[21]; mult_b[3] = Image_padding_0[27]; mult_b[4] = Image_padding_0[28]; mult_b[5] = Image_padding_0[29]; mult_b[6] = Image_padding_0[35]; mult_b[7] = Image_padding_0[36]; mult_b[8] = Image_padding_0[37]; end
-        25: begin mult_b[0] = Image_padding_0[20]; mult_b[1] = Image_padding_0[21]; mult_b[2] = Image_padding_0[22]; mult_b[3] = Image_padding_0[28]; mult_b[4] = Image_padding_0[29]; mult_b[5] = Image_padding_0[30]; mult_b[6] = Image_padding_0[36]; mult_b[7] = Image_padding_0[37]; mult_b[8] = Image_padding_0[38]; end
-        26: begin mult_b[0] = Image_padding_0[21]; mult_b[1] = Image_padding_0[22]; mult_b[2] = Image_padding_0[23]; mult_b[3] = Image_padding_0[29]; mult_b[4] = Image_padding_0[30]; mult_b[5] = Image_padding_0[31]; mult_b[6] = Image_padding_0[37]; mult_b[7] = Image_padding_0[38]; mult_b[8] = Image_padding_0[39]; end
-        27: begin mult_b[0] = Image_padding_0[24]; mult_b[1] = Image_padding_0[25]; mult_b[2] = Image_padding_0[26]; mult_b[3] = Image_padding_0[32]; mult_b[4] = Image_padding_0[33]; mult_b[5] = Image_padding_0[34]; mult_b[6] = Image_padding_0[40]; mult_b[7] = Image_padding_0[41]; mult_b[8] = Image_padding_0[42]; end
-        28: begin mult_b[0] = Image_padding_0[25]; mult_b[1] = Image_padding_0[26]; mult_b[2] = Image_padding_0[27]; mult_b[3] = Image_padding_0[33]; mult_b[4] = Image_padding_0[34]; mult_b[5] = Image_padding_0[35]; mult_b[6] = Image_padding_0[41]; mult_b[7] = Image_padding_0[42]; mult_b[8] = Image_padding_0[43]; end
-        29: begin mult_b[0] = Image_padding_0[26]; mult_b[1] = Image_padding_0[27]; mult_b[2] = Image_padding_0[28]; mult_b[3] = Image_padding_0[34]; mult_b[4] = Image_padding_0[35]; mult_b[5] = Image_padding_0[36]; mult_b[6] = Image_padding_0[42]; mult_b[7] = Image_padding_0[43]; mult_b[8] = Image_padding_0[44]; end
-        30: begin mult_b[0] = Image_padding_0[27]; mult_b[1] = Image_padding_0[28]; mult_b[2] = Image_padding_0[29]; mult_b[3] = Image_padding_0[35]; mult_b[4] = Image_padding_0[36]; mult_b[5] = Image_padding_0[37]; mult_b[6] = Image_padding_0[43]; mult_b[7] = Image_padding_0[44]; mult_b[8] = Image_padding_0[45]; end
-        31: begin mult_b[0] = Image_padding_0[28]; mult_b[1] = Image_padding_0[29]; mult_b[2] = Image_padding_0[30]; mult_b[3] = Image_padding_0[36]; mult_b[4] = Image_padding_0[37]; mult_b[5] = Image_padding_0[38]; mult_b[6] = Image_padding_0[44]; mult_b[7] = Image_padding_0[45]; mult_b[8] = Image_padding_0[46]; end
-        32: begin mult_b[0] = Image_padding_0[29]; mult_b[1] = Image_padding_0[30]; mult_b[2] = Image_padding_0[31]; mult_b[3] = Image_padding_0[37]; mult_b[4] = Image_padding_0[38]; mult_b[5] = Image_padding_0[39]; mult_b[6] = Image_padding_0[45]; mult_b[7] = Image_padding_0[46]; mult_b[8] = Image_padding_0[47]; end
-        33: begin mult_b[0] = Image_padding_0[32]; mult_b[1] = Image_padding_0[33]; mult_b[2] = Image_padding_0[34]; mult_b[3] = Image_padding_0[40]; mult_b[4] = Image_padding_0[41]; mult_b[5] = Image_padding_0[42]; mult_b[6] = Image_padding_0[48]; mult_b[7] = Image_padding_0[49]; mult_b[8] = Image_padding_0[50]; end
-        34: begin mult_b[0] = Image_padding_0[33]; mult_b[1] = Image_padding_0[34]; mult_b[2] = Image_padding_0[35]; mult_b[3] = Image_padding_0[41]; mult_b[4] = Image_padding_0[42]; mult_b[5] = Image_padding_0[43]; mult_b[6] = Image_padding_0[49]; mult_b[7] = Image_padding_0[50]; mult_b[8] = Image_padding_0[51]; end
-        35: begin mult_b[0] = Image_padding_0[34]; mult_b[1] = Image_padding_0[35]; mult_b[2] = Image_padding_0[36]; mult_b[3] = Image_padding_0[42]; mult_b[4] = Image_padding_0[43]; mult_b[5] = Image_padding_0[44]; mult_b[6] = Image_padding_0[50]; mult_b[7] = Image_padding_0[51]; mult_b[8] = Image_padding_0[52]; end
-        36: begin mult_b[0] = Image_padding_0[35]; mult_b[1] = Image_padding_0[36]; mult_b[2] = Image_padding_0[37]; mult_b[3] = Image_padding_0[43]; mult_b[4] = Image_padding_0[44]; mult_b[5] = Image_padding_0[45]; mult_b[6] = Image_padding_0[51]; mult_b[7] = Image_padding_0[52]; mult_b[8] = Image_padding_0[53]; end
-        37: begin mult_b[0] = Image_padding_0[36]; mult_b[1] = Image_padding_0[37]; mult_b[2] = Image_padding_0[38]; mult_b[3] = Image_padding_0[44]; mult_b[4] = Image_padding_0[45]; mult_b[5] = Image_padding_0[46]; mult_b[6] = Image_padding_0[52]; mult_b[7] = Image_padding_0[53]; mult_b[8] = Image_padding_0[54]; end
-        38: begin mult_b[0] = Image_padding_0[37]; mult_b[1] = Image_padding_0[38]; mult_b[2] = Image_padding_0[39]; mult_b[3] = Image_padding_0[45]; mult_b[4] = Image_padding_0[46]; mult_b[5] = Image_padding_0[47]; mult_b[6] = Image_padding_0[53]; mult_b[7] = Image_padding_0[54]; mult_b[8] = Image_padding_0[55]; end
-        39: begin mult_b[0] = Image_padding_0[40]; mult_b[1] = Image_padding_0[41]; mult_b[2] = Image_padding_0[42]; mult_b[3] = Image_padding_0[48]; mult_b[4] = Image_padding_0[49]; mult_b[5] = Image_padding_0[50]; mult_b[6] = Image_padding_0[56]; mult_b[7] = Image_padding_0[57]; mult_b[8] = Image_padding_0[58]; end
-        40: begin mult_b[0] = Image_padding_0[41]; mult_b[1] = Image_padding_0[42]; mult_b[2] = Image_padding_0[43]; mult_b[3] = Image_padding_0[49]; mult_b[4] = Image_padding_0[50]; mult_b[5] = Image_padding_0[51]; mult_b[6] = Image_padding_0[57]; mult_b[7] = Image_padding_0[58]; mult_b[8] = Image_padding_0[59]; end
-        41: begin mult_b[0] = Image_padding_0[42]; mult_b[1] = Image_padding_0[43]; mult_b[2] = Image_padding_0[44]; mult_b[3] = Image_padding_0[50]; mult_b[4] = Image_padding_0[51]; mult_b[5] = Image_padding_0[52]; mult_b[6] = Image_padding_0[58]; mult_b[7] = Image_padding_0[59]; mult_b[8] = Image_padding_0[60]; end
-        42: begin mult_b[0] = Image_padding_0[43]; mult_b[1] = Image_padding_0[44]; mult_b[2] = Image_padding_0[45]; mult_b[3] = Image_padding_0[51]; mult_b[4] = Image_padding_0[52]; mult_b[5] = Image_padding_0[53]; mult_b[6] = Image_padding_0[59]; mult_b[7] = Image_padding_0[60]; mult_b[8] = Image_padding_0[61]; end
-        43: begin mult_b[0] = Image_padding_0[44]; mult_b[1] = Image_padding_0[45]; mult_b[2] = Image_padding_0[46]; mult_b[3] = Image_padding_0[52]; mult_b[4] = Image_padding_0[53]; mult_b[5] = Image_padding_0[54]; mult_b[6] = Image_padding_0[60]; mult_b[7] = Image_padding_0[61]; mult_b[8] = Image_padding_0[62]; end
-        44: begin mult_b[0] = Image_padding_0[45]; mult_b[1] = Image_padding_0[46]; mult_b[2] = Image_padding_0[47]; mult_b[3] = Image_padding_0[53]; mult_b[4] = Image_padding_0[54]; mult_b[5] = Image_padding_0[55]; mult_b[6] = Image_padding_0[61]; mult_b[7] = Image_padding_0[62]; mult_b[8] = Image_padding_0[63]; end
-        45: begin mult_b[0] = Image_padding_1[0]; mult_b[1] = Image_padding_1[1]; mult_b[2] = Image_padding_1[2]; mult_b[3] = Image_padding_1[8]; mult_b[4] = Image_padding_1[9]; mult_b[5] = Image_padding_1[10]; mult_b[6] = Image_padding_1[16]; mult_b[7] = Image_padding_1[17]; mult_b[8] = Image_padding_1[18]; end
-        46: begin mult_b[0] = Image_padding_1[1]; mult_b[1] = Image_padding_1[2]; mult_b[2] = Image_padding_1[3]; mult_b[3] = Image_padding_1[9]; mult_b[4] = Image_padding_1[10]; mult_b[5] = Image_padding_1[11]; mult_b[6] = Image_padding_1[17]; mult_b[7] = Image_padding_1[18]; mult_b[8] = Image_padding_1[19]; end
-        47: begin mult_b[0] = Image_padding_1[2]; mult_b[1] = Image_padding_1[3]; mult_b[2] = Image_padding_1[4]; mult_b[3] = Image_padding_1[10]; mult_b[4] = Image_padding_1[11]; mult_b[5] = Image_padding_1[12]; mult_b[6] = Image_padding_1[18]; mult_b[7] = Image_padding_1[19]; mult_b[8] = Image_padding_1[20]; end
-        48: begin mult_b[0] = Image_padding_1[3]; mult_b[1] = Image_padding_1[4]; mult_b[2] = Image_padding_1[5]; mult_b[3] = Image_padding_1[11]; mult_b[4] = Image_padding_1[12]; mult_b[5] = Image_padding_1[13]; mult_b[6] = Image_padding_1[19]; mult_b[7] = Image_padding_1[20]; mult_b[8] = Image_padding_1[21]; end
-        49: begin mult_b[0] = Image_padding_1[4]; mult_b[1] = Image_padding_1[5]; mult_b[2] = Image_padding_1[6]; mult_b[3] = Image_padding_1[12]; mult_b[4] = Image_padding_1[13]; mult_b[5] = Image_padding_1[14]; mult_b[6] = Image_padding_1[20]; mult_b[7] = Image_padding_1[21]; mult_b[8] = Image_padding_1[22]; end
-        50: begin mult_b[0] = Image_padding_1[5]; mult_b[1] = Image_padding_1[6]; mult_b[2] = Image_padding_1[7]; mult_b[3] = Image_padding_1[13]; mult_b[4] = Image_padding_1[14]; mult_b[5] = Image_padding_1[15]; mult_b[6] = Image_padding_1[21]; mult_b[7] = Image_padding_1[22]; mult_b[8] = Image_padding_1[23]; end
-        51: begin mult_b[0] = Image_padding_1[8]; mult_b[1] = Image_padding_1[9]; mult_b[2] = Image_padding_1[10]; mult_b[3] = Image_padding_1[16]; mult_b[4] = Image_padding_1[17]; mult_b[5] = Image_padding_1[18]; mult_b[6] = Image_padding_1[24]; mult_b[7] = Image_padding_1[25]; mult_b[8] = Image_padding_1[26]; end
-        52: begin mult_b[0] = Image_padding_1[9]; mult_b[1] = Image_padding_1[10]; mult_b[2] = Image_padding_1[11]; mult_b[3] = Image_padding_1[17]; mult_b[4] = Image_padding_1[18]; mult_b[5] = Image_padding_1[19]; mult_b[6] = Image_padding_1[25]; mult_b[7] = Image_padding_1[26]; mult_b[8] = Image_padding_1[27]; end
-        53: begin mult_b[0] = Image_padding_1[10]; mult_b[1] = Image_padding_1[11]; mult_b[2] = Image_padding_1[12]; mult_b[3] = Image_padding_1[18]; mult_b[4] = Image_padding_1[19]; mult_b[5] = Image_padding_1[20]; mult_b[6] = Image_padding_1[26]; mult_b[7] = Image_padding_1[27]; mult_b[8] = Image_padding_1[28]; end
-        54: begin mult_b[0] = Image_padding_1[11]; mult_b[1] = Image_padding_1[12]; mult_b[2] = Image_padding_1[13]; mult_b[3] = Image_padding_1[19]; mult_b[4] = Image_padding_1[20]; mult_b[5] = Image_padding_1[21]; mult_b[6] = Image_padding_1[27]; mult_b[7] = Image_padding_1[28]; mult_b[8] = Image_padding_1[29]; end
-        55: begin mult_b[0] = Image_padding_1[12]; mult_b[1] = Image_padding_1[13]; mult_b[2] = Image_padding_1[14]; mult_b[3] = Image_padding_1[20]; mult_b[4] = Image_padding_1[21]; mult_b[5] = Image_padding_1[22]; mult_b[6] = Image_padding_1[28]; mult_b[7] = Image_padding_1[29]; mult_b[8] = Image_padding_1[30]; end
-        56: begin mult_b[0] = Image_padding_1[13]; mult_b[1] = Image_padding_1[14]; mult_b[2] = Image_padding_1[15]; mult_b[3] = Image_padding_1[21]; mult_b[4] = Image_padding_1[22]; mult_b[5] = Image_padding_1[23]; mult_b[6] = Image_padding_1[29]; mult_b[7] = Image_padding_1[30]; mult_b[8] = Image_padding_1[31]; end
-        57: begin mult_b[0] = Image_padding_1[16]; mult_b[1] = Image_padding_1[17]; mult_b[2] = Image_padding_1[18]; mult_b[3] = Image_padding_1[24]; mult_b[4] = Image_padding_1[25]; mult_b[5] = Image_padding_1[26]; mult_b[6] = Image_padding_1[32]; mult_b[7] = Image_padding_1[33]; mult_b[8] = Image_padding_1[34]; end
-        58: begin mult_b[0] = Image_padding_1[17]; mult_b[1] = Image_padding_1[18]; mult_b[2] = Image_padding_1[19]; mult_b[3] = Image_padding_1[25]; mult_b[4] = Image_padding_1[26]; mult_b[5] = Image_padding_1[27]; mult_b[6] = Image_padding_1[33]; mult_b[7] = Image_padding_1[34]; mult_b[8] = Image_padding_1[35]; end
-        59: begin mult_b[0] = Image_padding_1[18]; mult_b[1] = Image_padding_1[19]; mult_b[2] = Image_padding_1[20]; mult_b[3] = Image_padding_1[26]; mult_b[4] = Image_padding_1[27]; mult_b[5] = Image_padding_1[28]; mult_b[6] = Image_padding_1[34]; mult_b[7] = Image_padding_1[35]; mult_b[8] = Image_padding_1[36]; end
-        60: begin mult_b[0] = Image_padding_1[19]; mult_b[1] = Image_padding_1[20]; mult_b[2] = Image_padding_1[21]; mult_b[3] = Image_padding_1[27]; mult_b[4] = Image_padding_1[28]; mult_b[5] = Image_padding_1[29]; mult_b[6] = Image_padding_1[35]; mult_b[7] = Image_padding_1[36]; mult_b[8] = Image_padding_1[37]; end
-        61: begin mult_b[0] = Image_padding_1[20]; mult_b[1] = Image_padding_1[21]; mult_b[2] = Image_padding_1[22]; mult_b[3] = Image_padding_1[28]; mult_b[4] = Image_padding_1[29]; mult_b[5] = Image_padding_1[30]; mult_b[6] = Image_padding_1[36]; mult_b[7] = Image_padding_1[37]; mult_b[8] = Image_padding_1[38]; end
-        62: begin mult_b[0] = Image_padding_1[21]; mult_b[1] = Image_padding_1[22]; mult_b[2] = Image_padding_1[23]; mult_b[3] = Image_padding_1[29]; mult_b[4] = Image_padding_1[30]; mult_b[5] = Image_padding_1[31]; mult_b[6] = Image_padding_1[37]; mult_b[7] = Image_padding_1[38]; mult_b[8] = Image_padding_1[39]; end
-        63: begin mult_b[0] = Image_padding_1[24]; mult_b[1] = Image_padding_1[25]; mult_b[2] = Image_padding_1[26]; mult_b[3] = Image_padding_1[32]; mult_b[4] = Image_padding_1[33]; mult_b[5] = Image_padding_1[34]; mult_b[6] = Image_padding_1[40]; mult_b[7] = Image_padding_1[41]; mult_b[8] = Image_padding_1[42]; end
-        64: begin mult_b[0] = Image_padding_1[25]; mult_b[1] = Image_padding_1[26]; mult_b[2] = Image_padding_1[27]; mult_b[3] = Image_padding_1[33]; mult_b[4] = Image_padding_1[34]; mult_b[5] = Image_padding_1[35]; mult_b[6] = Image_padding_1[41]; mult_b[7] = Image_padding_1[42]; mult_b[8] = Image_padding_1[43]; end
-        65: begin mult_b[0] = Image_padding_1[26]; mult_b[1] = Image_padding_1[27]; mult_b[2] = Image_padding_1[28]; mult_b[3] = Image_padding_1[34]; mult_b[4] = Image_padding_1[35]; mult_b[5] = Image_padding_1[36]; mult_b[6] = Image_padding_1[42]; mult_b[7] = Image_padding_1[43]; mult_b[8] = Image_padding_1[44]; end
-        66: begin mult_b[0] = Image_padding_1[27]; mult_b[1] = Image_padding_1[28]; mult_b[2] = Image_padding_1[29]; mult_b[3] = Image_padding_1[35]; mult_b[4] = Image_padding_1[36]; mult_b[5] = Image_padding_1[37]; mult_b[6] = Image_padding_1[43]; mult_b[7] = Image_padding_1[44]; mult_b[8] = Image_padding_1[45]; end
-        67: begin mult_b[0] = Image_padding_1[28]; mult_b[1] = Image_padding_1[29]; mult_b[2] = Image_padding_1[30]; mult_b[3] = Image_padding_1[36]; mult_b[4] = Image_padding_1[37]; mult_b[5] = Image_padding_1[38]; mult_b[6] = Image_padding_1[44]; mult_b[7] = Image_padding_1[45]; mult_b[8] = Image_padding_1[46]; end
-        68: begin mult_b[0] = Image_padding_1[29]; mult_b[1] = Image_padding_1[30]; mult_b[2] = Image_padding_1[31]; mult_b[3] = Image_padding_1[37]; mult_b[4] = Image_padding_1[38]; mult_b[5] = Image_padding_1[39]; mult_b[6] = Image_padding_1[45]; mult_b[7] = Image_padding_1[46]; mult_b[8] = Image_padding_1[47]; end
-        69: begin mult_b[0] = Image_padding_1[32]; mult_b[1] = Image_padding_1[33]; mult_b[2] = Image_padding_1[34]; mult_b[3] = Image_padding_1[40]; mult_b[4] = Image_padding_1[41]; mult_b[5] = Image_padding_1[42]; mult_b[6] = Image_padding_1[48]; mult_b[7] = Image_padding_1[49]; mult_b[8] = Image_padding_1[50]; end
-        70: begin mult_b[0] = Image_padding_1[33]; mult_b[1] = Image_padding_1[34]; mult_b[2] = Image_padding_1[35]; mult_b[3] = Image_padding_1[41]; mult_b[4] = Image_padding_1[42]; mult_b[5] = Image_padding_1[43]; mult_b[6] = Image_padding_1[49]; mult_b[7] = Image_padding_1[50]; mult_b[8] = Image_padding_1[51]; end
-        71: begin mult_b[0] = Image_padding_1[34]; mult_b[1] = Image_padding_1[35]; mult_b[2] = Image_padding_1[36]; mult_b[3] = Image_padding_1[42]; mult_b[4] = Image_padding_1[43]; mult_b[5] = Image_padding_1[44]; mult_b[6] = Image_padding_1[50]; mult_b[7] = Image_padding_1[51]; mult_b[8] = Image_padding_1[52]; end
-        72: begin mult_b[0] = Image_padding_1[35]; mult_b[1] = Image_padding_1[36]; mult_b[2] = Image_padding_1[37]; mult_b[3] = Image_padding_1[43]; mult_b[4] = Image_padding_1[44]; mult_b[5] = Image_padding_1[45]; mult_b[6] = Image_padding_1[51]; mult_b[7] = Image_padding_1[52]; mult_b[8] = Image_padding_1[53]; end
-        73: begin mult_b[0] = Image_padding_1[36]; mult_b[1] = Image_padding_1[37]; mult_b[2] = Image_padding_1[38]; mult_b[3] = Image_padding_1[44]; mult_b[4] = Image_padding_1[45]; mult_b[5] = Image_padding_1[46]; mult_b[6] = Image_padding_1[52]; mult_b[7] = Image_padding_1[53]; mult_b[8] = Image_padding_1[54]; end
-        74: begin mult_b[0] = Image_padding_1[37]; mult_b[1] = Image_padding_1[38]; mult_b[2] = Image_padding_1[39]; mult_b[3] = Image_padding_1[45]; mult_b[4] = Image_padding_1[46]; mult_b[5] = Image_padding_1[47]; mult_b[6] = Image_padding_1[53]; mult_b[7] = Image_padding_1[54]; mult_b[8] = Image_padding_1[55]; end
-        75: begin mult_b[0] = Image_padding_1[40]; mult_b[1] = Image_padding_1[41]; mult_b[2] = Image_padding_1[42]; mult_b[3] = Image_padding_1[48]; mult_b[4] = Image_padding_1[49]; mult_b[5] = Image_padding_1[50]; mult_b[6] = Image_padding_1[56]; mult_b[7] = Image_padding_1[57]; mult_b[8] = Image_padding_1[58]; end
-        76: begin mult_b[0] = Image_padding_1[41]; mult_b[1] = Image_padding_1[42]; mult_b[2] = Image_padding_1[43]; mult_b[3] = Image_padding_1[49]; mult_b[4] = Image_padding_1[50]; mult_b[5] = Image_padding_1[51]; mult_b[6] = Image_padding_1[57]; mult_b[7] = Image_padding_1[58]; mult_b[8] = Image_padding_1[59]; end
-        77: begin mult_b[0] = Image_padding_1[42]; mult_b[1] = Image_padding_1[43]; mult_b[2] = Image_padding_1[44]; mult_b[3] = Image_padding_1[50]; mult_b[4] = Image_padding_1[51]; mult_b[5] = Image_padding_1[52]; mult_b[6] = Image_padding_1[58]; mult_b[7] = Image_padding_1[59]; mult_b[8] = Image_padding_1[60]; end
-        78: begin mult_b[0] = Image_padding_1[43]; mult_b[1] = Image_padding_1[44]; mult_b[2] = Image_padding_1[45]; mult_b[3] = Image_padding_1[51]; mult_b[4] = Image_padding_1[52]; mult_b[5] = Image_padding_1[53]; mult_b[6] = Image_padding_1[59]; mult_b[7] = Image_padding_1[60]; mult_b[8] = Image_padding_1[61]; end
-        79: begin mult_b[0] = Image_padding_1[44]; mult_b[1] = Image_padding_1[45]; mult_b[2] = Image_padding_1[46]; mult_b[3] = Image_padding_1[52]; mult_b[4] = Image_padding_1[53]; mult_b[5] = Image_padding_1[54]; mult_b[6] = Image_padding_1[60]; mult_b[7] = Image_padding_1[61]; mult_b[8] = Image_padding_1[62]; end
-        80: begin mult_b[0] = Image_padding_1[45]; mult_b[1] = Image_padding_1[46]; mult_b[2] = Image_padding_1[47]; mult_b[3] = Image_padding_1[53]; mult_b[4] = Image_padding_1[54]; mult_b[5] = Image_padding_1[55]; mult_b[6] = Image_padding_1[61]; mult_b[7] = Image_padding_1[62]; mult_b[8] = Image_padding_1[63]; end
+        9, 45: begin mult_b[0] = Image_padding[0]; mult_b[1] = Image_padding[1]; mult_b[2] = Image_padding[2]; mult_b[3] = Image_padding[8]; mult_b[4] = Image_padding[9]; mult_b[5] = Image_padding[10]; mult_b[6] = Image_padding[16]; mult_b[7] = Image_padding[17]; mult_b[8] = Image_padding[18]; end
+        10, 46: begin mult_b[0] = Image_padding[1]; mult_b[1] = Image_padding[2]; mult_b[2] = Image_padding[3]; mult_b[3] = Image_padding[9]; mult_b[4] = Image_padding[10]; mult_b[5] = Image_padding[11]; mult_b[6] = Image_padding[17]; mult_b[7] = Image_padding[18]; mult_b[8] = Image_padding[19]; end
+        11, 47: begin mult_b[0] = Image_padding[2]; mult_b[1] = Image_padding[3]; mult_b[2] = Image_padding[4]; mult_b[3] = Image_padding[10]; mult_b[4] = Image_padding[11]; mult_b[5] = Image_padding[12]; mult_b[6] = Image_padding[18]; mult_b[7] = Image_padding[19]; mult_b[8] = Image_padding[20]; end
+        12, 48: begin mult_b[0] = Image_padding[3]; mult_b[1] = Image_padding[4]; mult_b[2] = Image_padding[5]; mult_b[3] = Image_padding[11]; mult_b[4] = Image_padding[12]; mult_b[5] = Image_padding[13]; mult_b[6] = Image_padding[19]; mult_b[7] = Image_padding[20]; mult_b[8] = Image_padding[21]; end
+        13, 49: begin mult_b[0] = Image_padding[4]; mult_b[1] = Image_padding[5]; mult_b[2] = Image_padding[6]; mult_b[3] = Image_padding[12]; mult_b[4] = Image_padding[13]; mult_b[5] = Image_padding[14]; mult_b[6] = Image_padding[20]; mult_b[7] = Image_padding[21]; mult_b[8] = Image_padding[22]; end
+        14, 50: begin mult_b[0] = Image_padding[5]; mult_b[1] = Image_padding[6]; mult_b[2] = Image_padding[7]; mult_b[3] = Image_padding[13]; mult_b[4] = Image_padding[14]; mult_b[5] = Image_padding[15]; mult_b[6] = Image_padding[21]; mult_b[7] = Image_padding[22]; mult_b[8] = Image_padding[23]; end
+        15, 51: begin mult_b[0] = Image_padding[8]; mult_b[1] = Image_padding[9]; mult_b[2] = Image_padding[10]; mult_b[3] = Image_padding[16]; mult_b[4] = Image_padding[17]; mult_b[5] = Image_padding[18]; mult_b[6] = Image_padding[24]; mult_b[7] = Image_padding[25]; mult_b[8] = Image_padding[26]; end
+        16, 52: begin mult_b[0] = Image_padding[9]; mult_b[1] = Image_padding[10]; mult_b[2] = Image_padding[11]; mult_b[3] = Image_padding[17]; mult_b[4] = Image_padding[18]; mult_b[5] = Image_padding[19]; mult_b[6] = Image_padding[25]; mult_b[7] = Image_padding[26]; mult_b[8] = Image_padding[27]; end
+        17, 53: begin mult_b[0] = Image_padding[10]; mult_b[1] = Image_padding[11]; mult_b[2] = Image_padding[12]; mult_b[3] = Image_padding[18]; mult_b[4] = Image_padding[19]; mult_b[5] = Image_padding[20]; mult_b[6] = Image_padding[26]; mult_b[7] = Image_padding[27]; mult_b[8] = Image_padding[28]; end
+        18, 54: begin mult_b[0] = Image_padding[11]; mult_b[1] = Image_padding[12]; mult_b[2] = Image_padding[13]; mult_b[3] = Image_padding[19]; mult_b[4] = Image_padding[20]; mult_b[5] = Image_padding[21]; mult_b[6] = Image_padding[27]; mult_b[7] = Image_padding[28]; mult_b[8] = Image_padding[29]; end
+        19, 55: begin mult_b[0] = Image_padding[12]; mult_b[1] = Image_padding[13]; mult_b[2] = Image_padding[14]; mult_b[3] = Image_padding[20]; mult_b[4] = Image_padding[21]; mult_b[5] = Image_padding[22]; mult_b[6] = Image_padding[28]; mult_b[7] = Image_padding[29]; mult_b[8] = Image_padding[30]; end
+        20, 56: begin mult_b[0] = Image_padding[13]; mult_b[1] = Image_padding[14]; mult_b[2] = Image_padding[15]; mult_b[3] = Image_padding[21]; mult_b[4] = Image_padding[22]; mult_b[5] = Image_padding[23]; mult_b[6] = Image_padding[29]; mult_b[7] = Image_padding[30]; mult_b[8] = Image_padding[31]; end
+        21, 57: begin mult_b[0] = Image_padding[16]; mult_b[1] = Image_padding[17]; mult_b[2] = Image_padding[18]; mult_b[3] = Image_padding[24]; mult_b[4] = Image_padding[25]; mult_b[5] = Image_padding[26]; mult_b[6] = Image_padding[32]; mult_b[7] = Image_padding[33]; mult_b[8] = Image_padding[34]; end
+        22, 58: begin mult_b[0] = Image_padding[17]; mult_b[1] = Image_padding[18]; mult_b[2] = Image_padding[19]; mult_b[3] = Image_padding[25]; mult_b[4] = Image_padding[26]; mult_b[5] = Image_padding[27]; mult_b[6] = Image_padding[33]; mult_b[7] = Image_padding[34]; mult_b[8] = Image_padding[35]; end
+        23, 59: begin mult_b[0] = Image_padding[18]; mult_b[1] = Image_padding[19]; mult_b[2] = Image_padding[20]; mult_b[3] = Image_padding[26]; mult_b[4] = Image_padding[27]; mult_b[5] = Image_padding[28]; mult_b[6] = Image_padding[34]; mult_b[7] = Image_padding[35]; mult_b[8] = Image_padding[36]; end
+        24, 60: begin mult_b[0] = Image_padding[19]; mult_b[1] = Image_padding[20]; mult_b[2] = Image_padding[21]; mult_b[3] = Image_padding[27]; mult_b[4] = Image_padding[28]; mult_b[5] = Image_padding[29]; mult_b[6] = Image_padding[35]; mult_b[7] = Image_padding[36]; mult_b[8] = Image_padding[37]; end
+        25, 61: begin mult_b[0] = Image_padding[20]; mult_b[1] = Image_padding[21]; mult_b[2] = Image_padding[22]; mult_b[3] = Image_padding[28]; mult_b[4] = Image_padding[29]; mult_b[5] = Image_padding[30]; mult_b[6] = Image_padding[36]; mult_b[7] = Image_padding[37]; mult_b[8] = Image_padding[38]; end
+        26, 62: begin mult_b[0] = Image_padding[21]; mult_b[1] = Image_padding[22]; mult_b[2] = Image_padding[23]; mult_b[3] = Image_padding[29]; mult_b[4] = Image_padding[30]; mult_b[5] = Image_padding[31]; mult_b[6] = Image_padding[37]; mult_b[7] = Image_padding[38]; mult_b[8] = Image_padding[39]; end
+        27, 63: begin mult_b[0] = Image_padding[24]; mult_b[1] = Image_padding[25]; mult_b[2] = Image_padding[26]; mult_b[3] = Image_padding[32]; mult_b[4] = Image_padding[33]; mult_b[5] = Image_padding[34]; mult_b[6] = Image_padding[40]; mult_b[7] = Image_padding[41]; mult_b[8] = Image_padding[42]; end
+        28, 64: begin mult_b[0] = Image_padding[25]; mult_b[1] = Image_padding[26]; mult_b[2] = Image_padding[27]; mult_b[3] = Image_padding[33]; mult_b[4] = Image_padding[34]; mult_b[5] = Image_padding[35]; mult_b[6] = Image_padding[41]; mult_b[7] = Image_padding[42]; mult_b[8] = Image_padding[43]; end
+        29, 65: begin mult_b[0] = Image_padding[26]; mult_b[1] = Image_padding[27]; mult_b[2] = Image_padding[28]; mult_b[3] = Image_padding[34]; mult_b[4] = Image_padding[35]; mult_b[5] = Image_padding[36]; mult_b[6] = Image_padding[42]; mult_b[7] = Image_padding[43]; mult_b[8] = Image_padding[44]; end
+        30, 66: begin mult_b[0] = Image_padding[27]; mult_b[1] = Image_padding[28]; mult_b[2] = Image_padding[29]; mult_b[3] = Image_padding[35]; mult_b[4] = Image_padding[36]; mult_b[5] = Image_padding[37]; mult_b[6] = Image_padding[43]; mult_b[7] = Image_padding[44]; mult_b[8] = Image_padding[45]; end
+        31, 67: begin mult_b[0] = Image_padding[28]; mult_b[1] = Image_padding[29]; mult_b[2] = Image_padding[30]; mult_b[3] = Image_padding[36]; mult_b[4] = Image_padding[37]; mult_b[5] = Image_padding[38]; mult_b[6] = Image_padding[44]; mult_b[7] = Image_padding[45]; mult_b[8] = Image_padding[46]; end
+        32, 68: begin mult_b[0] = Image_padding[29]; mult_b[1] = Image_padding[30]; mult_b[2] = Image_padding[31]; mult_b[3] = Image_padding[37]; mult_b[4] = Image_padding[38]; mult_b[5] = Image_padding[39]; mult_b[6] = Image_padding[45]; mult_b[7] = Image_padding[46]; mult_b[8] = Image_padding[47]; end
+        33, 69: begin mult_b[0] = Image_padding[32]; mult_b[1] = Image_padding[33]; mult_b[2] = Image_padding[34]; mult_b[3] = Image_padding[40]; mult_b[4] = Image_padding[41]; mult_b[5] = Image_padding[42]; mult_b[6] = Image_padding[48]; mult_b[7] = Image_padding[49]; mult_b[8] = Image_padding[50]; end
+        34, 70: begin mult_b[0] = Image_padding[33]; mult_b[1] = Image_padding[34]; mult_b[2] = Image_padding[35]; mult_b[3] = Image_padding[41]; mult_b[4] = Image_padding[42]; mult_b[5] = Image_padding[43]; mult_b[6] = Image_padding[49]; mult_b[7] = Image_padding[50]; mult_b[8] = Image_padding[51]; end
+        35, 71: begin mult_b[0] = Image_padding[34]; mult_b[1] = Image_padding[35]; mult_b[2] = Image_padding[36]; mult_b[3] = Image_padding[42]; mult_b[4] = Image_padding[43]; mult_b[5] = Image_padding[44]; mult_b[6] = Image_padding[50]; mult_b[7] = Image_padding[51]; mult_b[8] = Image_padding[52]; end
+        36, 72: begin mult_b[0] = Image_padding[35]; mult_b[1] = Image_padding[36]; mult_b[2] = Image_padding[37]; mult_b[3] = Image_padding[43]; mult_b[4] = Image_padding[44]; mult_b[5] = Image_padding[45]; mult_b[6] = Image_padding[51]; mult_b[7] = Image_padding[52]; mult_b[8] = Image_padding[53]; end
+        37, 73: begin mult_b[0] = Image_padding[36]; mult_b[1] = Image_padding[37]; mult_b[2] = Image_padding[38]; mult_b[3] = Image_padding[44]; mult_b[4] = Image_padding[45]; mult_b[5] = Image_padding[46]; mult_b[6] = Image_padding[52]; mult_b[7] = Image_padding[53]; mult_b[8] = Image_padding[54]; end
+        38, 74: begin mult_b[0] = Image_padding[37]; mult_b[1] = Image_padding[38]; mult_b[2] = Image_padding[39]; mult_b[3] = Image_padding[45]; mult_b[4] = Image_padding[46]; mult_b[5] = Image_padding[47]; mult_b[6] = Image_padding[53]; mult_b[7] = Image_padding[54]; mult_b[8] = Image_padding[55]; end
+        39, 75: begin mult_b[0] = Image_padding[40]; mult_b[1] = Image_padding[41]; mult_b[2] = Image_padding[42]; mult_b[3] = Image_padding[48]; mult_b[4] = Image_padding[49]; mult_b[5] = Image_padding[50]; mult_b[6] = Image_padding[56]; mult_b[7] = Image_padding[57]; mult_b[8] = Image_padding[58]; end
+        40, 76: begin mult_b[0] = Image_padding[41]; mult_b[1] = Image_padding[42]; mult_b[2] = Image_padding[43]; mult_b[3] = Image_padding[49]; mult_b[4] = Image_padding[50]; mult_b[5] = Image_padding[51]; mult_b[6] = Image_padding[57]; mult_b[7] = Image_padding[58]; mult_b[8] = Image_padding[59]; end
+        41, 77: begin mult_b[0] = Image_padding[42]; mult_b[1] = Image_padding[43]; mult_b[2] = Image_padding[44]; mult_b[3] = Image_padding[50]; mult_b[4] = Image_padding[51]; mult_b[5] = Image_padding[52]; mult_b[6] = Image_padding[58]; mult_b[7] = Image_padding[59]; mult_b[8] = Image_padding[60]; end
+        42, 78: begin mult_b[0] = Image_padding[43]; mult_b[1] = Image_padding[44]; mult_b[2] = Image_padding[45]; mult_b[3] = Image_padding[51]; mult_b[4] = Image_padding[52]; mult_b[5] = Image_padding[53]; mult_b[6] = Image_padding[59]; mult_b[7] = Image_padding[60]; mult_b[8] = Image_padding[61]; end
+        43, 79: begin mult_b[0] = Image_padding[44]; mult_b[1] = Image_padding[45]; mult_b[2] = Image_padding[46]; mult_b[3] = Image_padding[52]; mult_b[4] = Image_padding[53]; mult_b[5] = Image_padding[54]; mult_b[6] = Image_padding[60]; mult_b[7] = Image_padding[61]; mult_b[8] = Image_padding[62]; end
+        44, 80: begin mult_b[0] = Image_padding[45]; mult_b[1] = Image_padding[46]; mult_b[2] = Image_padding[47]; mult_b[3] = Image_padding[53]; mult_b[4] = Image_padding[54]; mult_b[5] = Image_padding[55]; mult_b[6] = Image_padding[61]; mult_b[7] = Image_padding[62]; mult_b[8] = Image_padding[63]; end
 // ----------------- Fully connect 1 -----------------
 // reg [inst_sig_width+inst_exp_width:0] weight_1_row_0 [0:5], 
 //                                       weight_1_row_1 [0:5], 
@@ -860,9 +758,9 @@ end
 
 // reg [3:0] current_select_mask;
 always @(posedge clk) begin
-    if (cnt_clk == 1) current_select_mask <= 4'd15;
+    if (cnt_clk == 1)                        current_select_mask <= 4'd15;
     else if (cnt_clk >= 83 && cnt_clk <= 97) current_select_mask <= current_select_mask - 4'd1;
-    else current_select_mask <= current_select_mask;
+    else                                     current_select_mask <= current_select_mask;
 end
 
 // ----------------- task 1 sum -----------------
