@@ -192,7 +192,6 @@ generate
     end
 endgenerate
 
-// Todo: 比較誰比較好
 // cmp * 2
 generate
     for (k = 0; k < 2; k = k + 1) begin: cmp_instances
@@ -228,7 +227,7 @@ end
 // reg [6:0] next_cnt_clk;  // 0 ~ 92 (7 bits)
 always @(*) begin
     next_cnt_clk = cnt_clk;
-    if      (cnt_clk == 7'd102) next_cnt_clk = 7'b0;
+    if      (cnt_clk == 7'd102 || task_reg == 1'd1 && cnt_clk == 7'd99) next_cnt_clk = 7'b0;
     else if (cnt_clk > 7'b0 || in_valid) next_cnt_clk = cnt_clk + 1;
 end
 
