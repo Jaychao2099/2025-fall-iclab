@@ -42,5 +42,10 @@ output reg signed [31:0]  out_value;
 // design
 //==================================================================
 
+SRAM_1024 s1 (A0,A1,A2,A3,A4,A5,A6,A7,A8,A9,
+              DO0,DO1,DO2,DO3,DO4,DO5,DO6,DO7,
+              DI0,DI1,DI2,DI3,DI4,DI5,DI6,DI7,
+              CK,WEB,OE, CS);
+
 
 endmodule
