@@ -62,15 +62,35 @@ always @(posedge clk negedge rst_n) begin
     else input_cnt <= 14'd0;
 end
 
+
+reg []
+
+
+
+
 // reg [3:0] mem_frame_num;
 // reg [4:0] mem_row_num;
 // reg [4:0] mem_col_num;
 always @(posedge clk) begin
+    // ----------------- input (memory) -----------------
     if (in_valid_data) begin
         mem_frame_num <= input_cnt[13:10];
         mem_row_num <= input_cnt[9:5];
         mem_col_num <= input_cnt[4:0];
     end
+    // ----------------- predict -----------------
+    else if (current_state== S_PREDICTION) begin
+        mem_frame_num <= index_reg;
+        if (current_mode) begin
+            mem_row_num <= predict_cnt[6:2]         + {1'b0, intra_4_cnt[3:2], 2'd0} + (MB_cnt[0] ? 5'd16 : 5'd0);  // (cnt/4) + (intra_4_cnt/4)*4
+            mem_col_num <= {3'd0, predict_cnt[1:0]} + {1'b0, intra_4_cnt[1:0], 2'd0} + (MB_cnt[1] ? 5'd16 : 5'd0);  // (cnt%4) + (intra_4_cnt%4)*4
+        end
+        else begin
+            mem_row_num <= {predict_cnt[8:6], 2'd0} + {3'd0, predict_cnt[3:2]} + (MB_cnt[0] ? 5'd16 : 5'd0);  // 4*((cnt/16)/4) + (cnt%16)/4
+            mem_col_num <= {3'd0, predict_cnt[7:6]} + {3'd0, predict_cnt[1:0]} + (MB_cnt[1] ? 5'd16 : 5'd0);  // 4*((cnt/16)%4) + (cnt%16)%4
+        end
+    end
+    // -----------------  -----------------
     else begin
         mem_frame_num <= 4'd0;
         mem_row_num <= 5'd0;
@@ -124,12 +144,12 @@ end
 // reg [3:0] mode_reg;
 always @(posedge clk) begin
     if (in_valid_param) begin
-        QP_reg[3] <= mode;
-        QP_reg[2] <= QP_reg[3];
-        QP_reg[1] <= QP_reg[2];
-        QP_reg[0] <= QP_reg[1];
+        mode_reg[3] <= mode;
+        mode_reg[2] <= mode_reg[3];
+        mode_reg[1] <= mode_reg[2];
+        mode_reg[0] <= mode_reg[1];
     end
-    else QP_reg <= QP_reg;
+    else mode_reg <= mode_reg;
 end
 
 // reg [4:0]  QP_reg;
@@ -143,8 +163,9 @@ end
 parameter S_IDLE        = 0;
 parameter S_INPUT_DATA  = 1;
 parameter S_INPUT_PARAM = 3;
-parameter S_PROCESS_MB  = 4;
-parameter S_OUTPUT      = 5;
+parameter S_PREDICTION  = 4;
+parameter S_TRANSFORM   = 5;
+parameter S_OUTPUT      = 6;
 
 reg [2:0] current_state;
 reg [2:0] next_state;
@@ -168,12 +189,17 @@ always @(*) begin
             else                        next_state = S_INPUT_DATA;
         end
         S_INPUT_PARAM: begin
-            if (param_cnt == 2'd3) next_state = S_PROCESS_MB;
+            if (param_cnt == 2'd3) next_state = S_PREDICTION;
             else                   next_state = S_INPUT_PARAM;
         end
-        S_PROCESS_MB: begin
-            if (set_cnt == 15 && quant_done) next_state = S_OUTPUT;       // all 16 sets are done
-            else                             next_state = S_PROCESS_MB;
+        S_PREDICTION: begin
+            if (current_mode == 1 && prev_predict_cnt == 9'd15 || prev_predict_cnt == 9'd255) next_state = S_TRANSFORM;
+            else                                                                              next_state = S_PREDICTION;
+        end
+        S_TRANSFORM: begin
+            if (set_cnt == 4'd15 && quant_done) next_state = S_OUTPUT;       // all 16 sets are done
+            else if (reconstruct_done)       next_state = S_PREDICTION;
+            else                             next_state = S_TRANSFORM;
         end
         S_OUTPUT: begin     // for last set's output
             if (output_done) next_state = S_IDLE;
@@ -185,35 +211,129 @@ end
 
 // ----------------- referance -----------------
 
+wire current_mode;
+reg [1:0] MB_cnt, next_MB_cnt;    // 0~3
+// intra_4
+reg [3:0] intra_4_cnt;     // 0~15
+// 0~255
+reg [7:0] prediction_dc   [0:255];
+reg [7:0] prediction_hori [0:255];
+reg [7:0] prediction_vert [0:255];
 
+
+
+// wire current_mode;
+assign current_mode = mode_reg[MB_cnt];
+
+// reg [1:0] MB_cnt;    // 0~3
+always @(posedge clk) begin
+    if      (current_state == S_INPUT_PARAM) MB_cnt <= 2'd0;
+    else if (current_state == S_PREDICTION)  MB_cnt <= next_MB_cnt;
+    else                                     MB_cnt <= MB_cnt;
+end
+
+// reg [1:0] next_MB_cnt;    // 0~3
+always @(*) begin
+    next_MB_cnt = MB_cnt;
+    if (out_cnt[7:0] == 8'd255) next_MB_cnt = MB_cnt + 2'd1;
+end
+
+
+// reg [3:0] intra_4_cnt;
+always @(posedge clk) begin
+    if      (current_state == S_INPUT_PARAM || out_cnt[7:0] == 8'd255) intra_4_cnt <= 4'd0;
+    else if (predict_cnt[3:0] == 4'd15)                                intra_4_cnt <= intra_4_cnt + 4'd1;
+    else                                                               intra_4_cnt <= intra_4_cnt;
+end
+
+// reg [7:0] prediction_dc   [0:255];
+// reg [7:0] prediction_hori [0:255];
+// reg [7:0] prediction_vert [0:255];
 
 
 
 // ----------------- predict -----------------
 
-reg [7:0] in_data    [0:15],   // 0~255
-reg [7:0] prediction [0:15],   // 0~255
-reg signed [8:0] residual [0:15],   // input - prediction, -255~255
-reg [11:0] out_sad       // sum of ABS(input - prediction)
+wire [7:0] in_data;   // 0~255
+
+// wire [7:0] in_data;   // 0~255
+assign in_data = mem_output_data_reg;
+
+// input - prediction, -255~255
+reg signed [8:0] residual_dc   [0:255];
+reg signed [8:0] residual_hori [0:255];
+reg signed [8:0] residual_vert [0:255];
+
+// ABS(input - prediction)
+reg [8:0] predict_cnt, prev_predict_cnt;     // 0~15, 0~255
+wire [8:0] max_predict_cnt;
+reg [11:0] out_sad_dc, out_sad_hori, out_sad_vert;
+reg [31:0] acc_sad_dc, acc_sad_hori, acc_sad_vert;
+reg [8:0] real_residual [0:255];
+
+// wire max_predict_cnt;
+assign max_predict_cnt = current_mode ? 9'd15 : 9'd225;
+
+// reg [8:0] predict_cnt;     // 0~17, 0~255
+always @(posedge clk) begin
+    if (current_state == S_PREDICTION && predict_cnt < max_predict_cnt) predict_cnt <= predict_cnt + 9'd1;
+    else predict_cnt <= 9'd0;
+end
+
+// reg [8:0] prev_predict_cnt;     // 0~17, 0~255
+always @(posedge clk) begin
+    prev_predict_cnt <= predict_cnt;
+end
+
+// ABS(input - prediction)
+// reg [11:0] out_sad_dc, out_sad_hori, out_sad_vert;
+SAD sad_dc   (.in_data(in_data), .prediction(prediction_dc  [prev_predict_cnt]), .residual(residual_dc  [prev_predict_cnt]), .out_sad(out_sad_dc));
+SAD sad_hori (.in_data(in_data), .prediction(prediction_hori[prev_predict_cnt]), .residual(residual_hori[prev_predict_cnt]), .out_sad(out_sad_hori));
+SAD sad_vert (.in_data(in_data), .prediction(prediction_vert[prev_predict_cnt]), .residual(residual_vert[prev_predict_cnt]), .out_sad(out_sad_vert));
+
+// reg [31:0] acc_sad_dc, acc_sad_hori, acc_sad_vert;
+always @(posedge clk) begin
+    if (current_state == S_PREDICTION) begin
+        acc_sad_dc   <= (prev_predict_cnt <= max_predict_cnt) ? (acc_sad_dc + out_sad_dc) : acc_sad_dc;
+        acc_sad_hori <= (prev_predict_cnt <= max_predict_cnt) ? (acc_sad_hori + out_sad_hori) : acc_sad_hori;
+        acc_sad_vert <= (prev_predict_cnt <= max_predict_cnt) ? (acc_sad_vert + out_sad_vert) : acc_sad_vert;
+    end
+    else begin
+        acc_sad_dc   <= 31'd0;
+        acc_sad_hori <= 31'd0;
+        acc_sad_vert <= 31'd0;
+    end
+end
+
+// smallest SAD
+// reg [8:0] real_residual [0:255];
+always @(*) begin
+    real_residual = residual_dc;
+    if      (acc_sad_vert >= acc_sad_hori && acc_sad_dc > acc_sad_hori) real_residual = residual_hori;
+    else if (acc_sad_hori >  acc_sad_vert && acc_sad_dc > acc_sad_vert) real_residual = residual_vert;
+end
 
 
-
-
-
-SAD s1 (.in_data(in_data), .prediction(prediction), .clk(clk), .residual(residual), .out_sad(out_sad));
 
 
 // ----------------- int transform -----------------
 
-function signed [31:0] expend_to_32;
-    input x;
-    
-endfunction
+
+
+
+
+
+
+// ----------------- Quantization -----------------
+
+
 
 
 
 
 // ----------------- output -----------------
+
+reg [9:0] out_cnt;     // 0~1023
 
 // output reg signed [31:0] out_value;
 always @(posedge clk or negedge rst_n) begin
@@ -233,31 +353,19 @@ endmodule
 
 
 module SAD (
-    input [7:0] in_data    [0:15],   // 0~255
-    input [7:0] prediction [0:15],   // 0~255
+    input [7:0] in_data,   // 0~255
+    input [7:0] prediction,   // 0~255
 
-    output signed [8:0] residual [0:15],   // input - prediction, -255~255
-    output [11:0] out_sad       // sum of ABS(input - prediction)
+    output signed [8:0] residual,   // input - prediction, -255~255
+    output [9:0] out_sad       // ABS(input - prediction), accumulate in main module
 );
 
-genvar i;
-wire [11:0] residual_abs [0:15];
+// output signed [8:0] residual,   // input - prediction, -255~255
+assign residual = {1'b0, in_data} - {1'b0, prediction};
 
-// output signed [8:0] residual [0:15],   // input - prediction, -255~255
-generate
-    for (i = 0. i < 16; i = i + 1) begin
-        assign residual[i] = {1'b0, in_data[i]} - {1'b0, prediction[i]};
-    end
-endgenerate
+// output [9:0] out_sad       // ABS(input - prediction), accumulate in main module     // 0~255
+MATRIX_ABS #(9, 9) a1 (.a(residual), .result(out_sad));
 
-// wire [11:0] residual_abs [0:15];     // 0~255, 12-bit align to out_sad
-MATRIX_ABS #(9, 12) a1 (.a(residual), .result(residual_abs));
-
-// output [11:0] out_sad        // sum of ABS(input - prediction)
-assign out_sad = residual_abs[0]  + residual_abs[1]  + residual_abs[2]  + residual_abs[3]  + 
-                 residual_abs[4]  + residual_abs[5]  + residual_abs[6]  + residual_abs[7]  + 
-                 residual_abs[8]  + residual_abs[9]  + residual_abs[10] + residual_abs[11] + 
-                 residual_abs[12] + residual_abs[13] + residual_abs[14] + residual_abs[15];
 
 endmodule
 
@@ -307,24 +415,6 @@ always @(*) begin
     endcase
 end
 
-// // output signed [31:0] result [0:15]   // 25-bit or 26-bit ?
-// assign result[0] = (A[0] + A[1] + A[2] + A[3] + A[4] + A[5] + A[6] + A[7] + A[8] + A[9] + A[10] + A[11] + A[12] + A[13] + A[14] + A[15]) >>> shift_bits;
-// assign result[1] = (A[0] + A[1] - A[2] - A[3] + A[4] + A[5] - A[6] - A[7] + A[8] + A[9] - A[10] - A[11] + A[12] + A[13] - A[14] - A[15]) >>> shift_bits;
-// assign result[2] = (A[0] - A[1] - A[2] + A[3] + A[4] - A[5] - A[6] + A[7] + A[8] - A[9] - A[10] + A[11] + A[12] - A[13] - A[14] + A[15]) >>> shift_bits;
-// assign result[3] = (A[0] - A[1] - A[2] + A[3] + A[4] - A[5] - A[6] + A[7] + A[8] - A[9] - A[10] + A[11] + A[12] - A[13] - A[14] + A[15]) >>> shift_bits;
-// assign result[4] = (A[0] + A[1] + A[2] + A[3] + A[4] + A[5] + A[6] + A[7] - A[8] - A[9] - A[10] - A[11] - A[12] - A[13] - A[14] - A[15]) >>> shift_bits;
-// assign result[5] = (A[0] + A[1] - A[2] - A[3] + A[4] + A[5] - A[6] - A[7] - A[8] - A[9] + A[10] + A[11] - A[12] - A[13] + A[14] + A[15]) >>> shift_bits;
-// assign result[6] = (A[0] - A[1] - A[2] + A[3] + A[4] - A[5] - A[6] + A[7] - A[8] + A[9] + A[10] - A[11] - A[12] + A[13] + A[14] - A[15]) >>> shift_bits;
-// assign result[7] = (A[0] - A[1] + A[2] - A[3] + A[4] - A[5] + A[6] - A[7] - A[8] + A[9] - A[10] + A[11] - A[12] + A[13] - A[14] + A[15]) >>> shift_bits;
-// assign result[8] = (A[0] + A[1] + A[2] + A[3] - A[4] - A[5] - A[6] - A[7] - A[8] - A[9] - A[10] - A[11] + A[12] + A[13] + A[14] + A[15]) >>> shift_bits;
-// assign result[9] = (A[0] + A[1] - A[2] - A[3] - A[4] - A[5] + A[6] + A[7] - A[8] - A[9] + A[10] + A[11] + A[12] + A[13] - A[14] - A[15]) >>> shift_bits;
-// assign result[10] = (A[0] - A[1] - A[2] + A[3] - A[4] + A[5] + A[6] - A[7] - A[8] + A[9] + A[10] - A[11] + A[12] - A[13] - A[14] + A[15]) >>> shift_bits;
-// assign result[11] = (A[0] - A[1] + A[2] - A[3] - A[4] + A[5] - A[6] + A[7] - A[8] + A[9] - A[10] + A[11] + A[12] - A[13] + A[14] - A[15]) >>> shift_bits;
-// assign result[12] = (A[0] + A[1] + A[2] + A[3] - A[4] - A[5] - A[6] - A[7] + A[8] + A[9] + A[10] + A[11] - A[12] - A[13] - A[14] - A[15]) >>> shift_bits;
-// assign result[13] = (A[0] + A[1] - A[2] - A[3] - A[4] - A[5] + A[6] + A[7] + A[8] + A[9] - A[10] - A[11] - A[12] - A[13] + A[14] + A[15]) >>> shift_bits;
-// assign result[14] = (A[0] - A[1] - A[2] + A[3] - A[4] + A[5] + A[6] - A[7] + A[8] - A[9] - A[10] + A[11] - A[12] + A[13] + A[14] - A[15]) >>> shift_bits;
-// assign result[15] = (A[0] - A[1] + A[2] - A[3] - A[4] + A[5] - A[6] + A[7] + A[8] - A[9] + A[10] - A[11] - A[12] + A[13] - A[14] + A[15]) >>> shift_bits;
-
 
 endmodule
 
@@ -340,20 +430,17 @@ module QUANTIZATION (
 
 genvar i;
 
-wire signed [31:0] in_abs [0:15];
+wire signed [31:0] in_abs;
 reg signed [31:0] mf_a, mf_b, mf_c;
-wire signed [31:0] MF;       // ==> De-Quantization's V
+reg signed [31:0] MF;       // ==> De-Quantization's V
 wire signed [31:0] dot_in;
 wire signed [31:0] q_tmp;
 reg signed [31:0] f;
 reg signed [4:0] qbits;
 reg signed [31:0] z_abs;
 
-// wire signed [31:0] in_abs [0:15];
+// wire signed [31:0] in_abs;
 MATRIX_ABS #(32, 32) abs_1 (.a(in[cnt]), .result(in_abs));
-
-// wire signed [31:0] MF [0:15];
-
 
 // reg signed [31:0] mf_a
 always @(*) begin
@@ -391,13 +478,12 @@ always @(*) begin
     endcase
 end
 
+// reg signed [31:0] MF;       // ==> De-Quantization's V
 always @(*) begin
     case (cnt)
-        0, 2, 8, 10:               MF = mf_a;
-        5, 7, 13, 15:              MF = mf_b;
-        // 1, 3, 4, 6, 9, 11, 12, 14: MF = mf_c;
-        default: MF = mf_c;
-        // default:                   MF = 31'd0;
+        0, 2, 8, 10:  MF = mf_a;
+        5, 7, 13, 15: MF = mf_b;
+        default:      MF = mf_c;
     endcase
 end
 
@@ -432,15 +518,6 @@ end
 assign z_abs = (q_tmp + f) >> qbits;
 
 assign out = de_q ? q_tmp : ((z_abs ^ {32{in[cnt][12]}}) + {31'd0, in[cnt][12]});
-
-// generate
-//     for (i = 0; i < 16; i = i + 1) assign z_abs[i] = (q_tmp[i] + f) >> qbits;   // >>> ?
-// endgenerate
-
-// // add sign bit
-// generate
-//     for (i = 0; i < 16; i = i + 1) assign out[i] = de_q ? q_tmp[i] : (z_abs[i] ^ {32{in[i][12]}}) + {31'd0, in[i][12]};
-// endgenerate
 
 
 endmodule
