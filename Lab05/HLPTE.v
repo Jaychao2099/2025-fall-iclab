@@ -44,6 +44,7 @@ parameter S_TRANSFORM   = 5;
 // reg & wire
 //==================================================================
 
+// ----------------- input (memory) -----------------
 reg [3:0] mem_frame_num;
 reg [4:0] mem_row_num;
 reg [4:0] mem_col_num;
@@ -53,15 +54,18 @@ wire mem_web;
 
 reg [13:0] input_cnt;
 
+// ----------------- input (param) -----------------
 reg [3:0] set_cnt;
 reg [1:0] param_cnt;
 reg [3:0] index_reg;
 reg [3:0] mode_reg;
 reg [4:0] QP_reg;
 
+// ----------------- FSM -----------------
 reg [2:0] current_state;
 reg [2:0] next_state;
 
+// ----------------- referance -----------------
 wire current_mode;
 reg [1:0] MB_cnt, next_MB_cnt;    // 0~3
 // intra_4
@@ -79,6 +83,7 @@ reg [12:0] left_sum16 [0:1], left_sum4 [0:7];
 reg [12:0] top_sum16 [0:1], top_sum4 [0:7];
 reg [12:0] dc;
 
+// ----------------- predict -----------------
 wire [7:0] in_data;   // 0~255
 
 wire [8:0] max_predict_cnt;     // 15 or 255
@@ -95,23 +100,30 @@ reg [11:0] out_sad_dc, out_sad_hori, out_sad_vert;
 reg [31:0] acc_sad_dc, acc_sad_hori, acc_sad_vert;
 reg [8:0] real_residual [0:255];
 
-
+// ----------------- int transform -----------------
 reg [8:0] transform_cnt;
 reg [8:0] prev_transform_cnt;
 reg [8:0] pprev_transform_cnt;
 
 wire reconstruct_done;
 
+// ----------------- Quantization -----------------
 reg [12:0] q_in;
 reg signed [31:0] q_out;
 
+// ----------------- output -----------------
 wire need_output;
+reg [9:0] out_cnt;  // 0~1023
 
+// ----------------- De-Quantization -----------------
 wire signed [31:0] de_q_out;
 reg signed [31:0] de_W [0:15], de_W_reg [0:15];
 
+// ----------------- inverse int transform -----------------
 reg signed [31:0] new_left [0:3];
 reg signed [31:0] new_top  [0:3];
+
+// ----------------- feedback referance -----------------
 reg signed [31:0] re_left [0:3];
 reg signed [31:0] re_top  [0:3];
 
@@ -294,6 +306,8 @@ always @(posedge clk) begin
     else                                                               intra_4_cnt <= intra_4_cnt;
 end
 
+// ----------------- feedback referance -----------------
+
 // reg [12:0] ref_left_reg [0:15];
 // reg [12:0] ref_top_reg  [0:31];
 always @(posedge clk) begin
@@ -384,7 +398,6 @@ always @(*) begin
         endcase
     end
 end
-
 
 // ----------------- predict -----------------
 
@@ -482,7 +495,6 @@ end
 // reg signed [12:0] int_result;
 INT_TRANSFORM i_1 (.A(int_input), .cnt(transform_cnt), .result(int_result));
 
-
 // ----------------- Quantization -----------------
 
 // reg [12:0] q_in;
@@ -519,6 +531,13 @@ always @(posedge clk or negedge rst_n) begin
     else                  out_valid <= 1'b0;
 end
 
+// reg [9:0] out_cnt;  // 0~1023
+always @(posedge clk) begin
+    if (out_cnt == 10'd1023) out_cnt <= 10'd0;
+    else if (need_output)    out_cnt <= out_cnt + 10'd1;
+    else                     out_cnt <= out_cnt;
+end
+
 // ----------------- De-Quantization -----------------
 
 // input signed [31:0] in,
@@ -539,7 +558,6 @@ always @(*) begin
     de_W = de_W_reg;
     de_W[pprev_transform_cnt[3:0]] <= de_q_out;
 end
-
 
 // ----------------- inverse int transform -----------------
 
@@ -570,7 +588,7 @@ always @(*) begin
     end
 end
 
-// ----------------- feedback referance ----------------- L 246
+// ----------------- feedback referance ----------------- L 309
 
 // reg [12:0] ref_left [0:31], ref_left_reg [0:31];
 // reg [12:0] ref_top  [0:31], ref_top_reg [0:31];
