@@ -73,7 +73,7 @@ initial begin
     
     // Open golden files for I/O
     frame_file    = $fopen("../00_TESTBED/frames.txt", "r");
-    param_file    = $fopen("../00_TESTBED/params.txt", "r");
+    param_file    = $fopen("../00_TESTBED/my_params.txt", "r");
     golden_z_file = $fopen("../00_TESTBED/golden_Z.txt", "r");
     
     if (frame_file == 0 || param_file == 0 || golden_z_file == 0) begin
@@ -227,8 +227,8 @@ begin
         // Compare DUT output with golden value
         if (out_value !== golden_z_storage[i]) begin
             $display("\n[FAIL] DATA MISMATCH at PATTERN %d, SET %d, output index %d.", i_pat, set_idx, i);
-            $strobe("       DUT Output: %d (%h)", out_value, out_value);
-            $strobe("       Golden    : %d (%h)", golden_z_storage[i], golden_z_storage[i]);
+            $display("       DUT Output: %d (%h)", out_value, out_value);
+            $display("       Golden    : %d (%h)", golden_z_storage[i], golden_z_storage[i]);
             $finish;
         end
         @(negedge clk);

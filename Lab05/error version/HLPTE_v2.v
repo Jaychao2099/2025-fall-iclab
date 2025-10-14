@@ -36,9 +36,10 @@ genvar i;
 
 parameter S_IDLE        = 0;
 parameter S_INPUT_DATA  = 1;
-parameter S_INPUT_PARAM = 3;
-parameter S_PREDICTION  = 4;
-parameter S_TRANSFORM   = 5;
+parameter S_INPUT_PARAM = 2;
+parameter S_PREDICTION  = 3;
+parameter S_TRANSFORM   = 4;
+parameter S_WAIT        = 5;
 
 //==================================================================
 // reg & wire
@@ -66,10 +67,13 @@ reg [2:0] current_state;
 reg [2:0] next_state;
 
 // ----------------- referance -----------------
-wire current_mode;
+// wire current_mode;
+reg current_mode;
 reg [1:0] MB_cnt, next_MB_cnt;    // 0~3
 // intra_4
 reg [3:0] intra_4_cnt;     // 0~15
+
+// ----------------- predict -----------------
 // 0~255
 reg [7:0] prediction_dc   [0:255];
 reg [7:0] prediction_hori [0:255];
@@ -83,27 +87,27 @@ reg [12:0] left_sum16 [0:1], left_sum4 [0:7];
 reg [12:0] top_sum16 [0:1], top_sum4 [0:7];
 reg [12:0] dc;
 
-// ----------------- predict -----------------
 wire [7:0] in_data;   // 0~255
 
 wire [8:0] max_predict_cnt;     // 15 or 255
 
-reg [8:0] predict_cnt, prev_predict_cnt;     // 0~15, 0~255
+reg [8:0] predict_cnt, prev_predict_cnt, pprev_predict_cnt, ppprev_predict_cnt, pppprev_predict_cnt;     // 0~15, 0~255
 
 // input - prediction, -255~255
-reg signed [8:0] residual_dc   [0:255];
-reg signed [8:0] residual_hori [0:255];
-reg signed [8:0] residual_vert [0:255];
+reg signed [8:0] residual_dc   [0:255], residual_dc_reg   [0:255];
+reg signed [8:0] residual_hori [0:255], residual_hori_reg [0:255];
+reg signed [8:0] residual_vert [0:255], residual_vert_reg [0:255];
 
 // ABS(input - prediction)
 reg [11:0] out_sad_dc, out_sad_hori, out_sad_vert;
 reg [31:0] acc_sad_dc, acc_sad_hori, acc_sad_vert;
-reg [8:0] real_residual [0:255];
+reg signed [8:0] real_residual [0:255];
 
 // ----------------- int transform -----------------
 reg [8:0] transform_cnt;
-reg [8:0] prev_transform_cnt;
-reg [8:0] pprev_transform_cnt;
+reg [7:0] prev_transform_cnt;
+reg [7:0] pprev_transform_cnt;
+reg [7:0] ppprev_transform_cnt;
 
 wire reconstruct_done;
 
@@ -126,7 +130,8 @@ reg signed [31:0] new_top  [0:3];
 // ----------------- feedback referance -----------------
 reg signed [31:0] re_left [0:3];
 reg signed [31:0] re_top  [0:3];
-
+reg signed [31:0] re_left_reg [0:3];
+reg signed [31:0] re_top_reg  [0:3];
 
 //==================================================================
 // design
@@ -143,7 +148,7 @@ MEM_INTERFACE m1 (.frame(mem_frame_num), .row(mem_row_num), .col(mem_col_num), .
 
 
 // reg [13:0] input_cnt;
-always @(posedge clk negedge rst_n) begin
+always @(posedge clk or negedge rst_n) begin
     if (!rst_n) input_cnt <= 14'b0;
     else if (in_valid_data) input_cnt <= input_cnt + 14'd1;
     else input_cnt <= 14'd0;
@@ -159,7 +164,7 @@ always @(posedge clk or negedge rst_n) begin
         mem_col_num <= 5'd0;
     end
     // ----------------- input (memory) -----------------
-    if (in_valid_data) begin
+    else if (in_valid_data) begin
         mem_frame_num <= input_cnt[13:10];
         mem_row_num <= input_cnt[9:5];
         mem_col_num <= input_cnt[4:0];
@@ -168,12 +173,19 @@ always @(posedge clk or negedge rst_n) begin
     else if (current_state == S_PREDICTION) begin
         mem_frame_num <= index_reg;
         if (current_mode) begin
-            mem_row_num <= predict_cnt[6:2]         + {1'b0, intra_4_cnt[3:2], 2'd0} + {MB_cnt[1], 4'd0};  // (cnt/4) + (intra_4_cnt/4)*4
-            mem_col_num <= {3'd0, predict_cnt[1:0]} + {1'b0, intra_4_cnt[1:0], 2'd0} + {MB_cnt[0], 4'd0};  // (cnt%4) + (intra_4_cnt%4)*4
+            // if (predict_cnt <= max_predict_cnt) begin
+                mem_row_num <= predict_cnt[6:2]         + {1'b0, intra_4_cnt[3:2], 2'd0} + {MB_cnt[1], 4'd0};  // (cnt/4) + (intra_4_cnt/4)*4
+                mem_col_num <= {3'd0, predict_cnt[1:0]} + {1'b0, intra_4_cnt[1:0], 2'd0} + {MB_cnt[0], 4'd0};  // (cnt%4) + (intra_4_cnt%4)*4
+            // end
+            // else begin
+            //     mem_row_num <= 5'd0;
+            //     mem_col_num <= 5'd0;
+            // end
         end
         else begin
             mem_row_num <= {predict_cnt[8:6], 2'd0} + {3'd0, predict_cnt[3:2]} + {MB_cnt[1], 4'd0};  // 4*((cnt/16)/4) + (cnt%16)/4
-            mem_col_num <= {3'd0, predict_cnt[7:6]} + {3'd0, predict_cnt[1:0]} + {MB_cnt[0], 4'd0};  // 4*((cnt/16)%4) + (cnt%16)%4
+            // mem_col_num <= {3'd0, predict_cnt[7:6]} + {3'd0, predict_cnt[1:0]} + {MB_cnt[0], 4'd0};  // 4*((cnt/16)%4) + (cnt%16)%4
+            mem_col_num <= {1'b0, predict_cnt[5:4], 2'd0} + {3'd0, predict_cnt[1:0]} + {MB_cnt[0], 4'd0};  // 4*((cnt/16)%4) + (cnt%16)%4
         end
     end
     // -----------------  -----------------
@@ -242,9 +254,9 @@ end
 
 // parameter S_IDLE        = 0;
 // parameter S_INPUT_DATA  = 1;
-// parameter S_INPUT_PARAM = 3;
-// parameter S_PREDICTION  = 4;
-// parameter S_TRANSFORM   = 5;
+// parameter S_INPUT_PARAM = 2;
+// parameter S_PREDICTION  = 3;
+// parameter S_TRANSFORM   = 4;
 
 // reg [2:0] current_state;
 always @(posedge clk or negedge rst_n) begin
@@ -269,13 +281,15 @@ always @(*) begin
             else                   next_state = S_INPUT_PARAM;
         end
         S_PREDICTION: begin
-            if (current_mode == 1 && prev_predict_cnt == 9'd15 || prev_predict_cnt == 9'd255) next_state = S_TRANSFORM;
+            if (current_mode == 1 && pppprev_predict_cnt == 9'd15 || ppprev_predict_cnt == 9'd255) next_state = S_TRANSFORM;
+            // if (current_mode == 1 && predict_cnt == 9'd19 || ppprev_predict_cnt == 9'd255) next_state = S_TRANSFORM;
             else                                                                              next_state = S_PREDICTION;
         end
         S_TRANSFORM: begin
-            if (set_cnt == 4'd15 && output_done) next_state = S_IDLE;       // all 16 sets are done
-            else if (reconstruct_done)       next_state = S_PREDICTION;
-            else                             next_state = S_TRANSFORM;
+            if (out_cnt == 10'd1023)   next_state = S_IDLE;       // all 16 sets are done
+            else if (reconstruct_done) next_state = S_PREDICTION;
+            // else if (current_mode && out_cnt[7:0] == 8'd255) next_state = S_WAIT;
+            else                       next_state = S_TRANSFORM;
         end
         default: next_state = current_state;
     endcase
@@ -284,29 +298,486 @@ end
 // ----------------- referance -----------------
 
 // wire current_mode;
-assign current_mode = mode_reg[MB_cnt];
+// assign current_mode = mode_reg[MB_cnt];
+always @(posedge clk) begin
+    current_mode <= mode_reg[MB_cnt];
+    // if (current_state == S_TRANSFORM) current_mode <= mode_reg[MB_cnt];
+    // else current_mode <= current_mode;
+end
+
+reg prev_mode_reg;
+reg pprev_mode_reg;
+always @(posedge clk) begin
+    prev_mode_reg <= current_mode;
+    pprev_mode_reg <= prev_mode_reg;
+end
 
 // reg [1:0] MB_cnt;    // 0~3
 always @(posedge clk) begin
     if      (current_state == S_INPUT_PARAM) MB_cnt <= 2'd0;
-    else if (current_state == S_PREDICTION)  MB_cnt <= next_MB_cnt;
+    else if (current_state == S_TRANSFORM)   MB_cnt <= next_MB_cnt;
     else                                     MB_cnt <= MB_cnt;
 end
 
 // reg [1:0] next_MB_cnt;    // 0~3
 always @(*) begin
     next_MB_cnt = MB_cnt;
-    if (out_cnt[7:0] == 8'd255) next_MB_cnt = MB_cnt + 2'd1;
+    // if (out_cnt[7:0] == 8'd255) next_MB_cnt = MB_cnt + 2'd1;
+    // if (current_mode && out_cnt[7:0] == 8'd255 || !current_mode && ppprev_transform_cnt == 8'd255) next_MB_cnt = MB_cnt + 2'd1;
+    if (out_cnt[7:0] == 8'd0 && next_state != current_state) next_MB_cnt = MB_cnt + 2'd1;
 end
 
 // reg [3:0] intra_4_cnt;
 always @(posedge clk) begin
-    if      (current_state == S_INPUT_PARAM || out_cnt[7:0] == 8'd255) intra_4_cnt <= 4'd0;
-    else if (predict_cnt[3:0] == 4'd15)                                intra_4_cnt <= intra_4_cnt + 4'd1;
-    else                                                               intra_4_cnt <= intra_4_cnt;
+    if      (current_state == S_INPUT_PARAM) intra_4_cnt <= 4'd0;
+    else if (current_state == S_TRANSFORM && next_state == S_PREDICTION && current_mode) intra_4_cnt <= intra_4_cnt + 4'd1;
+    // else if (ppprev_predict_cnt[3:0] == 4'd15 && current_mode)         intra_4_cnt <= intra_4_cnt + 4'd1;
+    else                                                                                intra_4_cnt <= intra_4_cnt;
 end
 
 // ----------------- feedback referance -----------------
+
+// // reg [12:0] ref_left_reg [0:15];SS
+// // reg [12:0] ref_top_reg  [0:31];
+// always @(posedge clk) begin
+//     ref_left_reg <= ref_left;
+//     ref_top_reg <= ref_top;
+// end
+
+// // reg [12:0] ref_left [0:31];
+// // reg [12:0] ref_top  [0:31];
+// always @(*) begin
+//     integer i;S
+//     ref_left = ref_left_reg;
+//     ref_top = ref_top_reg;
+//     case (current_state)
+//         S_INPUT_PARAM: begin
+//             for (i = 0; i < 32; i = i + 1) begin
+//                 ref_left[i] = 13'd128;
+//                 ref_top [i] = 13'd128;
+//             end
+//         end
+//         S_TRANSFORM: begin
+//             for (i = 0; i < 4; i = i + 1) begin
+//                 ref_left[{ppprev_transform_cnt[7:6], 2'd0} + {2'd0, ppprev_transform_cnt[3:2]} + (i - 4)] = re_left_reg[i][12:0];
+//                 ref_top [{ppprev_transform_cnt[5:4], 2'd0} + {2'd0, ppprev_transform_cnt[1:0]} + (i - 4)] = re_top_reg[i][12:0];
+//             end
+//         end
+//     endcase
+// end
+
+// mem_row_num <= {predict_cnt[8:6], 2'd0} + {3'd0, predict_cnt[3:2]} + {MB_cnt[0], 4'd0};  // 4*((cnt/16)/4) + (cnt%16)/4
+// mem_col_num <= {1'b0, predict_cnt[5:4], 2'd0} + {3'd0, predict_cnt[1:0]} + {MB_cnt[0], 4'd0};  // 4*((cnt/16)%4) + (cnt%16)%4
+
+// reg [7:0] prediction_dc   [0:255];
+// reg [7:0] prediction_hori [0:255];
+// reg [7:0] prediction_vert [0:255];
+always @(*) begin
+    integer i;
+    for (i = 0; i < 256; i = i + 1) begin
+        prediction_hori[i] = ref_left_reg[4*(i/64) + (i%16)/4 + {MB_cnt[1], 4'd0}][7:0];
+        prediction_vert[i] = ref_top_reg[4*((i/16)%4) + (i%4) + {MB_cnt[0], 4'd0}][7:0];
+        prediction_dc[i] = dc[7:0];
+    end
+end
+
+// reg [12:0] left_sum16 [0:1], left_sum4 [0:7];
+assign left_sum4[0] = ref_left_reg[0]  + ref_left_reg[1]  + ref_left_reg[2]   + ref_left_reg[3];
+assign left_sum4[1] = ref_left_reg[4]  + ref_left_reg[5]  + ref_left_reg[6]   + ref_left_reg[7];
+assign left_sum4[2] = ref_left_reg[8]  + ref_left_reg[9]  + ref_left_reg[10]  + ref_left_reg[11];
+assign left_sum4[3] = ref_left_reg[12] + ref_left_reg[13] + ref_left_reg[14]  + ref_left_reg[15];
+
+assign left_sum4[4] = ref_left_reg[16] + ref_left_reg[17] + ref_left_reg[18]  + ref_left_reg[19];
+assign left_sum4[5] = ref_left_reg[20] + ref_left_reg[21] + ref_left_reg[22]  + ref_left_reg[23];
+assign left_sum4[6] = ref_left_reg[24] + ref_left_reg[25] + ref_left_reg[26]  + ref_left_reg[27];
+assign left_sum4[7] = ref_left_reg[28] + ref_left_reg[29] + ref_left_reg[30]  + ref_left_reg[31];
+
+assign left_sum16[0] = left_sum4[0] + left_sum4[1] + left_sum4[2] + left_sum4[3];
+assign left_sum16[1] = left_sum4[4] + left_sum4[5] + left_sum4[6] + left_sum4[7];
+
+// reg [12:0] top_sum16 [0:1], top_sum4 [0:7];
+assign top_sum4[0] = ref_top_reg[0]  + ref_top_reg[1]  + ref_top_reg[2]   + ref_top_reg[3];
+assign top_sum4[1] = ref_top_reg[4]  + ref_top_reg[5]  + ref_top_reg[6]   + ref_top_reg[7];
+assign top_sum4[2] = ref_top_reg[8]  + ref_top_reg[9]  + ref_top_reg[10]  + ref_top_reg[11];
+assign top_sum4[3] = ref_top_reg[12] + ref_top_reg[13] + ref_top_reg[14]  + ref_top_reg[15];
+
+assign top_sum4[4] = ref_top_reg[16] + ref_top_reg[17] + ref_top_reg[18]  + ref_top_reg[19];
+assign top_sum4[5] = ref_top_reg[20] + ref_top_reg[21] + ref_top_reg[22]  + ref_top_reg[23];
+assign top_sum4[6] = ref_top_reg[24] + ref_top_reg[25] + ref_top_reg[26]  + ref_top_reg[27];
+assign top_sum4[7] = ref_top_reg[28] + ref_top_reg[29] + ref_top_reg[30]  + ref_top_reg[31];
+
+assign top_sum16[0] = top_sum4[0] + top_sum4[1] + top_sum4[2] + top_sum4[3];
+assign top_sum16[1] = top_sum4[4] + top_sum4[5] + top_sum4[6] + top_sum4[7];
+
+reg [12:0] dc_reg;
+
+always @(posedge clk) begin
+    dc_reg <= dc;
+end
+// top []   // intra_4_cnt % 4 + MB_cnt[0]*4
+// left[]   // intra_4_cnt / 4 + MB_cnt[1]*4
+// reg [12:0] dc;
+always @(*) begin
+    dc = dc_reg;
+    // if (current_mode && intra_4_cnt > 0) begin     // 4 x 4
+    if (current_mode) begin     // 4 x 4
+        if      (MB_cnt == 2'd0 && intra_4_cnt      == 4'd0) dc = 13'd128;
+        else if (!MB_cnt[0]     && intra_4_cnt[1:0] == 2'd0) dc = top_sum4[0]  >> 2;
+        else if (!MB_cnt[1]     && intra_4_cnt[3:2] == 2'd0) dc = left_sum4[0] >> 2;
+        else dc = (top_sum4[{MB_cnt[0], intra_4_cnt[1:0]}] + left_sum4[{MB_cnt[1], intra_4_cnt[3:2]}]) >> 3;
+    end
+    else if (!current_mode) begin  // 16 x 16
+        case (MB_cnt)
+            0: dc = 13'd128;
+            1: dc = left_sum16[0] >> 4;
+            2: dc = top_sum16[0]  >> 4;
+            3: dc = (left_sum16[1] + top_sum16[1]) >> 5;
+            default: dc = 13'd0;
+        endcase
+    end
+end
+
+// ----------------- predict -----------------
+
+// wire [7:0] in_data;   // 0~255
+assign in_data = mem_output_data_reg;
+
+// wire max_predict_cnt;
+assign max_predict_cnt = current_mode ? 9'd15 : 9'd255;
+
+// reg [8:0] predict_cnt;     // 0~17, 0~255
+always @(posedge clk) begin
+    // if (current_state == S_PREDICTION && predict_cnt < max_predict_cnt && prev_predict_cnt < max_predict_cnt) predict_cnt <= predict_cnt + 9'd1;
+    if (current_state == S_PREDICTION && predict_cnt == max_predict_cnt) predict_cnt <= predict_cnt;
+    else if (current_state == S_PREDICTION) predict_cnt <= predict_cnt + 9'd1;
+    else predict_cnt <= 9'd0;
+end
+
+// reg [8:0] prev_predict_cnt;     // 0~17, 0~255
+// reg [8:0] pprev_predict_cnt;     // 0~17, 0~255
+// reg [8:0] ppprev_predict_cnt;     // 0~17, 0~255
+always @(posedge clk) begin
+    prev_predict_cnt <= (predict_cnt < 9'd16 && current_mode || predict_cnt < 9'd256 && !current_mode) ? predict_cnt : 9'd0;
+    pprev_predict_cnt <= prev_predict_cnt;
+    // ppprev_predict_cnt <= (current_state == S_PREDICTION) ? pprev_predict_cnt : 9'd0;
+    ppprev_predict_cnt <= pprev_predict_cnt;
+    pppprev_predict_cnt <= ppprev_predict_cnt;
+end
+
+wire signed [8:0] sad_dc_residual;
+wire signed [8:0] sad_hori_residual;
+wire signed [8:0] sad_vert_residual;
+
+// input - prediction, -255~255
+// reg signed [8:0] residual_dc   [0:255];
+// reg signed [8:0] residual_hori [0:255];
+// reg signed [8:0] residual_vert [0:255];
+always @(posedge clk) begin
+    residual_dc_reg   <= residual_dc;
+    residual_hori_reg <= residual_hori;
+    residual_vert_reg <= residual_vert;
+end
+
+always @(*) begin
+    residual_dc   = residual_dc_reg;
+    residual_hori = residual_hori_reg;
+    residual_vert = residual_vert_reg;
+    // if (pppprev_predict_cnt > 0 && pppprev_predict_cnt) begin
+        residual_dc  [ppprev_predict_cnt + {intra_4_cnt, 4'd0}] = sad_dc_residual;
+        residual_hori[ppprev_predict_cnt + {intra_4_cnt, 4'd0}] = sad_hori_residual;
+        residual_vert[ppprev_predict_cnt + {intra_4_cnt, 4'd0}] = sad_vert_residual;
+    // end
+end
+
+reg [7:0] sad_dc_prediction;
+reg [7:0] sad_hori_prediction;
+reg [7:0] sad_vert_prediction;
+
+always @(*) begin
+    sad_dc_prediction   = prediction_dc[0];
+    sad_hori_prediction = prediction_hori[ppprev_predict_cnt + {intra_4_cnt, 4'd0}];
+    sad_vert_prediction = prediction_vert[ppprev_predict_cnt + {intra_4_cnt, 4'd0}];
+end
+
+// ABS(input - prediction)
+// reg [11:0] out_sad_dc, out_sad_hori, out_sad_vert;
+// SAD sad_dc   (.in_data(in_data), .prediction(prediction_dc  [ppprev_predict_cnt]), .residual(sad_dc_residual)  , .out_sad(out_sad_dc));
+// SAD sad_hori (.in_data(in_data), .prediction(prediction_hori[ppprev_predict_cnt]), .residual(sad_hori_residual), .out_sad(out_sad_hori));
+// SAD sad_vert (.in_data(in_data), .prediction(prediction_vert[ppprev_predict_cnt]), .residual(sad_vert_residual), .out_sad(out_sad_vert));
+SAD sad_dc   (.in_data(in_data), .prediction(sad_dc_prediction)  , .residual(sad_dc_residual)  , .out_sad(out_sad_dc));
+SAD sad_hori (.in_data(in_data), .prediction(sad_hori_prediction), .residual(sad_hori_residual), .out_sad(out_sad_hori));
+SAD sad_vert (.in_data(in_data), .prediction(sad_vert_prediction), .residual(sad_vert_residual), .out_sad(out_sad_vert));
+
+// reg [31:0] acc_sad_dc, acc_sad_hori, acc_sad_vert;
+always @(posedge clk) begin
+    // if (current_state == S_PREDICTION) begin
+    if (predict_cnt >= 9'd3) begin
+        acc_sad_dc   <= acc_sad_dc + out_sad_dc;
+        acc_sad_hori <= acc_sad_hori + out_sad_hori;
+        acc_sad_vert <= acc_sad_vert + out_sad_vert;
+    end
+    else begin
+        acc_sad_dc   <= 31'd0;
+        acc_sad_hori <= 31'd0;
+        acc_sad_vert <= 31'd0;
+    end
+end
+
+reg signed [8:0] real_residual_reg [0:255];
+reg [7:0] real_prediction_reg [0:255];
+
+always @(posedge clk) begin
+    real_residual_reg <= real_residual;
+    real_prediction_reg <= real_prediction;
+end
+// smallest SAD
+// reg signed [8:0] real_residual [0:255];
+// reg [7:0] real_prediction [0:255];
+always @(*) begin
+    real_residual = real_residual_reg;
+    real_prediction = real_prediction_reg;
+    if (current_state == S_PREDICTION) begin
+    // if (current_state == S_PREDICTION || current_state == S_TRANSFORM && (current_mode && predict_cnt <= 19 || !current_mode &&  predict_cnt <= 259)) begin
+        if (current_mode) begin
+            case ({MB_cnt, intra_4_cnt})    // 2, 4 bits
+                6'd0: begin
+                    real_residual = residual_dc;
+                    real_prediction = prediction_dc;
+                end
+                6'b00_0001, 6'b00_0010, 6'b00_0011, 
+                6'b01_0000, 6'b01_0001, 6'b01_0010, 6'b01_0011: begin
+                    if (acc_sad_dc > acc_sad_hori) begin
+                        real_residual = residual_hori;
+                        real_prediction = prediction_hori;
+                    end
+                    else begin
+                        real_residual = residual_dc;
+                        real_prediction = prediction_dc;
+                    end
+                end
+                6'b00_0100, 6'b00_1000, 6'b00_1100, 
+                6'b10_0000, 6'b10_0100, 6'b10_1000, 6'b10_1100: begin
+                    if (acc_sad_dc > acc_sad_vert) begin
+                        real_residual = residual_vert;
+                        real_prediction = prediction_vert;
+                    end
+                    else begin
+                        real_residual = residual_dc;
+                        real_prediction = prediction_dc;
+                    end
+                end
+                default: begin
+                    if (acc_sad_vert >= acc_sad_hori && acc_sad_dc > acc_sad_hori) begin
+                        real_residual = residual_hori;
+                        real_prediction = prediction_hori;
+                    end
+                    else if (acc_sad_hori >  acc_sad_vert && acc_sad_dc > acc_sad_vert) begin
+                        real_residual = residual_vert;
+                        real_prediction = prediction_vert;
+                    end
+                    else begin
+                        real_residual = residual_dc;
+                        real_prediction = prediction_dc;
+                    end
+                end
+            endcase
+        end
+        else begin
+            // TODO: can optimize
+            case (MB_cnt)
+                0: begin
+                    real_residual = residual_dc;
+                    real_prediction = prediction_dc;
+                end
+                1: begin
+                    if (acc_sad_dc > acc_sad_hori) begin
+                        real_residual = residual_hori;
+                        real_prediction = prediction_hori;
+                    end
+                    else begin
+                        real_residual = residual_dc;
+                        real_prediction = prediction_dc;
+                    end
+                end
+                2: begin
+                    if (acc_sad_dc > acc_sad_vert) begin
+                        real_residual = residual_vert;
+                        real_prediction = prediction_vert;
+                    end
+                    else begin
+                        real_residual = residual_dc;
+                        real_prediction = prediction_dc;
+                    end
+                end
+                default: begin
+                    if (acc_sad_vert >= acc_sad_hori && acc_sad_dc > acc_sad_hori) begin
+                        real_residual = residual_hori;
+                        real_prediction = prediction_hori;
+                    end
+                    else if (acc_sad_hori >  acc_sad_vert && acc_sad_dc > acc_sad_vert) begin
+                        real_residual = residual_vert;
+                        real_prediction = prediction_vert;
+                    end
+                    else begin
+                        real_residual = residual_dc;
+                        real_prediction = prediction_dc;
+                    end
+                end
+            endcase
+        end
+    end
+    // else begin
+    //     real_residual <= real_residual;
+    //     real_prediction <= real_prediction;
+    // end
+end
+
+// ----------------- int transform -----------------
+
+// reg [8:0] transform_cnt;
+always @(posedge clk) begin
+    if (current_state == S_TRANSFORM || next_state == S_WAIT) transform_cnt <= transform_cnt + 9'd1;
+    else                              transform_cnt <= 9'd0;
+end
+
+// reg [7:0] prev_transform_cnt;
+// reg [7:0] pprev_transform_cnt;
+// reg [7:0] ppprev_transform_cnt;
+always @(posedge clk) begin
+    prev_transform_cnt <= (transform_cnt < 9'd16 && current_mode || transform_cnt < 9'd256 && !current_mode && !pprev_mode_reg) ? transform_cnt : 8'd0;
+    pprev_transform_cnt <= prev_transform_cnt;
+    ppprev_transform_cnt <= pprev_transform_cnt;
+end
+
+// wire reconstruct_done;
+assign reconstruct_done = (ppprev_transform_cnt == 8'd15) && (current_mode || pprev_mode_reg) || (ppprev_transform_cnt == 8'd255);
+
+reg signed [8:0] int_input [0:15];
+reg signed [12:0] int_result;
+
+// reg signed [8:0] int_input [0:15];
+always @(*) begin
+    integer i;
+    for (i = 0; i < 16; i = i + 1) int_input[i] = 9'd0;
+    if (current_state == S_TRANSFORM) begin
+        if (current_mode) begin
+            for (i = 0; i < 16; i = i + 1) int_input[i] = real_residual[i + {intra_4_cnt, 4'd0}];
+        end
+        else begin
+            for (i = 0; i < 16; i = i + 1) int_input[i] = real_residual[i + {transform_cnt[8:4], 4'b0}];
+        end
+    end
+end
+
+// reg signed [12:0] int_result;
+INT_TRANSFORM i_1 (.A(int_input), .cnt(transform_cnt[3:0]), .result(int_result));
+
+// ----------------- Quantization -----------------
+
+// reg [12:0] q_in;
+always @(posedge clk) begin
+    q_in <= int_result;
+end
+
+// input signed [12:0] in,
+// input [4:0] QP,
+// input [3:0] cnt,
+// output signed [31:0] out
+
+// reg signed [31:0] q_out;
+QUANTIZATION q_1 (.in(q_in), .QP(QP_reg), .cnt(prev_transform_cnt[3:0]), .out(q_out));
+
+// ----------------- output -----------------
+
+// wire need_output;
+assign need_output = current_state == S_TRANSFORM && 
+                    //  next_state    == S_TRANSFORM && 
+                     transform_cnt >= 9'd1 && 
+                     (transform_cnt <= 9'd16 && current_mode || transform_cnt <= 9'd256 && !current_mode);
+
+// output reg signed [31:0] out_value;
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)      out_value <= 32'b0;
+    else if (need_output) out_value <= q_out;
+    else                  out_value <= 32'b0;
+end
+
+// output reg out_valid;
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)      out_valid <= 1'b0;
+    else if (need_output) out_valid <= 1'b1;
+    else                  out_valid <= 1'b0;
+end
+
+// reg [9:0] out_cnt;  // 0~1023
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)              out_cnt <= 10'd0;
+    else if (out_cnt == 10'd1023) out_cnt <= 10'd0;
+    else if (need_output)         out_cnt <= out_cnt + 10'd1;
+    else                          out_cnt <= out_cnt;
+end
+
+// ----------------- De-Quantization -----------------
+
+// input signed [31:0] in,
+// input [4:0] QP,
+// input [3:0] cnt,
+// output signed [31:0] out
+
+// reg signed [31:0] de_q_out;
+DE_QUANTIZATION q_2 (.in(out_value), .QP(QP_reg), .cnt(pprev_transform_cnt[3:0]), .out(de_q_out));
+
+// reg signed [31:0] de_W_reg [0:15];
+always @(posedge clk) begin
+    de_W_reg <= de_W;
+end
+
+// reg signed [31:0] de_W [0:15]
+always @(*) begin
+    de_W = de_W_reg;
+    de_W[pprev_transform_cnt[3:0]] = de_q_out;
+end
+
+// ----------------- inverse int transform -----------------
+
+// input signed [20:0] A [0:15],        // 21-bit
+// input [4:0] QP,
+// output signed [31:0] left [0:3],
+// output signed [31:0] top  [0:3],
+
+// reg signed [31:0] new_left [0:3];
+// reg signed [31:0] new_top  [0:3];
+INVERSE_INT_TRANSFORM i_2 (.A(de_W_reg), .QP(QP_reg), .left(new_left), .top(new_top));
+
+// ----------------- re-construction -----------------
+
+// reg [7:0] real_prediction [0:255];
+
+// reg signed [31:0] re_left_reg [0:3];
+// reg signed [31:0] re_top_reg  [0:3];
+// always @(posedge clk) begin
+//     re_left_reg <= re_left;
+//     re_top_reg <= re_top;
+// end
+
+// reg signed [31:0] re_left [0:3];
+// reg signed [31:0] re_top  [0:3];
+always @(*) begin
+    integer i;
+    for (i = 0; i < 4; i = i + 1) begin
+        re_left[i] = {24'd0, real_prediction[ppprev_transform_cnt + {intra_4_cnt, 4'd0} + (4*i - 12)]} + new_left[i];
+        re_top[i]  = {24'd0, real_prediction[ppprev_transform_cnt + {intra_4_cnt, 4'd0} + (i - 3)]} + new_top[i];
+        if      (re_left[i] > 255) re_left[i] = 255;
+        else if (re_left[i] < 0)   re_left[i] = 0;
+        if      (re_top[i] > 255) re_top[i] = 255;
+        else if (re_top[i] < 0)   re_top[i] = 0;
+    end
+end
+
+// ----------------- feedback referance ----------------- L 309
+
+// reg [12:0] ref_left [0:31], ref_left_reg [0:31];
+// reg [12:0] ref_top  [0:31], ref_top_reg [0:31];
 
 // reg [12:0] ref_left_reg [0:15];
 // reg [12:0] ref_top_reg  [0:31];
@@ -328,299 +799,16 @@ always @(*) begin
                 ref_top [i] = 13'd128;
             end
         end
-        S_TRANSFORM: begin
-            for (i = 0; i < 4; i = i + 1) begin
-                ref_left[{pprev_transform_cnt[8:6], 2'd0} + {3'd0, pprev_transform_cnt[3:2]} + (i - 4)] = re_left[i][12:0];
-                ref_top[{3'd0, pprev_transform_cnt[7:6]} + {3'd0, pprev_transform_cnt[1:0]} + (i - 4)] = re_top[i][12:0];
+        S_TRANSFORM, S_WAIT: begin
+            if (&ppprev_transform_cnt[3:0]) begin
+                for (i = 0; i < 4; i = i + 1) begin
+                    ref_left[{1'b0, ppprev_transform_cnt[7:6], ppprev_transform_cnt[3:2]} + {1'b0, intra_4_cnt[3:2], 2'd0} + (i - 3) + {MB_cnt[1], 4'd0}] = re_left[i][12:0];
+                    ref_top [{1'b0, ppprev_transform_cnt[5:4], ppprev_transform_cnt[1:0]} + {1'b0, intra_4_cnt[1:0], 2'd0} + (i - 3) + {MB_cnt[0], 4'd0}] = re_top[i][12:0];
+                end
             end
         end
     endcase
 end
-
-// mem_row_num <= {predict_cnt[8:6], 2'd0} + {3'd0, predict_cnt[3:2]} + {MB_cnt[0], 4'd0};  // 4*((cnt/16)/4) + (cnt%16)/4
-// mem_col_num <= {3'd0, predict_cnt[7:6]} + {3'd0, predict_cnt[1:0]} + {MB_cnt[1], 4'd0};  // 4*((cnt/16)%4) + (cnt%16)%4
-
-// reg [7:0] prediction_dc   [0:255];
-// reg [7:0] prediction_hori [0:255];
-// reg [7:0] prediction_vert [0:255];
-always @(*) begin
-    integer i;
-    for (i = 0; i < 256; i = i + 1) begin
-        prediction_hori[i] = ref_left[4*(i/64) + (i%16)/4 + {MB_cnt[1], 4'd0}][7:0];
-        prediction_vert[i] = ref_top[4*((i/16)%4) + (i%4) + {MB_cnt[0], 4'd0}][7:0];
-        prediction_dc[i] = dc[7:0];
-    end
-end
-
-// reg [12:0] left_sum16 [0:1], left_sum4 [0:7];
-assign left_sum4[0] = ref_left[0]  + ref_left[1]  + ref_left[2]   + ref_left[3];
-assign left_sum4[1] = ref_left[4]  + ref_left[5]  + ref_left[6]   + ref_left[7];
-assign left_sum4[2] = ref_left[8]  + ref_left[9]  + ref_left[10]  + ref_left[11];
-assign left_sum4[3] = ref_left[12] + ref_left[13] + ref_left[14]  + ref_left[15];
-
-assign left_sum4[4] = ref_left[16] + ref_left[17] + ref_left[18]  + ref_left[19];
-assign left_sum4[5] = ref_left[20] + ref_left[21] + ref_left[22]  + ref_left[23];
-assign left_sum4[6] = ref_left[24] + ref_left[25] + ref_left[26]  + ref_left[27];
-assign left_sum4[7] = ref_left[28] + ref_left[29] + ref_left[30]  + ref_left[31];
-
-assign left_sum16[0] = left_sum4[0] + left_sum4[1] + left_sum4[2] + left_sum4[3];
-assign left_sum16[1] = left_sum4[4] + left_sum4[5] + left_sum4[6] + left_sum4[7];
-
-// reg [12:0] top_sum16 [0:1], top_sum4 [0:7];
-assign top_sum4[0] = ref_top[0]  + ref_top[1]  + ref_top[2]   + ref_top[3];
-assign top_sum4[1] = ref_top[4]  + ref_top[5]  + ref_top[6]   + ref_top[7];
-assign top_sum4[2] = ref_top[8]  + ref_top[9]  + ref_top[10]  + ref_top[11];
-assign top_sum4[3] = ref_top[12] + ref_top[13] + ref_top[14]  + ref_top[15];
-
-assign top_sum4[4] = ref_top[16] + ref_top[17] + ref_top[18]  + ref_top[19];
-assign top_sum4[5] = ref_top[20] + ref_top[21] + ref_top[22]  + ref_top[23];
-assign top_sum4[6] = ref_top[24] + ref_top[25] + ref_top[26]  + ref_top[27];
-assign top_sum4[7] = ref_top[28] + ref_top[29] + ref_top[30]  + ref_top[31];
-
-assign top_sum16[0] = top_sum4[0] + top_sum4[1] + top_sum4[2] + top_sum4[3];
-assign top_sum16[1] = top_sum4[4] + top_sum4[5] + top_sum4[6] + top_sum4[7];
-
-
-// top []   // intra_4_cnt % 4 + MB_cnt[0]*4
-// left[]   // intra_4_cnt / 4
-// reg [12:0] dc;
-always @(*) begin
-    if (current_mode) begin     // 4 x 4
-        dc = (top_sum4[{MB_cnt[0], intra_4_cnt[1:0]}] + left_sum4[intra_4_cnt[3:2]]) >> 3;
-    end
-    else begin  // 16 x 16
-        case (MB_cnt)
-            0: dc = 13'd128;
-            1: dc = (left_sum16[0] + 13'd512)      >> 5;
-            2: dc = (13'd512       + top_sum16[0]) >> 5;
-            3: dc = (left_sum16[1] + top_sum16[1]) >> 5;
-            default: dc = 13'd0;
-        endcase
-    end
-end
-
-// ----------------- predict -----------------
-
-// wire [7:0] in_data;   // 0~255
-assign in_data = mem_output_data_reg;
-
-// wire max_predict_cnt;
-assign max_predict_cnt = current_mode ? 9'd15 : 9'd225;
-
-// reg [8:0] predict_cnt;     // 0~17, 0~255
-always @(posedge clk) begin
-    if (current_state == S_PREDICTION && predict_cnt < max_predict_cnt) predict_cnt <= predict_cnt + 9'd1;
-    else predict_cnt <= 9'd0;
-end
-
-// reg [8:0] prev_predict_cnt;     // 0~17, 0~255
-always @(posedge clk) begin
-    prev_predict_cnt <= predict_cnt;
-end
-
-// ABS(input - prediction)
-// reg [11:0] out_sad_dc, out_sad_hori, out_sad_vert;
-SAD sad_dc   (.in_data(in_data), .prediction(prediction_dc  [prev_predict_cnt]), .residual(residual_dc  [prev_predict_cnt]), .out_sad(out_sad_dc));
-SAD sad_hori (.in_data(in_data), .prediction(prediction_hori[prev_predict_cnt]), .residual(residual_hori[prev_predict_cnt]), .out_sad(out_sad_hori));
-SAD sad_vert (.in_data(in_data), .prediction(prediction_vert[prev_predict_cnt]), .residual(residual_vert[prev_predict_cnt]), .out_sad(out_sad_vert));
-
-// reg [31:0] acc_sad_dc, acc_sad_hori, acc_sad_vert;
-always @(posedge clk) begin
-    if (current_state == S_PREDICTION) begin
-        acc_sad_dc   <= (prev_predict_cnt <= max_predict_cnt) ? (acc_sad_dc + out_sad_dc) : acc_sad_dc;
-        acc_sad_hori <= (prev_predict_cnt <= max_predict_cnt) ? (acc_sad_hori + out_sad_hori) : acc_sad_hori;
-        acc_sad_vert <= (prev_predict_cnt <= max_predict_cnt) ? (acc_sad_vert + out_sad_vert) : acc_sad_vert;
-    end
-    else begin
-        acc_sad_dc   <= 31'd0;
-        acc_sad_hori <= 31'd0;
-        acc_sad_vert <= 31'd0;
-    end
-end
-
-// smallest SAD
-// reg [8:0] real_residual [0:255];
-// reg [7:0] real_prediction [0:255];
-always @(posedge clk) begin
-    if (acc_sad_vert >= acc_sad_hori && acc_sad_dc > acc_sad_hori) begin
-        real_residual <= residual_hori;
-        real_prediction <= prediction_hori;
-    end
-    else if (acc_sad_hori >  acc_sad_vert && acc_sad_dc > acc_sad_vert) begin
-        real_residual <= residual_vert;
-        real_prediction <= prediction_vert;
-    end
-    else begin
-        real_residual <= residual_dc;
-        real_prediction <= prediction_dc;
-    end
-end
-
-// ----------------- int transform -----------------
-
-// reg [8:0] transform_cnt;
-always @(posedge clk) begin
-    if (current_state == S_IDLE) transform_cnt <= 4'd0;
-    else if (current_state == S_TRANSFORM) transform_cnt <= transform_cnt + 4'd1;
-    else transform_cnt <= transform_cnt;
-end
-
-// reg [8:0] prev_transform_cnt;
-// reg [8:0] pprev_transform_cnt;
-always @(posedge clk) begin
-    prev_transform_cnt <= transform_cnt;
-    pprev_transform_cnt <= prev_transform_cnt;
-end
-
-// wire reconstruct_done;
-assign reconstruct_done = (pprev_transform_cnt == 4'd15) && current_mode || (transfpprev_transform_cntorm_cnt == 4'd255);
-
-reg signed [8:0] int_input [0:15];
-reg signed [12:0] int_result;
-
-// reg signed [8:0] int_input [0:15];
-always @(*) begin
-    integer i;
-    for (i = 0; i < 16; i = i + 1) int_input[i] = 9'd0;
-    if (current_state == S_TRANSFORM) begin
-        if (current_mode) begin
-            for (i = 0; i < 16; i = i + 1) int_input[i] = real_residual[i];
-        end
-        else begin
-            for (i = 0; i < 16; i = i + 1) int_input[i] = real_residual[i + {transform_cnt[8:4], 4'b0}];
-        end
-    end
-end
-
-// reg signed [12:0] int_result;
-INT_TRANSFORM i_1 (.A(int_input), .cnt(transform_cnt), .result(int_result));
-
-// ----------------- Quantization -----------------
-
-// reg [12:0] q_in;
-always @(posedge clk) begin
-    q_in <= int_result;
-end
-
-// input signed [12:0] in [0:15],
-// input [4:0] QP,
-// input [3:0] cnt,
-// output signed [31:0] out
-
-// reg signed [31:0] q_out;
-QUANTIZATION q_1 (.in(q_in), .QP(QP_reg), .cnt(prev_transform_cnt[3:0]), .out(q_out));
-
-// ----------------- output -----------------
-
-// wire need_output;
-assign need_output = current_state == S_TRANSFORM && 
-                     transform_cnt >= 9'd1 && 
-                     (transform_cnt < 9'd17 && current_mode || transform_cnt < 9'd257);
-
-// output reg signed [31:0] out_value;
-always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)      out_value <= 32'b0;
-    else if (need_output) out_value <= q_out;
-    else                  out_value <= 32'b0;
-end
-
-// output reg out_valid;
-always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)      out_valid <= 1'b0;
-    else if (need_output) out_valid <= 1'b1;
-    else                  out_valid <= 1'b0;
-end
-
-// reg [9:0] out_cnt;  // 0~1023
-always @(posedge clk) begin
-    if (out_cnt == 10'd1023) out_cnt <= 10'd0;
-    else if (need_output)    out_cnt <= out_cnt + 10'd1;
-    else                     out_cnt <= out_cnt;
-end
-
-// ----------------- De-Quantization -----------------
-
-// input signed [31:0] in,
-// input [4:0] QP,
-// input [3:0] cnt,
-// output signed [31:0] out
-
-// reg signed [31:0] de_q_out;
-DE_QUANTIZATION q_2 (.in(out_value), .QP(QP_reg), .cnt(pprev_transform_cnt[3:0]), .out(de_q_out));
-
-// reg signed [31:0] de_W_reg [0:15];
-always @(posedge clk) begin
-    de_W_reg <= de_W;
-end
-
-// reg signed [31:0] de_W [0:15]
-always @(*) begin
-    de_W = de_W_reg;
-    de_W[pprev_transform_cnt[3:0]] <= de_q_out;
-end
-
-// ----------------- inverse int transform -----------------
-
-// input signed [20:0] A [0:15],        // 21-bit
-// input [4:0] QP,
-// output signed [31:0] left [0:3],
-// output signed [31:0] top  [0:3],
-
-// reg signed [31:0] new_left [0:3];
-// reg signed [31:0] new_top  [0:3];
-INVERSE_INT_TRANSFORM i_2 (.A(de_W_reg), .QP(QP_reg), .left(new_left), .top(new_top));
-
-// ----------------- re-construction -----------------
-
-// reg [7:0] real_prediction [0:255];
-
-// reg signed [31:0] re_left [0:3];
-// reg signed [31:0] re_top  [0:3];
-always @(*) begin
-    integer i;
-    for (i = 0; i < 4; i = i + 1) begin
-        re_left[i] = {24'd0, real_prediction[pprev_transform_cnt + (4*i - 12)]} + new_left[i];
-        re_top[i]  = {24'd0, real_prediction[pprev_transform_cnt + (i - 3)]} + new_top[i];
-        if      (re_left[i] > 255) re_left[i] = 255;
-        else if (re_left[i] < 0)   re_left[i] = 0;
-        if      (re_top[i] > 255) re_top[i] = 255;
-        else if (re_top[i] < 0)   re_top[i] = 0;
-    end
-end
-
-// ----------------- feedback referance ----------------- L 309
-
-// reg [12:0] ref_left [0:31], ref_left_reg [0:31];
-// reg [12:0] ref_top  [0:31], ref_top_reg [0:31];
-
-// // reg [12:0] ref_left_reg [0:15];
-// // reg [12:0] ref_top_reg  [0:31];
-// always @(posedge clk) begin
-//     ref_left_reg <= ref_left;
-//     ref_top_reg <= ref_top;
-// end
-
-// // reg [12:0] ref_left [0:15];
-// // reg [12:0] ref_top  [0:31];
-// always @(*) begin
-//     integer i;
-//     ref_left = ref_left_reg;
-//     ref_top = ref_top_reg;
-//     case (current_state)
-//         S_INPUT_PARAM: begin
-//             for (i = 0; i < 32; i = i + 1) begin
-//                 ref_left[i] = 13'd128;
-//                 ref_top [i] = 13'd128;
-//             end
-//         end
-//         S_TRANSFORM: begin
-//             for (i = 0; i < 4; i = i + 1) begin
-//                 ref_left[{pprev_transform_cnt[8:6], 2'd0} + {3'd0, pprev_transform_cnt[3:2]} + (i - 4)] = re_left[i][12:0];
-//                 ref_top[{3'd0, pprev_transform_cnt[7:6]} + {3'd0, pprev_transform_cnt[1:0]} + (i - 4)] = re_top[i][12:0];
-//             end
-//         end
-//     endcase
-// end
 
 
 
@@ -632,14 +820,14 @@ module SAD (
     input [7:0] prediction,   // 0~255
 
     output signed [8:0] residual,   // input - prediction, -255~255
-    output [9:0] out_sad       // ABS(input - prediction), accumulate in main module
+    output [11:0] out_sad       // ABS(input - prediction), accumulate in main module
 );
 
 // output signed [8:0] residual,   // input - prediction, -255~255
 assign residual = {1'b0, in_data} - {1'b0, prediction};
 
-// output [9:0] out_sad       // ABS(input - prediction), accumulate in main module     // 0~255
-MATRIX_ABS #(9, 9) a1 (.a(residual), .result(out_sad));
+// output [11:0] out_sad       // ABS(input - prediction), accumulate in main module     // 0~255
+MATRIX_ABS #(9, 12) a1 (.a(residual), .result(out_sad));
 
 endmodule
 
@@ -657,7 +845,7 @@ always @(*) begin
         0:  result = (A[0] + A[1] + A[2] + A[3] + A[4] + A[5] + A[6] + A[7] + A[8] + A[9] + A[10] + A[11] + A[12] + A[13] + A[14] + A[15]);
         1:  result = (A[0] + A[1] - A[2] - A[3] + A[4] + A[5] - A[6] - A[7] + A[8] + A[9] - A[10] - A[11] + A[12] + A[13] - A[14] - A[15]);
         2:  result = (A[0] - A[1] - A[2] + A[3] + A[4] - A[5] - A[6] + A[7] + A[8] - A[9] - A[10] + A[11] + A[12] - A[13] - A[14] + A[15]);
-        3:  result = (A[0] - A[1] - A[2] + A[3] + A[4] - A[5] - A[6] + A[7] + A[8] - A[9] - A[10] + A[11] + A[12] - A[13] - A[14] + A[15]);
+        3:  result = (A[0] - A[1] + A[2] - A[3] + A[4] - A[5] + A[6] - A[7] + A[8] - A[9] + A[10] - A[11] + A[12] - A[13] + A[14] - A[15]);
         4:  result = (A[0] + A[1] + A[2] + A[3] + A[4] + A[5] + A[6] + A[7] - A[8] - A[9] - A[10] - A[11] - A[12] - A[13] - A[14] - A[15]);
         5:  result = (A[0] + A[1] - A[2] - A[3] + A[4] + A[5] - A[6] - A[7] - A[8] - A[9] + A[10] + A[11] - A[12] - A[13] + A[14] + A[15]);
         6:  result = (A[0] - A[1] - A[2] + A[3] + A[4] - A[5] - A[6] + A[7] - A[8] + A[9] + A[10] - A[11] - A[12] + A[13] + A[14] - A[15]);
@@ -679,10 +867,10 @@ endmodule
 
 // Cf * A * Cf
 module INVERSE_INT_TRANSFORM (
-    input signed [20:0] A [0:15],        // 21-bit
+    input signed [31:0] A [0:15],        // 21-bit
     input [4:0] QP,
     output signed [31:0] left [0:3],
-    output signed [31:0] top  [0:3],
+    output signed [31:0] top  [0:3]
 );
 
 reg [2:0] shift_bits;     // 2~6
@@ -698,7 +886,7 @@ always @(*) begin
     endcase
 end
 
-assign left[0] = (A[0] - A[1] - A[2] + A[3] + A[4] - A[5] - A[6] + A[7] + A[8] - A[9] - A[10] + A[11] + A[12] - A[13] - A[14] + A[15]) >>> shift_bits;  // 3
+assign left[0] = (A[0] - A[1] + A[2] - A[3] + A[4] - A[5] + A[6] - A[7] + A[8] - A[9] + A[10] - A[11] + A[12] - A[13] + A[14] - A[15]) >>> shift_bits;  // 3
 assign left[1] = (A[0] - A[1] + A[2] - A[3] + A[4] - A[5] + A[6] - A[7] - A[8] + A[9] - A[10] + A[11] - A[12] + A[13] - A[14] + A[15]) >>> shift_bits;  // 7
 assign left[2] = (A[0] - A[1] + A[2] - A[3] - A[4] + A[5] - A[6] + A[7] - A[8] + A[9] - A[10] + A[11] + A[12] - A[13] + A[14] - A[15]) >>> shift_bits;  // 11
 assign left[3] = top[3];
@@ -714,7 +902,7 @@ endmodule
 
 
 module QUANTIZATION (
-    input signed [12:0] in [0:15],
+    input signed [12:0] in,
     input [4:0] QP,
     input [3:0] cnt,
     output signed [31:0] out
@@ -875,18 +1063,18 @@ endmodule
 
 // ABS(x) = (x ^ sign) - sign;
 module MATRIX_ABS #(
-    a_bit_num, 
-    result_bit_num
+    parameter a_bit_num = 32, 
+    parameter result_bit_num = 32
 ) (
-    input signed [bit_num-1:0] a,
+    input signed [a_bit_num-1:0] a,
     output signed [result_bit_num-1:0] result
 );
 
 wire [result_bit_num-1:0] a_extend;
 wire [result_bit_num-1:0] sign;
 
-assign sign = {result_bit_num{a[bit_num-1]}};
-assign a_extend = {{(result_bit_num - bit_num){a[bit_num-1]}}, a};
+assign sign = {result_bit_num{a[a_bit_num-1]}};
+assign a_extend = {{(result_bit_num - a_bit_num){a[a_bit_num-1]}}, a};
 assign result = (a_extend ^ sign) - sign;
 
 endmodule
