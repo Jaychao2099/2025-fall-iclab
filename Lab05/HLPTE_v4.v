@@ -145,9 +145,9 @@ MEM_INTERFACE m1 (.frame(mem_frame_num), .row(mem_row_num), .col(mem_col_num), .
 
 // reg [13:0] input_cnt;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) input_cnt <= 14'b0;
+    if      (!rst_n)        input_cnt <= 14'b0;
     else if (in_valid_data) input_cnt <= input_cnt + 14'd1;
-    else input_cnt <= 14'd0;
+    else                    input_cnt <= 14'd0;
 end
 
 // reg [3:0] mem_frame_num;
@@ -213,10 +213,9 @@ always @(posedge clk) begin
 end
 
 // reg [1:0] param_cnt;
-always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)         param_cnt <= 2'b0;
-    else if (in_valid_param) param_cnt <= param_cnt + 2'd1;
-    else                     param_cnt <= 2'b0;
+always @(posedge clk) begin
+    if (in_valid_param) param_cnt <= param_cnt + 2'd1;
+    else                param_cnt <= 2'b0;
 end
 
 // reg [3:0]  index_reg;
@@ -401,9 +400,8 @@ assign in_data = mem_output_data_reg;
 assign max_predict_cnt = current_mode ? 9'd15 : 9'd255;
 
 // reg [8:0] predict_cnt;     // 0~17, 0~255
-always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                                                          predict_cnt <= 9'd0;
-    else if (current_state == S_PREDICTION && predict_cnt == max_predict_cnt) predict_cnt <= predict_cnt;
+always @(posedge clk) begin
+    if      (current_state == S_PREDICTION && predict_cnt == max_predict_cnt) predict_cnt <= predict_cnt;
     else if (current_state == S_PREDICTION)                                   predict_cnt <= predict_cnt + 9'd1;
     else                                                                      predict_cnt <= 9'd0;
 end
@@ -458,7 +456,6 @@ SAD sad_vert (.in_data(in_data), .prediction(sad_vert_prediction), .residual(sad
 
 // reg [31:0] acc_sad_dc, acc_sad_hori, acc_sad_vert;
 always @(posedge clk) begin
-    // if (current_state == S_PREDICTION) begin
     if (predict_cnt >= 9'd3) begin
         acc_sad_dc   <= acc_sad_dc + out_sad_dc;
         acc_sad_hori <= acc_sad_hori + out_sad_hori;
@@ -575,27 +572,18 @@ end
 // ----------------- int transform -----------------
 
 // reg [8:0] transform_cnt;
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n)                            transform_cnt <= 9'd0;
-    else if (current_state == S_TRANSFORM) transform_cnt <= transform_cnt + 9'd1;
-    else                                   transform_cnt <= 9'd0;
+always @(posedge clk) begin
+    if (current_state == S_TRANSFORM) transform_cnt <= transform_cnt + 9'd1;
+    else                              transform_cnt <= 9'd0;
 end
 
 // reg [7:0] prev_transform_cnt;
 // reg [7:0] pprev_transform_cnt;
 // reg [7:0] ppprev_transform_cnt;
-// always @(posedge clk or negedge rst_n) begin
 always @(posedge clk) begin
-    // if (!rst_n) begin
-    //     prev_transform_cnt <= 8'd0;
-    //     pprev_transform_cnt <= 8'd0;
-    //     ppprev_transform_cnt <= 8'd0;
-    // end
-    // else begin
-        prev_transform_cnt <= (transform_cnt < 9'd16 && current_mode || transform_cnt < 9'd256 && !current_mode) ? transform_cnt : 8'd0;
-        pprev_transform_cnt <= prev_transform_cnt;
-        ppprev_transform_cnt <= pprev_transform_cnt;
-    // end
+    prev_transform_cnt <= (transform_cnt < 9'd16 && current_mode || transform_cnt < 9'd256 && !current_mode) ? transform_cnt : 8'd0;
+    pprev_transform_cnt <= prev_transform_cnt;
+    ppprev_transform_cnt <= pprev_transform_cnt;
 end
 
 // wire reconstruct_done;
@@ -715,7 +703,7 @@ always @(*) begin
     end
 end
 
-// ----------------- feedback referance ----------------- L 309
+// ----------------- feedback referance ----------------- L 323
 
 // reg [12:0] ref_left [0:31], ref_left_reg [0:31];
 // reg [12:0] ref_top  [0:31], ref_top_reg [0:31];
@@ -745,8 +733,6 @@ always @(*) begin
                 for (i = 0; i < 4; i = i + 1) begin
                     ref_left[{1'b0, ppprev_transform_cnt[7:6], ppprev_transform_cnt[3:2]} + {MB_cnt[1], intra_4_cnt[3:2], 2'd0} + (i - 3)] = re_left[i][12:0];
                     ref_top [{1'b0, ppprev_transform_cnt[5:4], ppprev_transform_cnt[1:0]} + {MB_cnt[0], intra_4_cnt[1:0], 2'd0} + (i - 3)] = re_top[i][12:0];
-                    // ref_left[{1'b0, ppprev_transform_cnt[7:6], ppprev_transform_cnt[3:2]} + {MB_cnt[1], intra_4_cnt[3:2], i[1:0]} - 3] = re_left[i][12:0];
-                    // ref_top [{1'b0, ppprev_transform_cnt[5:4], ppprev_transform_cnt[1:0]} + {MB_cnt[0], intra_4_cnt[1:0], i[1:0]} - 3] = re_top[i][12:0];
                 end
             end
         end

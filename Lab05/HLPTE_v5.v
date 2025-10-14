@@ -89,7 +89,8 @@ wire [7:0] in_data;   // 0~255
 
 wire [8:0] max_predict_cnt;     // 15 or 255
 
-reg [8:0] predict_cnt, prev_predict_cnt, pprev_predict_cnt, ppprev_predict_cnt, pppprev_predict_cnt;     // 0~15, 0~255
+reg [8:0] predict_cnt;
+reg [7:0] prev_predict_cnt, pprev_predict_cnt, ppprev_predict_cnt, pppprev_predict_cnt;     // 0~15, 0~255
 
 // input - prediction, -255~255
 reg signed [8:0] residual_dc   [0:255], residual_dc_reg   [0:255];
@@ -331,6 +332,8 @@ always @(*) begin
     for (i = 0; i < 256; i = i + 1) begin
         prediction_hori[i] = ref_left_reg[4*(i/64) + (i%16)/4 + {MB_cnt[1], 4'd0}][7:0];
         prediction_vert[i] = ref_top_reg[4*((i/16)%4) + (i%4) + {MB_cnt[0], 4'd0}][7:0];
+        // prediction_hori[i] = ref_left_reg[{MB_cnt[1], i[7:6], i[3:2]}][7:0];    // 4*(i/64) + (i%16)/4 
+        // prediction_vert[i] = ref_top_reg [{MB_cnt[0], i[5:4], i[1:0]}][7:0];    // 4*((i/16)%4) + (i%4)
         prediction_dc[i] = dc[7:0];
     end
 end
@@ -406,11 +409,11 @@ always @(posedge clk) begin
     else                                                                      predict_cnt <= 9'd0;
 end
 
-// reg [8:0] prev_predict_cnt;     // 0~17, 0~255
-// reg [8:0] pprev_predict_cnt;     // 0~17, 0~255
-// reg [8:0] ppprev_predict_cnt;     // 0~17, 0~255
+// reg [7:0] prev_predict_cnt;     // 0~17, 0~255
+// reg [7:0] pprev_predict_cnt;     // 0~17, 0~255
+// reg [7:0] ppprev_predict_cnt;     // 0~17, 0~255
 always @(posedge clk) begin
-    prev_predict_cnt <= (predict_cnt < 9'd16 && current_mode || predict_cnt < 9'd256 && !current_mode) ? predict_cnt : 9'd0;
+    prev_predict_cnt <= (predict_cnt < 9'd16 && current_mode || predict_cnt < 9'd256 && !current_mode) ? predict_cnt[7:0] : 8'd0;
     pprev_predict_cnt <= prev_predict_cnt;
     ppprev_predict_cnt <= pprev_predict_cnt;
     pppprev_predict_cnt <= ppprev_predict_cnt;
@@ -430,13 +433,20 @@ always @(posedge clk) begin
     residual_vert_reg <= residual_vert;
 end
 
+wire [7:0] predict_idx;
+
+assign predict_idx = ppprev_predict_cnt + {intra_4_cnt, 4'd0};
+
 always @(*) begin
     residual_dc   = residual_dc_reg;
     residual_hori = residual_hori_reg;
     residual_vert = residual_vert_reg;
-    residual_dc  [ppprev_predict_cnt + {intra_4_cnt, 4'd0}] = sad_dc_residual;
-    residual_hori[ppprev_predict_cnt + {intra_4_cnt, 4'd0}] = sad_hori_residual;
-    residual_vert[ppprev_predict_cnt + {intra_4_cnt, 4'd0}] = sad_vert_residual;
+    // residual_dc  [ppprev_predict_cnt + {intra_4_cnt, 4'd0}] = sad_dc_residual;
+    // residual_hori[ppprev_predict_cnt + {intra_4_cnt, 4'd0}] = sad_hori_residual;
+    // residual_vert[ppprev_predict_cnt + {intra_4_cnt, 4'd0}] = sad_vert_residual;
+    residual_dc  [predict_idx] = sad_dc_residual;
+    residual_hori[predict_idx] = sad_hori_residual;
+    residual_vert[predict_idx] = sad_vert_residual;
 end
 
 wire [7:0] sad_dc_prediction;
@@ -444,8 +454,10 @@ wire [7:0] sad_hori_prediction;
 wire [7:0] sad_vert_prediction;
 
 assign sad_dc_prediction   = prediction_dc[0];
-assign sad_hori_prediction = prediction_hori[ppprev_predict_cnt + {intra_4_cnt, 4'd0}];
-assign sad_vert_prediction = prediction_vert[ppprev_predict_cnt + {intra_4_cnt, 4'd0}];
+// assign sad_hori_prediction = prediction_hori[ppprev_predict_cnt + {intra_4_cnt, 4'd0}];
+// assign sad_vert_prediction = prediction_vert[ppprev_predict_cnt + {intra_4_cnt, 4'd0}];
+assign sad_hori_prediction = prediction_hori[predict_idx];
+assign sad_vert_prediction = prediction_vert[predict_idx];
 
 
 // ABS(input - prediction)
@@ -581,7 +593,7 @@ end
 // reg [7:0] pprev_transform_cnt;
 // reg [7:0] ppprev_transform_cnt;
 always @(posedge clk) begin
-    prev_transform_cnt <= (transform_cnt < 9'd16 && current_mode || transform_cnt < 9'd256 && !current_mode) ? transform_cnt : 8'd0;
+    prev_transform_cnt <= (transform_cnt < 9'd16 && current_mode || transform_cnt < 9'd256 && !current_mode) ? transform_cnt[7:0] : 8'd0;
     pprev_transform_cnt <= prev_transform_cnt;
     ppprev_transform_cnt <= pprev_transform_cnt;
 end
@@ -703,7 +715,7 @@ always @(*) begin
     end
 end
 
-// ----------------- feedback referance ----------------- L 323
+// ----------------- feedback referance ----------------- L 318
 
 // reg [12:0] ref_left [0:31], ref_left_reg [0:31];
 // reg [12:0] ref_top  [0:31], ref_top_reg [0:31];
