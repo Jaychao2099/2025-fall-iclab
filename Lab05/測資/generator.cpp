@@ -380,7 +380,7 @@ Matrix process_mb_16x16(const Matrix& input_mb, const Matrix& reconstructed_fram
 // --- Main Program ---
 int main() {
     std::ofstream frames_file("frames.txt");
-    std::ofstream params_file("params.txt");
+    std::ofstream params_file("my_params.txt");
     std::ofstream golden_z_file("golden_Z.txt");
 
     std::mt19937 rng(12345); // Fixed seed for reproducibility

@@ -1,4 +1,4 @@
-`define CYCLE_TIME  20.0
+`define CYCLE_TIME  14.2
 `define PAT_NUM     10     // Total number of patterns to test
 `define MAX_LATENCY 10000  // Maximum allowed latency per set as per spec
 

@@ -363,32 +363,40 @@ assign top_sum4[7] = ref_top_reg[28] + ref_top_reg[29] + ref_top_reg[30]  + ref_
 assign top_sum16[0] = top_sum4[0] + top_sum4[1] + top_sum4[2] + top_sum4[3];
 assign top_sum16[1] = top_sum4[4] + top_sum4[5] + top_sum4[6] + top_sum4[7];
 
-reg [12:0] dc_reg;
+// reg [12:0] dc_reg;
 
-always @(posedge clk) begin
-    dc_reg <= dc;
-end
+// always @(posedge clk) begin
+//     dc_reg <= dc;
+// end
 // top []   // intra_4_cnt % 4 + MB_cnt[0]*4
 // left[]   // intra_4_cnt / 4 + MB_cnt[1]*4
 // reg [12:0] dc;
 always @(*) begin
-    dc = dc_reg;
-    // if (current_mode && intra_4_cnt > 0) begin     // 4 x 4
-    if (current_mode) begin     // 4 x 4
-        if      (MB_cnt == 2'd0 && intra_4_cnt      == 4'd0) dc = 13'd128;
-        else if (!MB_cnt[0]     && intra_4_cnt[1:0] == 2'd0) dc = top_sum4[0]  >> 2;
-        else if (!MB_cnt[1]     && intra_4_cnt[3:2] == 2'd0) dc = left_sum4[0] >> 2;
-        else dc = (top_sum4[{MB_cnt[0], intra_4_cnt[1:0]}] + left_sum4[{MB_cnt[1], intra_4_cnt[3:2]}]) >> 3;
-    end
-    else if (!current_mode) begin  // 16 x 16
-        case (MB_cnt)
-            0: dc = 13'd128;
-            1: dc = left_sum16[0] >> 4;
-            2: dc = top_sum16[0]  >> 4;
-            3: dc = (left_sum16[1] + top_sum16[1]) >> 5;
-            default: dc = 13'd0;
-        endcase
-    end
+    // dc = dc_reg;
+    casex ({current_mode, MB_cnt, intra_4_cnt})
+        7'b100_0000, 7'b000_xxxx: dc = 13'd128;
+        7'b1x0_xx00: dc = top_sum4[0]  >> 2;
+        7'b10x_00xx: dc = left_sum4[0] >> 2;
+        7'b001_xxxx: dc = left_sum16[0] >> 4;
+        7'b010_xxxx: dc = top_sum16[0]  >> 4;
+        7'b011_xxxx: dc = (left_sum16[1] + top_sum16[1]) >> 5;
+        default: dc = (top_sum4[{MB_cnt[0], intra_4_cnt[1:0]}] + left_sum4[{MB_cnt[1], intra_4_cnt[3:2]}]) >> 3;
+    endcase
+
+    // if (current_mode) begin     // 4 x 4
+    //     if      (MB_cnt == 2'd0 && intra_4_cnt      == 4'd0) dc = 13'd128;
+    //     else if (!MB_cnt[0]     && intra_4_cnt[1:0] == 2'd0) dc = top_sum4[0]  >> 2;
+    //     else if (!MB_cnt[1]     && intra_4_cnt[3:2] == 2'd0) dc = left_sum4[0] >> 2;
+    //     else dc = (top_sum4[{MB_cnt[0], intra_4_cnt[1:0]}] + left_sum4[{MB_cnt[1], intra_4_cnt[3:2]}]) >> 3;
+    // end
+    // else if (!current_mode) begin  // 16 x 16
+    //     case (MB_cnt)
+    //         0: dc = 13'd128;
+    //         1: dc = left_sum16[0] >> 4;
+    //         2: dc = top_sum16[0]  >> 4;
+    //         default: dc = (left_sum16[1] + top_sum16[1]) >> 5;
+    //     endcase
+    // end
 end
 
 // ----------------- predict -----------------
@@ -483,12 +491,12 @@ always @(*) begin
     real_residual = real_residual_reg;
     real_prediction = real_prediction_reg;
     if (current_state == S_PREDICTION) begin
-        if (current_mode) begin
-            if (MB_cnt == 2'd0 && intra_4_cnt == 4'd0) begin
+        casex ({current_mode, MB_cnt, intra_4_cnt})
+            7'b100_0000, 7'b000_xxxx: begin
                 real_residual = residual_dc;
                 real_prediction = prediction_dc;
             end
-            else if (!MB_cnt[0] && intra_4_cnt[1:0] == 2'd0) begin
+            7'b1x0_xx00, 7'b010_xxxx: begin
                 if (acc_sad_dc > acc_sad_vert) begin
                     real_residual = residual_vert;
                     real_prediction = prediction_vert;
@@ -498,7 +506,7 @@ always @(*) begin
                     real_prediction = prediction_dc;
                 end
             end
-            else if (!MB_cnt[1] && intra_4_cnt[3:2] == 2'd0) begin
+            7'b10x_00xx, 7'b001_xxxx: begin
                 if (acc_sad_dc > acc_sad_hori) begin
                     real_residual = residual_hori;
                     real_prediction = prediction_hori;
@@ -508,7 +516,7 @@ always @(*) begin
                     real_prediction = prediction_dc;
                 end
             end
-            else begin
+            default: begin
                 if (acc_sad_vert >= acc_sad_hori && acc_sad_dc > acc_sad_hori) begin
                     real_residual = residual_hori;
                     real_prediction = prediction_hori;
@@ -522,50 +530,91 @@ always @(*) begin
                     real_prediction = prediction_dc;
                 end
             end
-        end
-        else begin
-            // TODO: can optimize
-            case (MB_cnt)
-                0: begin
-                    real_residual = residual_dc;
-                    real_prediction = prediction_dc;
-                end
-                1: begin
-                    if (acc_sad_dc > acc_sad_hori) begin
-                        real_residual = residual_hori;
-                        real_prediction = prediction_hori;
-                    end
-                    else begin
-                        real_residual = residual_dc;
-                        real_prediction = prediction_dc;
-                    end
-                end
-                2: begin
-                    if (acc_sad_dc > acc_sad_vert) begin
-                        real_residual = residual_vert;
-                        real_prediction = prediction_vert;
-                    end
-                    else begin
-                        real_residual = residual_dc;
-                        real_prediction = prediction_dc;
-                    end
-                end
-                default: begin
-                    if (acc_sad_vert >= acc_sad_hori && acc_sad_dc > acc_sad_hori) begin
-                        real_residual = residual_hori;
-                        real_prediction = prediction_hori;
-                    end
-                    else if (acc_sad_hori >  acc_sad_vert && acc_sad_dc > acc_sad_vert) begin
-                        real_residual = residual_vert;
-                        real_prediction = prediction_vert;
-                    end
-                    else begin
-                        real_residual = residual_dc;
-                        real_prediction = prediction_dc;
-                    end
-                end
-            endcase
-        end
+        endcase
+
+        // if (current_mode) begin
+        //     if (MB_cnt == 2'd0 && intra_4_cnt == 4'd0) begin
+        //         real_residual = residual_dc;
+        //         real_prediction = prediction_dc;
+        //     end
+        //     else if (!MB_cnt[0] && intra_4_cnt[1:0] == 2'd0) begin
+        //         if (acc_sad_dc > acc_sad_vert) begin
+        //             real_residual = residual_vert;
+        //             real_prediction = prediction_vert;
+        //         end
+        //         else begin
+        //             real_residual = residual_dc;
+        //             real_prediction = prediction_dc;
+        //         end
+        //     end
+        //     else if (!MB_cnt[1] && intra_4_cnt[3:2] == 2'd0) begin
+        //         if (acc_sad_dc > acc_sad_hori) begin
+        //             real_residual = residual_hori;
+        //             real_prediction = prediction_hori;
+        //         end
+        //         else begin
+        //             real_residual = residual_dc;
+        //             real_prediction = prediction_dc;
+        //         end
+        //     end
+        //     else begin
+        //         if (acc_sad_vert >= acc_sad_hori && acc_sad_dc > acc_sad_hori) begin
+        //             real_residual = residual_hori;
+        //             real_prediction = prediction_hori;
+        //         end
+        //         else if (acc_sad_hori >  acc_sad_vert && acc_sad_dc > acc_sad_vert) begin
+        //             real_residual = residual_vert;
+        //             real_prediction = prediction_vert;
+        //         end
+        //         else begin
+        //             real_residual = residual_dc;
+        //             real_prediction = prediction_dc;
+        //         end
+        //     end
+        // end
+        // else begin
+        //     // TODO: can optimize
+        //     case (MB_cnt)
+        //         0: begin
+        //             real_residual = residual_dc;
+        //             real_prediction = prediction_dc;
+        //         end
+        //         1: begin
+        //             if (acc_sad_dc > acc_sad_hori) begin
+        //                 real_residual = residual_hori;
+        //                 real_prediction = prediction_hori;
+        //             end
+        //             else begin
+        //                 real_residual = residual_dc;
+        //                 real_prediction = prediction_dc;
+        //             end
+        //         end
+        //         2: begin
+        //             if (acc_sad_dc > acc_sad_vert) begin
+        //                 real_residual = residual_vert;
+        //                 real_prediction = prediction_vert;
+        //             end
+        //             else begin
+        //                 real_residual = residual_dc;
+        //                 real_prediction = prediction_dc;
+        //             end
+        //         end
+        //         default: begin
+        //             if (acc_sad_vert >= acc_sad_hori && acc_sad_dc > acc_sad_hori) begin
+        //                 real_residual = residual_hori;
+        //                 real_prediction = prediction_hori;
+        //             end
+        //             else if (acc_sad_hori >  acc_sad_vert && acc_sad_dc > acc_sad_vert) begin
+        //                 real_residual = residual_vert;
+        //                 real_prediction = prediction_vert;
+        //             end
+        //             else begin
+        //                 real_residual = residual_dc;
+        //                 real_prediction = prediction_dc;
+        //             end
+        //         end
+        //     endcase
+        // end
     end
 end
 
@@ -703,7 +752,7 @@ always @(*) begin
     end
 end
 
-// ----------------- feedback referance ----------------- L 318
+// ----------------- feedback referance ----------------- L 309
 
 // reg [12:0] ref_left [0:31], ref_left_reg [0:31];
 // reg [12:0] ref_top  [0:31], ref_top_reg [0:31];

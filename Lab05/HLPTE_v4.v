@@ -703,7 +703,7 @@ always @(*) begin
     end
 end
 
-// ----------------- feedback referance ----------------- L 323
+// ----------------- feedback referance ----------------- L 318
 
 // reg [12:0] ref_left [0:31], ref_left_reg [0:31];
 // reg [12:0] ref_top  [0:31], ref_top_reg [0:31];
@@ -733,6 +733,8 @@ always @(*) begin
                 for (i = 0; i < 4; i = i + 1) begin
                     ref_left[{1'b0, ppprev_transform_cnt[7:6], ppprev_transform_cnt[3:2]} + {MB_cnt[1], intra_4_cnt[3:2], 2'd0} + (i - 3)] = re_left[i][12:0];
                     ref_top [{1'b0, ppprev_transform_cnt[5:4], ppprev_transform_cnt[1:0]} + {MB_cnt[0], intra_4_cnt[1:0], 2'd0} + (i - 3)] = re_top[i][12:0];
+                    // ref_left[{1'b0, ppprev_transform_cnt[7:6], ppprev_transform_cnt[3:2]} + {MB_cnt[1], intra_4_cnt[3:2], i[1:0]} - 3] = re_left[i][12:0];
+                    // ref_top [{1'b0, ppprev_transform_cnt[5:4], ppprev_transform_cnt[1:0]} + {MB_cnt[0], intra_4_cnt[1:0], i[1:0]} - 3] = re_top[i][12:0];
                 end
             end
         end

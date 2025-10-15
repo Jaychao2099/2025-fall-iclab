@@ -18,7 +18,7 @@
 //############################################################################
 
 
-`define CYCLE_TIME  20.0
+`define CYCLE_TIME  14.2
 `define PATNUM      20
 `define SEED        86
 
