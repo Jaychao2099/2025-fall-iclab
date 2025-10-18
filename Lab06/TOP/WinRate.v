@@ -430,9 +430,9 @@ assign current_pub_card_num  = {in_pub_num, current_card_1_num, current_card_2_n
 assign current_pub_card_suit = {in_pub_suit, current_card_1_suit, current_card_2_suit};
 
 // wire [8:0] current_winner_mask;
-Poker #(9) p1 (.IN_HOLE_CARD_NUM(in_hole_num), .IN_HOLE_CARD_SUIT(in_hole_suit),
-               .IN_PUB_CARD_NUM(current_pub_card_num), IN_PUB_CARD_SUIT(current_pub_card_suit), 
-               .OUT_WINNER(current_winner_mask));
+Poker #(9) poker (.IN_HOLE_CARD_NUM(in_hole_num), .IN_HOLE_CARD_SUIT(in_hole_suit),
+                  .IN_PUB_CARD_NUM(current_pub_card_num), .IN_PUB_CARD_SUIT(current_pub_card_suit), 
+                  .OUT_WINNER(current_winner_mask));
 
 // 1     2    3    4    5    6    7    8    9
 // 12600 6300 4200 3150 2520 2100 1800 1575 1400
