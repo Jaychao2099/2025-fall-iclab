@@ -27,7 +27,7 @@ module TESTBED();
 	wire [71:0] in_hole_num;
     wire [35:0] in_hole_suit;
     wire [11:0] in_pub_num;
-    wire [6:0] in_pub_suit;
+    wire [5:0] in_pub_suit;
     wire [62:0] out_win_rate;
 
 initial begin

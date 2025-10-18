@@ -27,7 +27,7 @@ output reg in_valid;
 output reg [71:0] in_hole_num;
 output reg [35:0] in_hole_suit;
 output reg [11:0] in_pub_num;
-output reg [6:0] in_pub_suit;
+output reg [5:0] in_pub_suit;
 
 input out_valid;
 input [62:0] out_win_rate;
