@@ -32,27 +32,27 @@ output [IP_WIDTH-1:0]  OUT_WINNER;  // winner = 1, loser = 0
 
 genvar i;
 
-wire [27:0] 7_cards_num  [0:IP_WIDTH-1];
-wire [13:0] 7_cards_suit [0:IP_WIDTH-1];
+wire [27:0] cards_num  [0:IP_WIDTH-1];    // 7*4 = 28
+wire [13:0] cards_suit [0:IP_WIDTH-1];    // 7*2 = 14
 wire [23:0] player_strength [0:IP_WIDTH-1];
 
 // ===============================================================
 // Design
 // ===============================================================
 
-// wire [27:0] 7_cards_num  [0:IP_WIDTH-1];
-// wire [13:0] 7_cards_suit [0:IP_WIDTH-1];
+// wire [27:0] cards_num  [0:IP_WIDTH-1];
+// wire [13:0] cards_suit [0:IP_WIDTH-1];
 generate
-    for (i = 0; i < IP_WIDTH; i = i + 1) begin: 7_cards_unpack
-        assign 7_cards_num[i]  = {IN_PUB_CARD_NUM, IN_HOLE_CARD_NUM[8*i+7:8*i]};
-        assign 7_cards_suit[i] = {IN_PUB_CARD_SUIT, IN_HOLE_CARD_SUIT[4*i+3:4*i]};
+    for (i = 0; i < IP_WIDTH; i = i + 1) begin: cards_unpack
+        assign cards_num[i]  = {IN_PUB_CARD_NUM, IN_HOLE_CARD_NUM[8*i+7:8*i]};
+        assign cards_suit[i] = {IN_PUB_CARD_SUIT, IN_HOLE_CARD_SUIT[4*i+3:4*i]};
     end
 endgenerate
 
 // wire [23:0] player_strength [0:IP_WIDTH-1];
 generate
-    for (i = 0; i < IP_WIDTH; i = i + 1) begin: 7_cards_strength
-        CAL_STRENGTH strength (.7_cards_num(7_cards_num[i]), .7_cards_suit(7_cards_suit[i]), .7_cards_strength(player_strength[i]));
+    for (i = 0; i < IP_WIDTH; i = i + 1) begin: strength_gen
+        CAL_STRENGTH strength (.cards_num(cards_num[i]), .cards_suit(cards_suit[i]), .cards_strength(player_strength[i]));
     end
 endgenerate
 
@@ -88,653 +88,11 @@ endgenerate
 endmodule
 
 
-module PLAYERS_CMP_9 (
-    input [23:0] player_strength [0:8],
-    output [8:0] winner_mask
-);
-
-reg [23:0] layer0_0, layer0_1, layer0_2, layer0_3;
-reg [23:0] layer1_0, layer1_1;
-reg [23:0] layer2_0;
-
-reg [8:0] mask0_0, mask0_1, mask0_2, mask0_3;
-reg [8:0] mask1_0, mask1_1;
-reg [8:0] mask2_0;
-
-always @(*) begin
-    // layer0
-    // layer0_0
-    // mask0_0
-    if (player_strength[0] > player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 9'b000000001;
-    end
-    else if (player_strength[0] == player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 9'b000000011;
-    end
-    else begin
-        layer0_0 = player_strength[1];
-        mask0_0 = 9'b000000010;
-    end
-
-    // layer0_1
-    // mask0_1
-    if (player_strength[2] > player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 9'b000000100;
-    end
-    else if (player_strength[0] == player_strength[2]) begin
-        layer0_1 = player_strength[0];
-        mask0_1 = 9'b000001100;
-    end
-    else begin
-        layer0_1 = player_strength[3];
-        mask0_1 = 9'b000001000;
-    end
-
-    // layer0_2
-    // mask0_2
-    if (player_strength[4] > player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 9'b000010000;
-    end
-    else if (player_strength[4] == player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 9'b000110000;
-    end
-    else begin
-        layer0_2 = player_strength[5];
-        mask0_2 = 9'b000100000;
-    end
-
-    // layer0_3
-    // mask0_3
-    if (player_strength[6] > player_strength[7]) begin
-        layer0_3 = player_strength[6];
-        mask0_3 = 9'b001000000;
-    end
-    else if (player_strength[6] == player_strength[7]) begin
-        layer0_3 = player_strength[6];
-        mask0_3 = 9'b011000000;
-    end
-    else begin
-        layer0_3 = player_strength[7];
-        mask0_3 = 9'b010000000;
-    end
-
-    // layer1
-    // layer1_0
-    // mask1_0
-    if (layer0_0 > layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0;
-    end
-    else if (layer0_0 == layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0 | mask0_1;
-    end
-    else begin
-        layer1_0 = layer0_1;
-        mask1_0 = mask0_1;
-    end
-
-    // layer1_1
-    // mask1_1
-    if (layer0_2 > layer0_3) begin
-        layer1_1 = layer0_2;
-        mask1_1 = mask0_2;
-    end
-    else if (layer0_2 == layer0_3) begin
-        layer1_1 = layer0_2;
-        mask1_1 = mask0_2 | mask0_3;
-    end
-    else begin
-        layer1_1 = layer0_3;
-        mask1_1 = mask0_3;
-    end
-
-    // layer2
-    // layer2_0
-    // mask2_0
-    if (layer1_0 > layer1_1) begin
-        layer2_0 = layer1_0;
-        mask2_0 = mask1_0;
-    end
-    else if (layer1_0 == layer1_1) begin
-        layer2_0 = layer1_0;
-        mask2_0 = mask1_0 | mask1_1;
-    end
-    else begin
-        layer2_0 = layer1_1;
-        mask2_0 = mask1_1;
-    end
-
-    // winner_mask
-    if (layer2_0 > player_strength[8]) begin
-        winner_mask = mask2_0;
-    end
-    else if (layer2_0 == player_strength[8]) begin
-        winner_mask = mask2_0 | 9'b100000000;
-    end
-    else begin
-        winner_mask = 9'b100000000;
-    end
-end
-
-endmodule
-
-
-module PLAYERS_CMP_8 (
-    input [23:0] player_strength [0:7],
-    output [7:0] winner_mask
-);
-
-reg [23:0] layer0_0, layer0_1, layer0_2, layer0_3;
-reg [23:0] layer1_0, layer1_1;
-
-reg [7:0] mask0_0, mask0_1, mask0_2, mask0_3;
-reg [7:0] mask1_0, mask1_1;
-
-always @(*) begin
-    // layer0
-    // layer0_0
-    // mask0_0
-    if (player_strength[0] > player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 8'b00000001;
-    end
-    else if (player_strength[0] == player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 8'b00000011;
-    end
-    else begin
-        layer0_0 = player_strength[1];
-        mask0_0 = 8'b00000010;
-    end
-
-    // layer0_1
-    // mask0_1
-    if (player_strength[2] > player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 8'b00000100;
-    end
-    else if (player_strength[2] == player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 8'b00001100;
-    end
-    else begin
-        layer0_1 = player_strength[3];
-        mask0_1 = 8'b00001000;
-    end
-
-    // layer0_2
-    // mask0_2
-    if (player_strength[4] > player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 8'b00010000;
-    end
-    else if (player_strength[4] == player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 8'b00110000;
-    end
-    else begin
-        layer0_2 = player_strength[5];
-        mask0_2 = 8'b00100000;
-    end
-
-    // layer0_3
-    // mask0_3
-    if (player_strength[6] > player_strength[7]) begin
-        layer0_3 = player_strength[6];
-        mask0_3 = 8'b01000000;
-    end
-    else if (player_strength[6] == player_strength[7]) begin
-        layer0_3 = player_strength[6];
-        mask0_3 = 8'b11000000;
-    end
-    else begin
-        layer0_3 = player_strength[7];
-        mask0_3 = 8'b10000000;
-    end
-
-    // layer1
-    // layer1_0
-    // mask1_0
-    if (layer0_0 > layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0;
-    end
-    else if (layer0_0 == layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0 | mask0_1;
-    end
-    else begin
-        layer1_0 = layer0_1;
-        mask1_0 = mask0_1;
-    end
-
-    // layer1_1
-    // mask1_1
-    if (layer0_2 > layer0_3) begin
-        layer1_1 = layer0_2;
-        mask1_1 = mask0_2;
-    end
-    else if (layer0_2 == layer0_3) begin
-        layer1_1 = layer0_2;
-        mask1_1 = mask0_2 | mask0_3;
-    end
-    else begin
-        layer1_1 = layer0_3;
-        mask1_1 = mask0_3;
-    end
-
-    // winner_mask
-    if (layer1_0 > layer1_1) begin
-        winner_mask = mask1_0;
-    end
-    else if (layer1_0 == layer1_1) begin
-        winner_mask = mask1_0 | mask1_1;
-    end
-    else begin
-        winner_mask = mask1_1;
-    end
-end
-
-endmodule
-
-module PLAYERS_CMP_7 (
-    input [23:0] player_strength [0:6],
-    output [6:0] winner_mask
-);
-
-reg [23:0] layer0_0, layer0_1, layer0_2;
-reg [23:0] layer1_0, layer1_1;
-
-reg [6:0] mask0_0, mask0_1, mask0_2;
-reg [6:0] mask1_0, mask1_1;
-
-always @(*) begin
-    // layer0
-    // layer0_0
-    // mask0_0
-    if (player_strength[0] > player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 7'b0000001;
-    end
-    else if (player_strength[0] == player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 7'b0000011;
-    end
-    else begin
-        layer0_0 = player_strength[1];
-        mask0_0 = 7'b0000010;
-    end
-
-    // layer0_1
-    // mask0_1
-    if (player_strength[2] > player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 7'b0000100;
-    end
-    else if (player_strength[2] == player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 7'b0001100;
-    end
-    else begin
-        layer0_1 = player_strength[3];
-        mask0_1 = 7'b0001000;
-    end
-
-    // layer0_2
-    // mask0_2
-    if (player_strength[4] > player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 7'b0010000;
-    end
-    else if (player_strength[4] == player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 7'b0110000;
-    end
-    else begin
-        layer0_2 = player_strength[5];
-        mask0_2 = 7'b0100000;
-    end
-
-    // layer1
-    // layer1_0
-    // mask1_0
-    if (layer0_0 > layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0;
-    end
-    else if (layer0_0 == layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0 | mask0_1;
-    end
-    else begin
-        layer1_0 = layer0_1;
-        mask1_0 = mask0_1;
-    end
-
-    // layer1_1
-    // mask1_1
-    if (layer0_2 > player_strength[6]) begin
-        layer1_1 = layer0_2;
-        mask1_1 = mask0_2;
-    end
-    else if (layer0_2 == player_strength[6]) begin
-        layer1_1 = layer0_2;
-        mask1_1 = mask0_2 | 7'b1000000;
-    end
-    else begin
-        layer1_1 = player_strength[6];
-        mask1_1 = 7'b1000000;
-    end
-
-    // winner_mask
-    if (layer1_0 > layer1_1) begin
-        winner_mask = mask1_0;
-    end
-    else if (layer1_0 == layer1_1) begin
-        winner_mask = mask1_0 | mask1_1;
-    end
-    else begin
-        winner_mask = mask1_1;
-    end
-end
-
-endmodule
-
-
-module PLAYERS_CMP_6 (
-    input [23:0] player_strength [0:5],
-    output [5:0] winner_mask
-);
-
-reg [23:0] layer0_0, layer0_1, layer0_2;
-reg [23:0] layer1_0;
-
-reg [5:0] mask0_0, mask0_1, mask0_2;
-reg [5:0] mask1_0;
-
-always @(*) begin
-    // layer0
-    // layer0_0
-    // mask0_0
-    if (player_strength[0] > player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 6'b000001;
-    end
-    else if (player_strength[0] == player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 6'b000011;
-    end
-    else begin
-        layer0_0 = player_strength[1];
-        mask0_0 = 6'b000010;
-    end
-
-    // layer0_1
-    // mask0_1
-    if (player_strength[2] > player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 6'b000100;
-    end
-    else if (player_strength[2] == player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 6'b001100;
-    end
-    else begin
-        layer0_1 = player_strength[3];
-        mask0_1 = 6'b001000;
-    end
-
-    // layer0_2
-    // mask0_2
-    if (player_strength[4] > player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 6'b010000;
-    end
-    else if (player_strength[4] == player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 6'b110000;
-    end
-    else begin
-        layer0_2 = player_strength[5];
-        mask0_2 = 6'b100000;
-    end
-
-    // layer1
-    // layer1_0
-    // mask1_0
-    if (layer0_0 > layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0;
-    end
-    else if (layer0_0 == layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0 | mask0_1;
-    end
-    else begin
-        layer1_0 = layer0_1;
-        mask1_0 = mask0_1;
-    end
-
-    // winner_mask
-    if (layer1_0 > layer0_2) begin
-        winner_mask = mask1_0;
-    end
-    else if (layer1_0 == layer0_2) begin
-        winner_mask = mask1_0 | mask0_2;
-    end
-    else begin
-        winner_mask = mask0_2;
-    end
-end
-
-endmodule
-
-
-module PLAYERS_CMP_5 (
-    input [23:0] player_strength [0:4],
-    output [4:0] winner_mask
-);
-
-reg [23:0] layer0_0, layer0_1;
-reg [23:0] layer1_0;
-
-reg [4:0] mask0_0, mask0_1;
-reg [4:0] mask1_0;
-
-always @(*) begin
-    // layer0
-    // layer0_0
-    // mask0_0
-    if (player_strength[0] > player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 5'b00001;
-    end
-    else if (player_strength[0] == player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 5'b00011;
-    end
-    else begin
-        layer0_0 = player_strength[1];
-        mask0_0 = 5'b00010;
-    end
-
-    // layer0_1
-    // mask0_1
-    if (player_strength[2] > player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 5'b00100;
-    end
-    else if (player_strength[2] == player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 5'b01100;
-    end
-    else begin
-        layer0_1 = player_strength[3];
-        mask0_1 = 5'b01000;
-    end
-
-    // layer1
-    // layer1_0
-    // mask1_0
-    if (layer0_0 > layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0;
-    end
-    else if (layer0_0 == layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0 | mask0_1;
-    end
-    else begin
-        layer1_0 = layer0_1;
-        mask1_0 = mask0_1;
-    end
-
-    // winner_mask
-    if (layer1_0 > player_strength[4]) begin
-        winner_mask = mask1_0;
-    end
-    else if (layer1_0 == player_strength[4]) begin
-        winner_mask = mask1_0 | 5'b10000;
-    end
-    else begin
-        winner_mask = 5'b10000;
-    end
-end
-
-endmodule
-
-
-module PLAYERS_CMP_4 (
-    input [23:0] player_strength [0:3],
-    output [3:0] winner_mask
-);
-
-reg [23:0] layer0_0, layer0_1;
-reg [23:0] layer1_0;
-
-reg [3:0] mask0_0, mask0_1;
-reg [3:0] mask1_0;
-
-always @(*) begin
-    // layer0
-    // layer0_0
-    // mask0_0
-    if (player_strength[0] > player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 4'b0001;
-    end
-    else if (player_strength[0] == player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 4'b0011;
-    end
-    else begin
-        layer0_0 = player_strength[1];
-        mask0_0 = 4'b0010;
-    end
-
-    // layer0_1
-    // mask0_1
-    if (player_strength[2] > player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 4'b0100;
-    end
-    else if (player_strength[2] == player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 4'b1100;
-    end
-    else begin
-        layer0_1 = player_strength[3];
-        mask0_1 = 4'b1000;
-    end
-
-    // winner_mask
-    if (layer0_0 > layer0_1) begin
-        winner_mask = mask0_0;
-    end
-    else if (layer0_0 == layer0_1) begin
-        winner_mask = mask0_0 | mask0_1;
-    end
-    else begin
-        winner_mask = mask0_1;
-    end
-end
-
-endmodule
-
-
-module PLAYERS_CMP_3 (
-    input [23:0] player_strength [0:2],
-    output [2:0] winner_mask
-);
-
-reg [23:0] layer0_0;
-
-reg [2:0] mask0_0;
-
-always @(*) begin
-    // layer0
-    // layer0_0
-    // mask0_0
-    if (player_strength[0] > player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 3'b001;
-    end
-    else if (player_strength[0] == player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 3'b011;
-    end
-    else begin
-        layer0_0 = player_strength[1];
-        mask0_0 = 3'b010;
-    end
-
-    // winner_mask
-    if (layer0_0 > player_strength[2]) begin
-        winner_mask = mask0_0;
-    end
-    else if (layer0_0 == player_strength[2]) begin
-        winner_mask = mask0_0 | 3'b100;
-    end
-    else begin
-        winner_mask = 3'b100;
-    end
-end
-
-endmodule
-
-
-module PLAYERS_CMP_2 (
-    input [23:0] player_strength [0:1],
-    output [1:0] winner_mask
-);
-
-always @(*) begin
-    // winner_mask
-    if (player_strength[0] > player_strength[1]) begin
-        winner_mask = 2'b01;
-    end
-    else if (player_strength[0] == player_strength[1]) begin
-        winner_mask = 2'b01;
-    end
-    else begin
-        winner_mask = 2'b10;
-    end
-end
-
-endmodule
-
-
 module CAL_STRENGTH (
-    input [27:0] 7_cards_num,      // 5 hand cards + 2 table cards = 7, each 4-bit
-    input [13:0] 7_cards_suit,
+    input [27:0] cards_num,      // 5 hand cards + 2 table cards = 7, each 4-bit
+    input [13:0] cards_suit,
 
-    output [23:0] 7_cards_strength
+    output reg [23:0] cards_strength
 );
 
 // ===============================================================
@@ -745,7 +103,7 @@ genvar j;
 wire is_straight_flush;
 wire is_four;
 wire is_full_house;
-wire is_flush;
+reg  is_flush;
 wire is_straight;
 wire is_three;
 wire is_two_pair;
@@ -753,13 +111,13 @@ wire is_one_pair;
 
 wire [3:0] four_key;
 wire [3:0] full_house_key1, full_house_key2;
-wire [3:0] flush_key1, flush_key2, flush_key3, flush_key4, flush_key5;
+reg  [3:0] flush_key1, flush_key2, flush_key3, flush_key4, flush_key5;
 wire [3:0] straight_key;
 wire [3:0] three_key;
 wire [3:0] two_pair_key1, two_pair_key2;
 wire [3:0] one_pair_key;
 
-wire [3:0] 7_cards_num_sorted [0:6];
+wire [3:0] cards_num_sorted [0:6];
 
 wire [3:0] four_kicker;
 reg  [3:0] three_kicker1, three_kicker2;
@@ -772,46 +130,47 @@ reg  [3:0] one_pair_kicker1, one_pair_kicker2, one_pair_kicker3;
 
 // TODO: decode to 7 cards first
 
-// FLUSH player_flush (.cards_suit(7_cards_suit), .is_flush(is_flush));
+// FLUSH player_flush (.cards_suit(cards_suit), .is_flush(is_flush));
 
-wire [5:0] 7_cards_suit_num [0:6];      // 2+4 bits
-wire [1:0] 7_cards_suit_sorted [0:6];
+wire [5:0] cards_suit_num [0:6];      // 2+4 bits
+wire [1:0] cards_suit_sorted [0:6];
 
 generate
-    for (j = 0; j < 7; j = j + 1) begin: 
-        assign 7_cards_suit_num[i] = {7_cards_suit[2*i-1:2*i], 7_cards_num[(4*i+3):(4*i)]};
+    for (j = 0; j < 7; j = j + 1) begin: suit_add_num
+        assign cards_suit_num[j] = {cards_suit[2*j+1:2*j], cards_num[(4*j+3):(4*j)]};
     end
 endgenerate
 
-// wire [3:0] 7_cards_suit_sorted [0:6];
+// wire [3:0] cards_suit_sorted [0:6];
 // output [output_bits-1:0] sorted_card [0:6]   // small idx == big num
-SORT_CARD #(6, 2) sort_by_suit (.cards_num(7_cards_suit_num), .sorted_card(7_cards_suit_sorted));
+SORT_CARD #(6, 2) sort_by_suit (.cards_num(cards_suit_num), .sorted_card(cards_suit_sorted));
 
-// wire [3:0] flush_key1, flush_key2, flush_key3, flush_key4, flush_key5;
-// wire [3:0] 7_cards_suit_sorted [0:6];
+// reg [3:0] flush_key1, flush_key2, flush_key3, flush_key4, flush_key5;
+// reg  is_flush;
+// wire [3:0] cards_suit_sorted [0:6];
 always @(*) begin
-    if (7_cards_suit_sorted[0] == 7_cards_suit_sorted[4]) begin
-        flush_key1 = 7_cards_suit_sorted[0];
-        flush_key2 = 7_cards_suit_sorted[1];
-        flush_key3 = 7_cards_suit_sorted[2];
-        flush_key4 = 7_cards_suit_sorted[3];
-        flush_key5 = 7_cards_suit_sorted[4];
+    if (cards_suit_sorted[0] == cards_suit_sorted[4]) begin
+        flush_key1 = cards_suit_sorted[0];
+        flush_key2 = cards_suit_sorted[1];
+        flush_key3 = cards_suit_sorted[2];
+        flush_key4 = cards_suit_sorted[3];
+        flush_key5 = cards_suit_sorted[4];
         is_flush = 1'b1;
     end
-    else if (7_cards_suit_sorted[1] == 7_cards_suit_sorted[5]) begin
-        flush_key1 = 7_cards_suit_sorted[1];
-        flush_key2 = 7_cards_suit_sorted[2];
-        flush_key3 = 7_cards_suit_sorted[3];
-        flush_key4 = 7_cards_suit_sorted[4];
-        flush_key5 = 7_cards_suit_sorted[5];
+    else if (cards_suit_sorted[1] == cards_suit_sorted[5]) begin
+        flush_key1 = cards_suit_sorted[1];
+        flush_key2 = cards_suit_sorted[2];
+        flush_key3 = cards_suit_sorted[3];
+        flush_key4 = cards_suit_sorted[4];
+        flush_key5 = cards_suit_sorted[5];
         is_flush = 1'b1;
     end
-    else if (7_cards_suit_sorted[2] == 7_cards_suit_sorted[6]) begin
-        flush_key1 = 7_cards_suit_sorted[2];
-        flush_key2 = 7_cards_suit_sorted[3];
-        flush_key3 = 7_cards_suit_sorted[4];
-        flush_key4 = 7_cards_suit_sorted[5];
-        flush_key5 = 7_cards_suit_sorted[6];
+    else if (cards_suit_sorted[2] == cards_suit_sorted[6]) begin
+        flush_key1 = cards_suit_sorted[2];
+        flush_key2 = cards_suit_sorted[3];
+        flush_key3 = cards_suit_sorted[4];
+        flush_key4 = cards_suit_sorted[5];
+        flush_key5 = cards_suit_sorted[6];
         is_flush = 1'b1;
     end
     else begin
@@ -824,10 +183,10 @@ always @(*) begin
     end
 end
 
-NUMBER_COUNT player_num_situation (.cards_num(7_cards_num), 
+NUMBER_COUNT player_num_situation (.cards_num(cards_num), 
                                    // ---------- SAME_NUM ----------
                                    .Four_of_a_Kind(is_four), .Full_House(is_full_house), .Three_of_a_Kind(is_three), 
-                                   .Two_Pair(is_two_pair), .One_Pair(is_one_pair)
+                                   .Two_Pair(is_two_pair), .One_Pair(is_one_pair),
                                    
                                    .Four_of_a_Kind_key(four_key),
                                    .Full_House_key1(full_house_key1), .Full_House_key2(full_house_key2),
@@ -839,20 +198,20 @@ NUMBER_COUNT player_num_situation (.cards_num(7_cards_num),
 
 assign is_straight_flush = is_straight & is_flush;
 
-// wire [3:0] 7_cards_num_sorted [0:6];
+// wire [3:0] cards_num_sorted [0:6];
 // output [3:0] sorted_card [0:6]   // small idx == big num
-SORT_CARD #(4, 4) sort_by_num (.cards_num(7_cards_num), .sorted_card(7_cards_num_sorted));
+SORT_CARD #(4, 4) sort_by_num (.cards_num(cards_num), .sorted_card(cards_num_sorted));
 
 // wire [3:0] four_kicker;
-assign four_kicker = (four_key != 7_cards_num_sorted[0]) ? 7_cards_num_sorted[0] :
-                     (four_key != 7_cards_num_sorted[1]) ? 7_cards_num_sorted[1] :
-                     (four_key != 7_cards_num_sorted[2]) ? 7_cards_num_sorted[2] :
-                     (four_key != 7_cards_num_sorted[3]) ? 7_cards_num_sorted[3] : 7_cards_num_sorted[4];
+assign four_kicker = (four_key != cards_num_sorted[0]) ? cards_num_sorted[0] :
+                     (four_key != cards_num_sorted[1]) ? cards_num_sorted[1] :
+                     (four_key != cards_num_sorted[2]) ? cards_num_sorted[2] :
+                     (four_key != cards_num_sorted[3]) ? cards_num_sorted[3] : cards_num_sorted[4];
 
 wire [6:0] three_match_key;
 generate
-    for (j = 0; j < 7; j = j + 1) begin: 
-        assign three_match_key[j] = (three_key == 7_cards_num_sorted[j]);
+    for (j = 0; j < 7; j = j + 1) begin: three_match_key_gen
+        assign three_match_key[j] = (three_key == cards_num_sorted[j]);
     end
 endgenerate
 
@@ -860,30 +219,30 @@ endgenerate
 always @(*) begin
     casex (three_match_key)
         7'bxxxx111: begin
-            three_kicker1 = 7_cards_num_sorted[3];
-            three_kicker2 = 7_cards_num_sorted[4];
+            three_kicker1 = cards_num_sorted[3];
+            three_kicker2 = cards_num_sorted[4];
         end
         7'bxxx1110: begin
-            three_kicker1 = 7_cards_num_sorted[0];
-            three_kicker2 = 7_cards_num_sorted[4];
+            three_kicker1 = cards_num_sorted[0];
+            three_kicker2 = cards_num_sorted[4];
         end
         default: begin
-            three_kicker1 = 7_cards_num_sorted[0];
-            three_kicker2 = 7_cards_num_sorted[1];
+            three_kicker1 = cards_num_sorted[0];
+            three_kicker2 = cards_num_sorted[1];
         end
     endcase
 end
 
 // wire [3:0] two_pair_kicker;
-assign two_pair_kicker = (two_pair_key1 != 7_cards_num_sorted[0] && two_pair_key2 != 7_cards_num_sorted[0]) ? 7_cards_num_sorted[0] :
-                         (two_pair_key1 != 7_cards_num_sorted[1] && two_pair_key2 != 7_cards_num_sorted[1]) ? 7_cards_num_sorted[1] :
-                         (two_pair_key1 != 7_cards_num_sorted[2] && two_pair_key2 != 7_cards_num_sorted[2]) ? 7_cards_num_sorted[2] :
-                         (two_pair_key1 != 7_cards_num_sorted[3] && two_pair_key2 != 7_cards_num_sorted[3]) ? 7_cards_num_sorted[3] : 7_cards_num_sorted[4];
+assign two_pair_kicker = (two_pair_key1 != cards_num_sorted[0] && two_pair_key2 != cards_num_sorted[0]) ? cards_num_sorted[0] :
+                         (two_pair_key1 != cards_num_sorted[1] && two_pair_key2 != cards_num_sorted[1]) ? cards_num_sorted[1] :
+                         (two_pair_key1 != cards_num_sorted[2] && two_pair_key2 != cards_num_sorted[2]) ? cards_num_sorted[2] :
+                         (two_pair_key1 != cards_num_sorted[3] && two_pair_key2 != cards_num_sorted[3]) ? cards_num_sorted[3] : cards_num_sorted[4];
 
 wire [6:0] one_pair_match_key;
 generate
-    for (j = 0; j < 7; j = j + 1) begin: 
-        assign one_pair_match_key[j] = (one_pair_key == 7_cards_num_sorted[j]);
+    for (j = 0; j < 7; j = j + 1) begin: one_pair_match_key_gen
+        assign one_pair_match_key[j] = (one_pair_key == cards_num_sorted[j]);
     end
 endgenerate
 
@@ -891,24 +250,24 @@ endgenerate
 always @(*) begin
     casex (one_pair_match_key)
         7'bxxxxx11: begin
-            one_pair_kicker1 = 7_cards_num_sorted[2];
-            one_pair_kicker2 = 7_cards_num_sorted[3];
-            one_pair_kicker3 = 7_cards_num_sorted[4];
+            one_pair_kicker1 = cards_num_sorted[2];
+            one_pair_kicker2 = cards_num_sorted[3];
+            one_pair_kicker3 = cards_num_sorted[4];
         end
         7'bxxxx110: begin
-            one_pair_kicker1 = 7_cards_num_sorted[0];
-            one_pair_kicker2 = 7_cards_num_sorted[3];
-            one_pair_kicker3 = 7_cards_num_sorted[4];
+            one_pair_kicker1 = cards_num_sorted[0];
+            one_pair_kicker2 = cards_num_sorted[3];
+            one_pair_kicker3 = cards_num_sorted[4];
         end
         7'bxxx1100: begin
-            one_pair_kicker1 = 7_cards_num_sorted[0];
-            one_pair_kicker2 = 7_cards_num_sorted[1];
-            one_pair_kicker3 = 7_cards_num_sorted[4];
+            one_pair_kicker1 = cards_num_sorted[0];
+            one_pair_kicker2 = cards_num_sorted[1];
+            one_pair_kicker3 = cards_num_sorted[4];
         end
         default: begin
-            one_pair_kicker1 = 7_cards_num_sorted[0];
-            one_pair_kicker2 = 7_cards_num_sorted[1];
-            one_pair_kicker3 = 7_cards_num_sorted[2];
+            one_pair_kicker1 = cards_num_sorted[0];
+            one_pair_kicker2 = cards_num_sorted[1];
+            one_pair_kicker3 = cards_num_sorted[2];
         end
     endcase
 end
@@ -916,15 +275,15 @@ end
 // reg [3:0] rank , key1 , key2 , key3 , key4 , key5;
 
 always @(*) begin
-    if (is_straight_flush)  7_cards_strength = {4'd8, straight_key,          4'd0,                  4'd0,                  4'd0,                  4'd0};
-    else if (is_four)       7_cards_strength = {4'd7, four_key,              four_kicker,           4'd0,                  4'd0,                  4'd0};
-    else if (is_full_house) 7_cards_strength = {4'd6, full_house_key1,       full_house_key2,       4'd0,                  4'd0,                  4'd0};
-    else if (is_flush)      7_cards_strength = {4'd5, flush_key1,            flush_key2,            flush_key3,            flush_key4,            flush_key5};
-    else if (is_straight)   7_cards_strength = {4'd4, straight_key,          4'd0,                  4'd0,                  4'd0,                  4'd0};
-    else if (is_three)      7_cards_strength = {4'd3, three_key,             three_kicker1,         three_kicker2,         4'd0,                  4'd0};
-    else if (is_two_pair)   7_cards_strength = {4'd2, two_pair_key1,         two_pair_key2,         two_pair_kicker,       4'd0,                  4'd0};
-    else if (is_one_pair)   7_cards_strength = {4'd1, one_pair_key,          one_pair_kicker1,      one_pair_kicker2,      one_pair_kicker3,      4'd0};
-    else                    7_cards_strength = {4'd0, 7_cards_num_sorted[0], 7_cards_num_sorted[1], 7_cards_num_sorted[2], 7_cards_num_sorted[3], 7_cards_num_sorted[4]};
+    if (is_straight_flush)  cards_strength = {4'd8, straight_key,        4'd0,                4'd0,                4'd0,                4'd0};
+    else if (is_four)       cards_strength = {4'd7, four_key,            four_kicker,         4'd0,                4'd0,                4'd0};
+    else if (is_full_house) cards_strength = {4'd6, full_house_key1,     full_house_key2,     4'd0,                4'd0,                4'd0};
+    else if (is_flush)      cards_strength = {4'd5, flush_key1,          flush_key2,          flush_key3,          flush_key4,          flush_key5};
+    else if (is_straight)   cards_strength = {4'd4, straight_key,        4'd0,                4'd0,                4'd0,                4'd0};
+    else if (is_three)      cards_strength = {4'd3, three_key,           three_kicker1,       three_kicker2,       4'd0,                4'd0};
+    else if (is_two_pair)   cards_strength = {4'd2, two_pair_key1,       two_pair_key2,       two_pair_kicker,     4'd0,                4'd0};
+    else if (is_one_pair)   cards_strength = {4'd1, one_pair_key,        one_pair_kicker1,    one_pair_kicker2,    one_pair_kicker3,    4'd0};
+    else                    cards_strength = {4'd0, cards_num_sorted[0], cards_num_sorted[1], cards_num_sorted[2], cards_num_sorted[3], cards_num_sorted[4]};
 end
 
 endmodule
@@ -1001,7 +360,7 @@ always @(*) begin
     end
     else begin
         layer0_4 = cards[4];
-        layer0_6 = cards[6];
+        layer0_5 = cards[6];
     end
 
     // Layer 1: [(0,2),(1,4),(3,6)]
@@ -1209,7 +568,7 @@ module NUMBER_COUNT (
 
 wire [3:0] cards [0:6];
 wire [6:0] numbers_mask [2:14];
-wire [3:0] numbers_num [2:14];      // 0 ~ 14
+wire [2:0] numbers_num [2:14];      // 0 ~ 4
 wire [12:0] is_four_mask, is_three_mask, reverse_is_two_mask;
 wire second_big_pair_mask;
 
@@ -1219,7 +578,7 @@ genvar i, j;
 generate
     for (i = 0; i < 7; i = i + 1) begin: card_unpack_num
         assign cards[i] = cards_num[(4*i+3):(4*i)];
-        for (j = 0; j < 13; j = j + 1) begin: numbers_mask_gen
+        for (j = 0; j < 13; j = j + 1) begin
             assign numbers_mask[j+2][i] = (cards[i] == j+2);
         end
     end
@@ -1247,7 +606,7 @@ always @(*) begin
         13'bxxx11111xxxxx, 
         13'bxx11111xxxxxx, 
         13'bx11111xxxxxxx, 
-        13'b11111xxxxxxxx, 
+        13'b11111xxxxxxxx
         : has_straight = 1'b1;
         default: has_straight = 1'b0;
     endcase
@@ -1272,7 +631,7 @@ end
 
 // ---------- STRAIGHT end ----------
 
-// wire [3:0] numbers_num [2:14];      // 0 ~ 14
+// wire [2:0] numbers_num [2:14];      // 0 ~ 14
 generate
     for (i = 0; i < 13; i = i + 1) begin: numbers_num_popcount
         POPCOUNT_7bits_LUT popcount (.data_in(numbers_mask[i+2]), .popcount(numbers_num[i+2]));
@@ -1282,9 +641,9 @@ endgenerate
 // wire [12:0] is_four_mask, is_three_mask, reverse_is_two_mask;
 generate
     for (i = 0; i < 13; i = i + 1) begin: numbers_num_same_num
-        assign is_four_mask[i]           = numbers_num[i+2] == 4'd4;
-        assign is_three_mask[i]          = numbers_num[i+2] == 4'd3;
-        assign reverse_is_two_mask[12-i] = numbers_num[i+2] == 4'd2;
+        assign is_four_mask[i]           = numbers_num[i+2] == 3'd4;
+        assign is_three_mask[i]          = numbers_num[i+2] == 3'd3;
+        assign reverse_is_two_mask[12-i] = numbers_num[i+2] == 3'd2;
     end
 endgenerate
 
@@ -1302,7 +661,7 @@ assign Three_of_a_Kind = (|is_three_mask);
 assign Two_Pair        = (|second_big_pair_mask);
 assign One_Pair        = (|reverse_is_two_mask);
 
-// output [3:0] Four_of_a_Kind_key,
+// output reg [3:0] Four_of_a_Kind_key,
 always @(*) begin
     case (is_four_mask)
         13'h1000: Four_of_a_Kind_key = 4'd14;  // A
@@ -1328,7 +687,7 @@ always @(*) begin
     Full_House_key2 = One_Pair_key;
 end
 
-// output [3:0] Three_of_a_Kind_key,
+// output reg [3:0] Three_of_a_Kind_key,
 always @(*) begin
     casex (is_three_mask)
         13'b1000000000000: Three_of_a_Kind_key = 4'd14;
@@ -1371,7 +730,7 @@ always @(*) begin
     endcase
 end
 
-// output [3:0] One_Pair_key
+// output reg [3:0] One_Pair_key
 always @(*) begin
     casex (reverse_is_two_mask)     // get smallest 1 ----> bigest num
         13'bxxxxxxxxxxxx1: One_Pair_key = 4'd14;
@@ -1448,3 +807,645 @@ end
 
 endmodule
 
+
+
+module PLAYERS_CMP_9 (
+    input [23:0] player_strength [0:8],
+    output reg [8:0] winner_mask
+);
+
+reg [23:0] layer0_0, layer0_1, layer0_2, layer0_3;
+reg [23:0] layer1_0, layer1_1;
+reg [23:0] layer2_0;
+
+reg [8:0] mask0_0, mask0_1, mask0_2, mask0_3;
+reg [8:0] mask1_0, mask1_1;
+reg [8:0] mask2_0;
+
+always @(*) begin
+    // layer0
+    // layer0_0
+    // mask0_0
+    if (player_strength[0] > player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 9'b000000001;
+    end
+    else if (player_strength[0] == player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 9'b000000011;
+    end
+    else begin
+        layer0_0 = player_strength[1];
+        mask0_0 = 9'b000000010;
+    end
+
+    // layer0_1
+    // mask0_1
+    if (player_strength[2] > player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 9'b000000100;
+    end
+    else if (player_strength[0] == player_strength[2]) begin
+        layer0_1 = player_strength[0];
+        mask0_1 = 9'b000001100;
+    end
+    else begin
+        layer0_1 = player_strength[3];
+        mask0_1 = 9'b000001000;
+    end
+
+    // layer0_2
+    // mask0_2
+    if (player_strength[4] > player_strength[5]) begin
+        layer0_2 = player_strength[4];
+        mask0_2 = 9'b000010000;
+    end
+    else if (player_strength[4] == player_strength[5]) begin
+        layer0_2 = player_strength[4];
+        mask0_2 = 9'b000110000;
+    end
+    else begin
+        layer0_2 = player_strength[5];
+        mask0_2 = 9'b000100000;
+    end
+
+    // layer0_3
+    // mask0_3
+    if (player_strength[6] > player_strength[7]) begin
+        layer0_3 = player_strength[6];
+        mask0_3 = 9'b001000000;
+    end
+    else if (player_strength[6] == player_strength[7]) begin
+        layer0_3 = player_strength[6];
+        mask0_3 = 9'b011000000;
+    end
+    else begin
+        layer0_3 = player_strength[7];
+        mask0_3 = 9'b010000000;
+    end
+
+    // layer1
+    // layer1_0
+    // mask1_0
+    if (layer0_0 > layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0;
+    end
+    else if (layer0_0 == layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0 | mask0_1;
+    end
+    else begin
+        layer1_0 = layer0_1;
+        mask1_0 = mask0_1;
+    end
+
+    // layer1_1
+    // mask1_1
+    if (layer0_2 > layer0_3) begin
+        layer1_1 = layer0_2;
+        mask1_1 = mask0_2;
+    end
+    else if (layer0_2 == layer0_3) begin
+        layer1_1 = layer0_2;
+        mask1_1 = mask0_2 | mask0_3;
+    end
+    else begin
+        layer1_1 = layer0_3;
+        mask1_1 = mask0_3;
+    end
+
+    // layer2
+    // layer2_0
+    // mask2_0
+    if (layer1_0 > layer1_1) begin
+        layer2_0 = layer1_0;
+        mask2_0 = mask1_0;
+    end
+    else if (layer1_0 == layer1_1) begin
+        layer2_0 = layer1_0;
+        mask2_0 = mask1_0 | mask1_1;
+    end
+    else begin
+        layer2_0 = layer1_1;
+        mask2_0 = mask1_1;
+    end
+
+    // winner_mask
+    if (layer2_0 > player_strength[8]) begin
+        winner_mask = mask2_0;
+    end
+    else if (layer2_0 == player_strength[8]) begin
+        winner_mask = mask2_0 | 9'b100000000;
+    end
+    else begin
+        winner_mask = 9'b100000000;
+    end
+end
+
+endmodule
+
+
+module PLAYERS_CMP_8 (
+    input [23:0] player_strength [0:7],
+    output reg [7:0] winner_mask
+);
+
+reg [23:0] layer0_0, layer0_1, layer0_2, layer0_3;
+reg [23:0] layer1_0, layer1_1;
+
+reg [7:0] mask0_0, mask0_1, mask0_2, mask0_3;
+reg [7:0] mask1_0, mask1_1;
+
+always @(*) begin
+    // layer0
+    // layer0_0
+    // mask0_0
+    if (player_strength[0] > player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 8'b00000001;
+    end
+    else if (player_strength[0] == player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 8'b00000011;
+    end
+    else begin
+        layer0_0 = player_strength[1];
+        mask0_0 = 8'b00000010;
+    end
+
+    // layer0_1
+    // mask0_1
+    if (player_strength[2] > player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 8'b00000100;
+    end
+    else if (player_strength[2] == player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 8'b00001100;
+    end
+    else begin
+        layer0_1 = player_strength[3];
+        mask0_1 = 8'b00001000;
+    end
+
+    // layer0_2
+    // mask0_2
+    if (player_strength[4] > player_strength[5]) begin
+        layer0_2 = player_strength[4];
+        mask0_2 = 8'b00010000;
+    end
+    else if (player_strength[4] == player_strength[5]) begin
+        layer0_2 = player_strength[4];
+        mask0_2 = 8'b00110000;
+    end
+    else begin
+        layer0_2 = player_strength[5];
+        mask0_2 = 8'b00100000;
+    end
+
+    // layer0_3
+    // mask0_3
+    if (player_strength[6] > player_strength[7]) begin
+        layer0_3 = player_strength[6];
+        mask0_3 = 8'b01000000;
+    end
+    else if (player_strength[6] == player_strength[7]) begin
+        layer0_3 = player_strength[6];
+        mask0_3 = 8'b11000000;
+    end
+    else begin
+        layer0_3 = player_strength[7];
+        mask0_3 = 8'b10000000;
+    end
+
+    // layer1
+    // layer1_0
+    // mask1_0
+    if (layer0_0 > layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0;
+    end
+    else if (layer0_0 == layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0 | mask0_1;
+    end
+    else begin
+        layer1_0 = layer0_1;
+        mask1_0 = mask0_1;
+    end
+
+    // layer1_1
+    // mask1_1
+    if (layer0_2 > layer0_3) begin
+        layer1_1 = layer0_2;
+        mask1_1 = mask0_2;
+    end
+    else if (layer0_2 == layer0_3) begin
+        layer1_1 = layer0_2;
+        mask1_1 = mask0_2 | mask0_3;
+    end
+    else begin
+        layer1_1 = layer0_3;
+        mask1_1 = mask0_3;
+    end
+
+    // winner_mask
+    if (layer1_0 > layer1_1) begin
+        winner_mask = mask1_0;
+    end
+    else if (layer1_0 == layer1_1) begin
+        winner_mask = mask1_0 | mask1_1;
+    end
+    else begin
+        winner_mask = mask1_1;
+    end
+end
+
+endmodule
+
+module PLAYERS_CMP_7 (
+    input [23:0] player_strength [0:6],
+    output reg [6:0] winner_mask
+);
+
+reg [23:0] layer0_0, layer0_1, layer0_2;
+reg [23:0] layer1_0, layer1_1;
+
+reg [6:0] mask0_0, mask0_1, mask0_2;
+reg [6:0] mask1_0, mask1_1;
+
+always @(*) begin
+    // layer0
+    // layer0_0
+    // mask0_0
+    if (player_strength[0] > player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 7'b0000001;
+    end
+    else if (player_strength[0] == player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 7'b0000011;
+    end
+    else begin
+        layer0_0 = player_strength[1];
+        mask0_0 = 7'b0000010;
+    end
+
+    // layer0_1
+    // mask0_1
+    if (player_strength[2] > player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 7'b0000100;
+    end
+    else if (player_strength[2] == player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 7'b0001100;
+    end
+    else begin
+        layer0_1 = player_strength[3];
+        mask0_1 = 7'b0001000;
+    end
+
+    // layer0_2
+    // mask0_2
+    if (player_strength[4] > player_strength[5]) begin
+        layer0_2 = player_strength[4];
+        mask0_2 = 7'b0010000;
+    end
+    else if (player_strength[4] == player_strength[5]) begin
+        layer0_2 = player_strength[4];
+        mask0_2 = 7'b0110000;
+    end
+    else begin
+        layer0_2 = player_strength[5];
+        mask0_2 = 7'b0100000;
+    end
+
+    // layer1
+    // layer1_0
+    // mask1_0
+    if (layer0_0 > layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0;
+    end
+    else if (layer0_0 == layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0 | mask0_1;
+    end
+    else begin
+        layer1_0 = layer0_1;
+        mask1_0 = mask0_1;
+    end
+
+    // layer1_1
+    // mask1_1
+    if (layer0_2 > player_strength[6]) begin
+        layer1_1 = layer0_2;
+        mask1_1 = mask0_2;
+    end
+    else if (layer0_2 == player_strength[6]) begin
+        layer1_1 = layer0_2;
+        mask1_1 = mask0_2 | 7'b1000000;
+    end
+    else begin
+        layer1_1 = player_strength[6];
+        mask1_1 = 7'b1000000;
+    end
+
+    // winner_mask
+    if (layer1_0 > layer1_1) begin
+        winner_mask = mask1_0;
+    end
+    else if (layer1_0 == layer1_1) begin
+        winner_mask = mask1_0 | mask1_1;
+    end
+    else begin
+        winner_mask = mask1_1;
+    end
+end
+
+endmodule
+
+
+module PLAYERS_CMP_6 (
+    input [23:0] player_strength [0:5],
+    output reg [5:0] winner_mask
+);
+
+reg [23:0] layer0_0, layer0_1, layer0_2;
+reg [23:0] layer1_0;
+
+reg [5:0] mask0_0, mask0_1, mask0_2;
+reg [5:0] mask1_0;
+
+always @(*) begin
+    // layer0
+    // layer0_0
+    // mask0_0
+    if (player_strength[0] > player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 6'b000001;
+    end
+    else if (player_strength[0] == player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 6'b000011;
+    end
+    else begin
+        layer0_0 = player_strength[1];
+        mask0_0 = 6'b000010;
+    end
+
+    // layer0_1
+    // mask0_1
+    if (player_strength[2] > player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 6'b000100;
+    end
+    else if (player_strength[2] == player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 6'b001100;
+    end
+    else begin
+        layer0_1 = player_strength[3];
+        mask0_1 = 6'b001000;
+    end
+
+    // layer0_2
+    // mask0_2
+    if (player_strength[4] > player_strength[5]) begin
+        layer0_2 = player_strength[4];
+        mask0_2 = 6'b010000;
+    end
+    else if (player_strength[4] == player_strength[5]) begin
+        layer0_2 = player_strength[4];
+        mask0_2 = 6'b110000;
+    end
+    else begin
+        layer0_2 = player_strength[5];
+        mask0_2 = 6'b100000;
+    end
+
+    // layer1
+    // layer1_0
+    // mask1_0
+    if (layer0_0 > layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0;
+    end
+    else if (layer0_0 == layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0 | mask0_1;
+    end
+    else begin
+        layer1_0 = layer0_1;
+        mask1_0 = mask0_1;
+    end
+
+    // winner_mask
+    if (layer1_0 > layer0_2) begin
+        winner_mask = mask1_0;
+    end
+    else if (layer1_0 == layer0_2) begin
+        winner_mask = mask1_0 | mask0_2;
+    end
+    else begin
+        winner_mask = mask0_2;
+    end
+end
+
+endmodule
+
+
+module PLAYERS_CMP_5 (
+    input [23:0] player_strength [0:4],
+    output reg [4:0] winner_mask
+);
+
+reg [23:0] layer0_0, layer0_1;
+reg [23:0] layer1_0;
+
+reg [4:0] mask0_0, mask0_1;
+reg [4:0] mask1_0;
+
+always @(*) begin
+    // layer0
+    // layer0_0
+    // mask0_0
+    if (player_strength[0] > player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 5'b00001;
+    end
+    else if (player_strength[0] == player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 5'b00011;
+    end
+    else begin
+        layer0_0 = player_strength[1];
+        mask0_0 = 5'b00010;
+    end
+
+    // layer0_1
+    // mask0_1
+    if (player_strength[2] > player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 5'b00100;
+    end
+    else if (player_strength[2] == player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 5'b01100;
+    end
+    else begin
+        layer0_1 = player_strength[3];
+        mask0_1 = 5'b01000;
+    end
+
+    // layer1
+    // layer1_0
+    // mask1_0
+    if (layer0_0 > layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0;
+    end
+    else if (layer0_0 == layer0_1) begin
+        layer1_0 = layer0_0;
+        mask1_0 = mask0_0 | mask0_1;
+    end
+    else begin
+        layer1_0 = layer0_1;
+        mask1_0 = mask0_1;
+    end
+
+    // winner_mask
+    if (layer1_0 > player_strength[4]) begin
+        winner_mask = mask1_0;
+    end
+    else if (layer1_0 == player_strength[4]) begin
+        winner_mask = mask1_0 | 5'b10000;
+    end
+    else begin
+        winner_mask = 5'b10000;
+    end
+end
+
+endmodule
+
+
+module PLAYERS_CMP_4 (
+    input [23:0] player_strength [0:3],
+    output reg [3:0] winner_mask
+);
+
+reg [23:0] layer0_0, layer0_1;
+reg [23:0] layer1_0;
+
+reg [3:0] mask0_0, mask0_1;
+reg [3:0] mask1_0;
+
+always @(*) begin
+    // layer0
+    // layer0_0
+    // mask0_0
+    if (player_strength[0] > player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 4'b0001;
+    end
+    else if (player_strength[0] == player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 4'b0011;
+    end
+    else begin
+        layer0_0 = player_strength[1];
+        mask0_0 = 4'b0010;
+    end
+
+    // layer0_1
+    // mask0_1
+    if (player_strength[2] > player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 4'b0100;
+    end
+    else if (player_strength[2] == player_strength[3]) begin
+        layer0_1 = player_strength[2];
+        mask0_1 = 4'b1100;
+    end
+    else begin
+        layer0_1 = player_strength[3];
+        mask0_1 = 4'b1000;
+    end
+
+    // winner_mask
+    if (layer0_0 > layer0_1) begin
+        winner_mask = mask0_0;
+    end
+    else if (layer0_0 == layer0_1) begin
+        winner_mask = mask0_0 | mask0_1;
+    end
+    else begin
+        winner_mask = mask0_1;
+    end
+end
+
+endmodule
+
+
+module PLAYERS_CMP_3 (
+    input [23:0] player_strength [0:2],
+    output reg [2:0] winner_mask
+);
+
+reg [23:0] layer0_0;
+
+reg [2:0] mask0_0;
+
+always @(*) begin
+    // layer0
+    // layer0_0
+    // mask0_0
+    if (player_strength[0] > player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 3'b001;
+    end
+    else if (player_strength[0] == player_strength[1]) begin
+        layer0_0 = player_strength[0];
+        mask0_0 = 3'b011;
+    end
+    else begin
+        layer0_0 = player_strength[1];
+        mask0_0 = 3'b010;
+    end
+
+    // winner_mask
+    if (layer0_0 > player_strength[2]) begin
+        winner_mask = mask0_0;
+    end
+    else if (layer0_0 == player_strength[2]) begin
+        winner_mask = mask0_0 | 3'b100;
+    end
+    else begin
+        winner_mask = 3'b100;
+    end
+end
+
+endmodule
+
+
+module PLAYERS_CMP_2 (
+    input [23:0] player_strength [0:1],
+    output reg [1:0] winner_mask
+);
+
+always @(*) begin
+    // winner_mask
+    if (player_strength[0] > player_strength[1]) begin
+        winner_mask = 2'b01;
+    end
+    else if (player_strength[0] == player_strength[1]) begin
+        winner_mask = 2'b01;
+    end
+    else begin
+        winner_mask = 2'b10;
+    end
+end
+
+endmodule
