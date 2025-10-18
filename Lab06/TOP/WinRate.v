@@ -152,7 +152,7 @@ end
 // reg [51:0] init_possible_card;    // (0~3) * (2~14)
 always @(*) begin
     integer  i;
-    init_possible_card = 52'd1;
+    init_possible_card = 52'hFFFFFFFFFFFFF;
     for (i = 0; i < 21; i = i + 1) begin
         init_possible_card[card_exist_idx[i]] = 1'b0;
     end
