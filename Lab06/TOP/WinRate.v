@@ -55,7 +55,10 @@ reg [1:0] current_state, next_state;
 reg [8:0] cal_cnt;
 
 // ---------------- calulate rate ----------------
-reg [51:0] init_possible_card, possible_card;    // (0~3) * (2~14)
+reg [51:0] init_possible_card_1;
+reg [51:0] possible_card_1, possible_card_1_reg;    // (0~3) * (2~14)
+reg [51:0] possible_card_2, possible_card_2_reg;    // (0~3) * (2~14)
+wire need_next_card_1;
 wire [5:0] card_exist_idx [0:20];   // 21 card exist    // 0 ~ 51
 
 reg [3:0] current_card_1_num, current_card_2_num;
@@ -66,8 +69,8 @@ wire [9:0]  current_pub_card_suit;
 wire [8:0] current_winner_mask;
 
 wire [3:0] current_winners;
-reg [16:0] numerator;   // max sum = 390600, 19-bit, 1011111010111001000
-reg [18:0] player_win_numerator [0:8];
+reg [20:0] numerator;   // max sum = 1171800, 21-bit, 100011110000101011000
+reg [20:0] player_win_numerator [0:8];
 
 // ===============================================================
 // Design
@@ -130,6 +133,26 @@ endfunction
 // input [11:0] in_pub_num;    // 4-bit * 3
 // input [5:0] in_pub_suit;    // 2-bit * 3
 
+reg [71:0] in_hole_num_reg;    // 4-bit * (9 * 2)
+reg [35:0] in_hole_suit_reg;   // 2-bit * (9 * 2)
+reg [11:0] in_pub_num_reg;    // 4-bit * 3
+reg [5:0] in_pub_suit_reg;    // 2-bit * 3
+
+always @(posedge clk) begin
+    if (in_valid) begin
+        in_hole_num_reg <= in_hole_num;
+        in_hole_suit_reg <= in_hole_suit;
+        in_pub_num_reg <= in_pub_num;
+        in_pub_suit_reg <= in_pub_suit;
+    end
+    else begin
+        in_hole_num_reg <= in_hole_num_reg;
+        in_hole_suit_reg <= in_hole_suit_reg;
+        in_pub_num_reg <= in_pub_num_reg;
+        in_pub_suit_reg <= in_pub_suit_reg;
+    end
+end
+
 // wire [5:0] card_exist_idx [0:20];   // 21 card exist    // 0 ~ 51
 generate
     for (j = 0; j < 18; j = j + 1) begin: card_exist_idx_gen_1
@@ -140,27 +163,73 @@ generate
     end
 endgenerate
 
-// reg [51:0] possible_card;    // (0~3) * (2~14)
-always @(posedge clk) begin
-    case (current_state)
-        S_IDLE:  possible_card <= init_possible_card;
-        S_CAL:   possible_card <= set_smallest_one_to_zero(possible_card);
-        default: possible_card <= possible_card;
-    endcase
-end
-
-// reg [51:0] init_possible_card;    // (0~3) * (2~14)
+// reg [51:0] init_possible_card_1;    // (0~3) * (2~14)
 always @(*) begin
     integer  i;
-    init_possible_card = 52'hFFFFFFFFFFFFF;
+    init_possible_card_1 = 52'hFFFFFFFFFFFFF;
     for (i = 0; i < 21; i = i + 1) begin
-        init_possible_card[card_exist_idx[i]] = 1'b0;
+        init_possible_card_1[card_exist_idx[i]] = 1'b0;
     end
+end
+
+// wire need_next_card_1;
+assign need_next_card_1 =   (cal_cnt == 9'd30) ||
+                            (cal_cnt == 9'd59) ||
+                            (cal_cnt == 9'd87) ||
+                            (cal_cnt == 9'd114) ||
+                            (cal_cnt == 9'd140) ||
+                            (cal_cnt == 9'd165) ||
+                            (cal_cnt == 9'd189) ||
+                            (cal_cnt == 9'd212) ||
+                            (cal_cnt == 9'd234) ||
+                            (cal_cnt == 9'd255) ||
+                            (cal_cnt == 9'd275) ||
+                            (cal_cnt == 9'd294) ||
+                            (cal_cnt == 9'd312) ||
+                            (cal_cnt == 9'd329) ||
+                            (cal_cnt == 9'd345) ||
+                            (cal_cnt == 9'd360) ||
+                            (cal_cnt == 9'd374) ||
+                            (cal_cnt == 9'd387) ||
+                            (cal_cnt == 9'd399) ||
+                            (cal_cnt == 9'd410) ||
+                            (cal_cnt == 9'd420) ||
+                            (cal_cnt == 9'd429) ||
+                            (cal_cnt == 9'd437) ||
+                            (cal_cnt == 9'd444) ||
+                            (cal_cnt == 9'd450) ||
+                            (cal_cnt == 9'd455) ||
+                            (cal_cnt == 9'd459) ||
+                            (cal_cnt == 9'd462) ||
+                            (cal_cnt == 9'd464);
+
+// reg [51:0] possible_card_1_reg;    // (0~3) * (2~14)
+always @(posedge clk) begin
+    possible_card_1_reg <= possible_card_1;
+end
+
+// reg [51:0] possible_card_1;    // (0~3) * (2~14)
+always @(*) begin
+    if      (current_state == S_IDLE)                    possible_card_1 = init_possible_card_1;
+    else if (current_state == S_CAL && need_next_card_1) possible_card_1 = set_smallest_one_to_zero(possible_card_1_reg);
+    else                                                 possible_card_1 = possible_card_1_reg;
+end
+
+// reg [51:0] possible_card_2_reg;    // (0~3) * (2~14)
+always @(posedge clk) begin
+    possible_card_2_reg <= possible_card_2;
+end
+
+// reg [51:0] possible_card_2;    // (0~3) * (2~14)
+always @(*) begin
+    if      (current_state == S_CAL && cal_cnt == 9'd0) possible_card_2 = set_smallest_one_to_zero(possible_card_1);
+    else if (need_next_card_1)                          possible_card_2 = set_smallest_one_to_zero(set_smallest_one_to_zero(possible_card_1_reg));
+    else                                                possible_card_2 = set_smallest_one_to_zero(possible_card_2_reg);
 end
 
 // reg [3:0] current_card_1_num;
 always @(*) begin
-    casex (possible_card)
+    casex (possible_card_1)
         52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1, 
         52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000, 
         52'bxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000,
@@ -230,8 +299,8 @@ always @(*) begin
 end
 
 // reg [3:0] current_card_2_num;
-always @(posedge clk) begin
-    casex (set_smallest_one_to_zero(possible_card))
+always @(*) begin
+    casex (possible_card_2)
         // 52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1, 
         52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000, 
         52'bxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000,
@@ -301,8 +370,8 @@ always @(posedge clk) begin
 end
 
 // reg [1:0] current_card_1_suit;
-always @(posedge clk) begin
-    casex (possible_card)
+always @(*) begin
+    casex (possible_card_1)
         52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1, 
         52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10, 
         52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100, 
@@ -364,7 +433,7 @@ end
 
 // reg [1:0] current_card_2_suit;
 always @(*) begin
-    casex (set_smallest_one_to_zero(possible_card))
+    casex (possible_card_2)
         // 52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1, 
         52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10, 
         52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100, 
@@ -426,64 +495,66 @@ end
 
 // wire [19:0] current_pub_card_num;
 // wire [9:0]  current_pub_card_suit;
-assign current_pub_card_num  = {in_pub_num, current_card_1_num, current_card_2_num};
-assign current_pub_card_suit = {in_pub_suit, current_card_1_suit, current_card_2_suit};
+assign current_pub_card_num  = {in_pub_num_reg, current_card_1_num, current_card_2_num};
+assign current_pub_card_suit = {in_pub_suit_reg, current_card_1_suit, current_card_2_suit};
 
 // wire [8:0] current_winner_mask;
-Poker #(9) poker (.IN_HOLE_CARD_NUM(in_hole_num), .IN_HOLE_CARD_SUIT(in_hole_suit),
+Poker #(9) poker (.IN_HOLE_CARD_NUM(in_hole_num_reg), .IN_HOLE_CARD_SUIT(in_hole_suit_reg),
                   .IN_PUB_CARD_NUM(current_pub_card_num), .IN_PUB_CARD_SUIT(current_pub_card_suit), 
                   .OUT_WINNER(current_winner_mask));
 
 // 1     2    3    4    5    6    7    8    9
-// 12600 6300 4200 3150 2520 2100 1800 1575 1400
+// 2520 1260  840  630  504  420  360  315  280
 
 // wire [3:0] current_winners;
 POPCOUNT_9bits_LUT popcount (.data_in(current_winner_mask), .popcount(current_winners));
 
-// reg [16:0] numerator;   // max sum = 390600, 19-bit, 1011111010111001000
+// reg [20:0] numerator;   // max sum = 1171800, 21-bit, 100011110000101011000
 always @(*) begin
     case (current_winners)
-        4'd1: numerator = 19'd12600;
-        4'd2: numerator = 19'd6300;
-        4'd3: numerator = 19'd4200;
-        4'd4: numerator = 19'd3150;
-        4'd5: numerator = 19'd2520;
-        4'd6: numerator = 19'd2100;
-        4'd7: numerator = 19'd1800;
-        4'd8: numerator = 19'd1575;
-        4'd9: numerator = 19'd1400;
-        default: numerator = 19'd0;
+        4'd1: numerator = 21'd2520;
+        4'd2: numerator = 21'd1260;
+        4'd3: numerator = 21'd840;
+        4'd4: numerator = 21'd630;
+        4'd5: numerator = 21'd504;
+        4'd6: numerator = 21'd420;
+        4'd7: numerator = 21'd360;
+        4'd8: numerator = 21'd315;
+        4'd9: numerator = 21'd280;
+        default: numerator = 21'd0;
     endcase
 end
 
-// reg [18:0] player_win_numerator [0:8];
+reg [20:0] player_win_numerator_reg [0:8];
+
+// reg [20:0] player_win_numerator_reg [0:8];
 always @(posedge clk) begin
-    integer i;
-    if (current_state == S_IDLE) begin
-        for (i = 0; i < 9; i = i + 1) player_win_numerator[i] <= 19'd0;
-    end
-    else if (current_state == S_CAL) begin
-        player_win_numerator[0] <= (current_winner_mask[0]) ? (player_win_numerator[0] + numerator) : player_win_numerator[0];
-        player_win_numerator[1] <= (current_winner_mask[1]) ? (player_win_numerator[1] + numerator) : player_win_numerator[1];
-        player_win_numerator[2] <= (current_winner_mask[2]) ? (player_win_numerator[2] + numerator) : player_win_numerator[2];
-        player_win_numerator[3] <= (current_winner_mask[3]) ? (player_win_numerator[3] + numerator) : player_win_numerator[3];
-        player_win_numerator[4] <= (current_winner_mask[4]) ? (player_win_numerator[4] + numerator) : player_win_numerator[4];
-        player_win_numerator[5] <= (current_winner_mask[5]) ? (player_win_numerator[5] + numerator) : player_win_numerator[5];
-        player_win_numerator[6] <= (current_winner_mask[6]) ? (player_win_numerator[6] + numerator) : player_win_numerator[6];
-        player_win_numerator[7] <= (current_winner_mask[7]) ? (player_win_numerator[7] + numerator) : player_win_numerator[7];
-        player_win_numerator[8] <= (current_winner_mask[8]) ? (player_win_numerator[8] + numerator) : player_win_numerator[8];
-    end
-    else player_win_numerator <= player_win_numerator;
+    player_win_numerator_reg <= player_win_numerator;
 end
 
-wire [18:0] player_win_rate [0:8];
-
-// wire [18:0] player_win_rate [0:8];
-generate
-    for (j = 0; j < 9; j = j + 1) begin
-        assign player_win_rate[j] = player_win_numerator[j] / 19'd126;
+// reg [20:0] player_win_numerator [0:8];
+always @(*) begin
+    integer i;
+    if (current_state == S_IDLE) begin
+        for (i = 0; i < 9; i = i + 1) player_win_numerator[i] = 21'd0;
     end
-endgenerate
+    else if (current_state == S_CAL) begin
+        for (i = 0; i < 9; i = i + 1) begin
+            player_win_numerator[i] = (current_winner_mask[i]) ? (player_win_numerator_reg[i] + numerator) : player_win_numerator_reg[i];
+        end
+    end
+    else player_win_numerator = player_win_numerator_reg;
+end
+
+reg [20:0] player_win_rate [0:8];
+
+// reg [20:0] player_win_rate [0:8];
+always @(posedge clk) begin
+    integer i;
+    for (i = 0; i < 9; i = i + 1) begin
+        player_win_rate[i] <= player_win_numerator[i] / 21'd11718;
+    end
+end
 
 
 // ---------------- output ----------------
