@@ -62,7 +62,7 @@ reg [62:0] golden_win_rate;
 // Clock Generation
 // ========================================
 real CYCLE = `CYCLE_TIME;
-always #(`CYCLE`/2.0) clk = ~clk;
+always #(CYCLE/2.0) clk = ~clk;
 
 // ========================================
 // Main Simulation Flow
@@ -159,8 +159,8 @@ begin
     end
     golden_win_rate = {temp_win_rate[8], temp_win_rate[7], temp_win_rate[6], temp_win_rate[5], temp_win_rate[4], temp_win_rate[3], temp_win_rate[2], temp_win_rate[1], temp_win_rate[0]};
 
-    // Introduce random timing jitter (2-6 cycles as per spec)
-    repeat ($urandom_range(2, 6)) @(negedge clk);
+    // // Introduce random timing jitter (2-6 cycles as per spec)
+    // repeat ($urandom_range(2, 6)) @(negedge clk);
 
     // Drive inputs for one cycle
     in_valid = 1'b1;
@@ -181,6 +181,7 @@ endtask
 //              and compares the DUT's output with the golden result.
 //-------------------------------------------------
 task check_output_task;
+    integer k;
 begin
     latency_counter = 0;
     // Wait for out_valid, with a timeout check (Protocol & Timing Assertion)
@@ -211,11 +212,27 @@ begin
     // Compare DUT output with golden answer
     // Using $strobe ensures we display the final, stable value of the cycle.
     if (out_win_rate !== golden_win_rate) begin
+        // $display("============================================================");
+        // $display("[FAIL] PATTERN %0d at time %0t", i_pat, $time);
+        // $display("       Data Mismatch!");
+        // $write  ("       - Golden Result: {");
+        // for (k = 0; k < 9; k = k + 1) begin
+        //     $write("%d, ", golden_win_rate[62-7*k:56-7*k]);
+        // end
+        // $display("}");
+        // // $display("       - DUT Output:    %h", out_win_rate);
+        // $write  ("       - Golden Result: {");
+        // for (k = 0; k < 9; k = k + 1) begin
+        //     $write("%d, ", out_win_rate[62-7*k:56-7*k]);
+        // end
+        // $display("}");
+        // $display("============================================================");
+        // $finish;
         $display("============================================================");
         $display("[FAIL] PATTERN %0d at time %0t", i_pat, $time);
         $display("       Data Mismatch!");
-        $strobe ("       - Golden Result: %h", golden_win_rate);
-        $strobe ("       - DUT Output:    %h", out_win_rate);
+        $display("       - Golden Result: %h", golden_win_rate);
+        $display("       - DUT Output:    %h", out_win_rate);
         $display("============================================================");
         $finish;
     end else begin

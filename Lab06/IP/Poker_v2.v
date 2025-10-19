@@ -98,9 +98,9 @@ module CAL_STRENGTH (
 // ===============================================================
 // Reg & Wire & Parameter
 // ===============================================================
-genvar j;
+genvar i, j;
 
-wire is_straight_flush;
+reg  is_straight_flush;
 wire is_four;
 wire is_full_house;
 reg  is_flush;
@@ -109,6 +109,7 @@ wire is_three;
 wire is_two_pair;
 wire is_one_pair;
 
+reg  [3:0] straight_flush_key;
 wire [3:0] four_key;
 wire [3:0] full_house_key1, full_house_key2;
 reg  [3:0] flush_key1, flush_key2, flush_key3, flush_key4, flush_key5;
@@ -132,10 +133,8 @@ reg  [3:0] one_pair_kicker1, one_pair_kicker2, one_pair_kicker3;
 wire [3:0] cards_num_each  [0:6];
 wire [1:0] cards_suit_each [0:6];
 
-// FLUSH player_flush (.cards_suit(cards_suit), .is_flush(is_flush));
-
 wire [5:0] cards_suit_num_each [0:6];      // 2+4 bits
-wire [1:0] cards_suit_sorted [0:6];
+wire [5:0] cards_suit_num_sorted [0:6];
 
 generate
     for (j = 0; j < 7; j = j + 1) begin: decode_each_card
@@ -145,36 +144,46 @@ generate
     end
 endgenerate
 
-// wire [3:0] cards_suit_sorted [0:6];
+// wire [5:0] cards_suit_num_sorted [0:6];
 // output [output_bits-1:0] sorted_card [0:6]   // small idx == big num
-SORT_CARD #(6, 2) sort_by_suit (.cards_num(cards_suit_num_each), .sorted_card(cards_suit_sorted));
+SORT_CARD #(6, 6) sort_by_suit (.cards_num(cards_suit_num_each), .sorted_card(cards_suit_num_sorted));
+
+wire [1:0] sorted_siut [0:6];
+wire [3:0] sorted_num  [0:6];
+
+generate
+    for (j = 0; j < 7; j = j + 1) begin: decode_suit_num
+        assign sorted_siut[j] = cards_suit_num_sorted[j][5:4];
+        assign sorted_num[j]  = cards_suit_num_sorted[j][3:0];
+    end
+endgenerate
 
 // reg [3:0] flush_key1, flush_key2, flush_key3, flush_key4, flush_key5;
 // reg  is_flush;
-// wire [3:0] cards_suit_sorted [0:6];
+// wire [3:0] cards_suit_num_sorted [0:6];
 always @(*) begin
-    if (cards_suit_sorted[0] == cards_suit_sorted[4]) begin
-        flush_key1 = cards_suit_sorted[0];
-        flush_key2 = cards_suit_sorted[1];
-        flush_key3 = cards_suit_sorted[2];
-        flush_key4 = cards_suit_sorted[3];
-        flush_key5 = cards_suit_sorted[4];
+    if (sorted_siut[0] == sorted_siut[4]) begin
+        flush_key1 = sorted_num[0];
+        flush_key2 = sorted_num[1];
+        flush_key3 = sorted_num[2];
+        flush_key4 = sorted_num[3];
+        flush_key5 = sorted_num[4];
         is_flush = 1'b1;
     end
-    else if (cards_suit_sorted[1] == cards_suit_sorted[5]) begin
-        flush_key1 = cards_suit_sorted[1];
-        flush_key2 = cards_suit_sorted[2];
-        flush_key3 = cards_suit_sorted[3];
-        flush_key4 = cards_suit_sorted[4];
-        flush_key5 = cards_suit_sorted[5];
+    else if (sorted_siut[1] == sorted_siut[5]) begin
+        flush_key1 = sorted_num[1];
+        flush_key2 = sorted_num[2];
+        flush_key3 = sorted_num[3];
+        flush_key4 = sorted_num[4];
+        flush_key5 = sorted_num[5];
         is_flush = 1'b1;
     end
-    else if (cards_suit_sorted[2] == cards_suit_sorted[6]) begin
-        flush_key1 = cards_suit_sorted[2];
-        flush_key2 = cards_suit_sorted[3];
-        flush_key3 = cards_suit_sorted[4];
-        flush_key4 = cards_suit_sorted[5];
-        flush_key5 = cards_suit_sorted[6];
+    else if (sorted_siut[2] == sorted_siut[6]) begin
+        flush_key1 = sorted_num[2];
+        flush_key2 = sorted_num[3];
+        flush_key3 = sorted_num[4];
+        flush_key4 = sorted_num[5];
+        flush_key5 = sorted_num[6];
         is_flush = 1'b1;
     end
     else begin
@@ -187,7 +196,48 @@ always @(*) begin
     end
 end
 
-NUMBER_COUNT player_num_situation (.cards_num(cards_num), 
+wire special_straight_flush_1, special_straight_flush_2, special_straight_flush_3, has_special_straight_flush;
+
+assign special_straight_flush_1 = (sorted_siut[3] == sorted_siut[6] && sorted_num[3] == 4'd5 &&
+                                  (sorted_siut[2] == sorted_siut[3] && sorted_num[2] == 4'd14 || 
+                                   sorted_siut[1] == sorted_siut[3] && sorted_num[1] == 4'd14 || 
+                                   sorted_siut[0] == sorted_siut[3] && sorted_num[0] == 4'd14));
+
+assign special_straight_flush_2 = (sorted_siut[2] == sorted_siut[5] && sorted_num[2] == 4'd5 &&
+                                  (sorted_siut[1] == sorted_siut[2] && sorted_num[1] == 4'd14 || 
+                                   sorted_siut[0] == sorted_siut[2] && sorted_num[0] == 4'd14));
+
+assign special_straight_flush_3 = (sorted_siut[1] == sorted_siut[4] && sorted_num[1] == 4'd5 &&
+                                  (sorted_siut[0] == sorted_siut[1] && sorted_num[0] == 4'd14));
+
+assign has_special_straight_flush = special_straight_flush_1 || special_straight_flush_2 || special_straight_flush_3;
+
+// reg  is_straight_flush;
+// reg [3:0] straight_flush_key;
+always @(*) begin
+    if      (sorted_siut[0] == sorted_siut[4] && (sorted_num[0] == sorted_num[4] + 4'd4)) begin
+        is_straight_flush = 1'b1;
+        straight_flush_key = sorted_num[0];
+    end
+    else if (sorted_siut[1] == sorted_siut[5] && (sorted_num[1] == sorted_num[5] + 4'd4)) begin
+        is_straight_flush = 1'b1;
+        straight_flush_key = sorted_num[1];
+    end
+    else if (sorted_siut[2] == sorted_siut[6] && (sorted_num[2] == sorted_num[6] + 4'd4)) begin
+        is_straight_flush = 1'b1;
+        straight_flush_key = sorted_num[2];
+    end
+    else if (has_special_straight_flush) begin
+        is_straight_flush = 1'b1;
+        straight_flush_key = 4'd5;
+    end
+    else begin
+        is_straight_flush = 1'b0;
+        straight_flush_key = 4'd0;
+    end
+end
+
+NUMBER_COUNT player_num_situation (.cards_num(cards_num_each), 
                                    // ---------- SAME_NUM ----------
                                    .Four_of_a_Kind(is_four), .Full_House(is_full_house), .Three_of_a_Kind(is_three), 
                                    .Two_Pair(is_two_pair), .One_Pair(is_one_pair),
@@ -200,7 +250,7 @@ NUMBER_COUNT player_num_situation (.cards_num(cards_num),
                                    // ---------- STRAIGHT ----------
                                    .has_straight(is_straight), .straight_key(straight_key));
 
-assign is_straight_flush = is_straight & is_flush;
+// assign is_straight_flush = is_straight & is_flush;
 
 // wire [3:0] cards_num_sorted [0:6];
 // output [3:0] sorted_card [0:6]   // small idx == big num
@@ -279,7 +329,7 @@ end
 // reg [3:0] rank , key1 , key2 , key3 , key4 , key5;
 
 always @(*) begin
-    if (is_straight_flush)  cards_strength = {4'd8, straight_key,        4'd0,                4'd0,                4'd0,                4'd0};
+    if (is_straight_flush)  cards_strength = {4'd8, straight_flush_key,  4'd0,                4'd0,                4'd0,                4'd0};
     else if (is_four)       cards_strength = {4'd7, four_key,            four_kicker,         4'd0,                4'd0,                4'd0};
     else if (is_full_house) cards_strength = {4'd6, full_house_key1,     full_house_key2,     4'd0,                4'd0,                4'd0};
     else if (is_flush)      cards_strength = {4'd5, flush_key1,          flush_key2,          flush_key3,          flush_key4,          flush_key5};
@@ -300,17 +350,6 @@ module SORT_CARD #(
     input [input_bits-1:0] cards_num [0:6],      // 5 hand cards + 2 table cards = 7, each 4-bit
     output [output_bits-1:0] sorted_card [0:6]    // small idx == big num
 );
-
-genvar i;
-wire [input_bits-1:0] cards [0:6];
-
-// wire [input_bits-1:0] cards [0:6];
-generate
-    for (i = 0; i < 7; i = i + 1) begin: card_unpack_sort
-        // assign cards[i] = cards_num[(input_bits*i+input_bits-1):(input_bits*i)];
-        assign cards[i] = cards_num[i];
-    end
-endgenerate
 
 reg [input_bits-1:0] layer0_0,           layer0_2, layer0_3, layer0_4, layer0_5, layer0_6; // layer0_1
 reg [input_bits-1:0] layer1_0, layer1_1, layer1_2, layer1_3, layer1_4,           layer1_6; // layer1_5
@@ -339,33 +378,33 @@ always @(*) begin
     // Layer 0: [(0,6),(2,3),(4,5)]
     
     // (0,6)
-    if (cards[0] < cards[6]) begin      // smaller ---> swap
-        layer0_0 = cards[6];
-        layer0_6 = cards[0];
+    if (cards_num[0] < cards_num[6]) begin      // smaller ---> swap
+        layer0_0 = cards_num[6];
+        layer0_6 = cards_num[0];
     end
     else begin
-        layer0_0 = cards[0];
-        layer0_6 = cards[6];
+        layer0_0 = cards_num[0];
+        layer0_6 = cards_num[6];
     end
     
     // (2,3)
-    if (cards[2] < cards[3]) begin
-        layer0_2 = cards[3];
-        layer0_3 = cards[2];
+    if (cards_num[2] < cards_num[3]) begin
+        layer0_2 = cards_num[3];
+        layer0_3 = cards_num[2];
     end
     else begin
-        layer0_2 = cards[2];
-        layer0_3 = cards[3];
+        layer0_2 = cards_num[2];
+        layer0_3 = cards_num[3];
     end
     
     // (4,5)
-    if (cards[4] < cards[5]) begin
-        layer0_4 = cards[5];
-        layer0_5 = cards[4];
+    if (cards_num[4] < cards_num[5]) begin
+        layer0_4 = cards_num[5];
+        layer0_5 = cards_num[4];
     end
     else begin
-        layer0_4 = cards[4];
-        layer0_5 = cards[6];
+        layer0_4 = cards_num[4];
+        layer0_5 = cards_num[5];
     end
 
     // Layer 1: [(0,2),(1,4),(3,6)]
@@ -381,12 +420,12 @@ always @(*) begin
     end
     
     // (1,4)
-    if (cards[1] < layer0_4) begin
+    if (cards_num[1] < layer0_4) begin
         layer1_1 = layer0_4;
-        layer1_4 = cards[1];
+        layer1_4 = cards_num[1];
     end
     else begin
-        layer1_1 = cards[1];
+        layer1_1 = cards_num[1];
         layer1_4 = layer0_4;
     end
     
@@ -512,51 +551,16 @@ end
 endmodule
 
 
-// -------------------------------------------
-
-// module FLUSH (
-//     input [13:0] cards_suit,      // 5 hand cards + 2 table cards = 7, each 2-bit
-//     output is_flush
-// );
-
-// wire [1:0] cards [0:6];
-// wire [6:0] suit_mask [0:3];
-// wire [2:0] suit_num [0:3];
-
-// genvar i, j;
-
-// // wire [6:0] suit_mask [0:3];
-// generate
-//     for (i = 0; i < 7; i = i + 1) begin: card_unpack_flush
-//         assign cards[i] = cards_suit[(2*i+1):(2*i)];
-//         for (j = 0; j < 4; j = j + 1) begin: suit_mask_gen
-//             assign suit_mask[j][i] = (cards[i] == j);
-//         end
-//     end
-// endgenerate
-
-// // wire [2:0] suit_num [0:3];
-// generate
-//     for (i = 0; i < 4; i = i + 1) begin
-//         POPCOUNT_7bits_LUT popcount (.data_in(suit_mask[i]), .popcount(suit_num[i]));
-//     end
-// endgenerate
-
-// // output is_flush
-// assign is_flush = (suit_num[0] >= 3'd5) || (suit_num[1] >= 3'd5) || (suit_num[2] >= 3'd5) || (suit_num[3] >= 3'd5);
-
-// endmodule
-
 
 
 module NUMBER_COUNT (
-    input [27:0] cards_num,      // 5 hand cards + 2 table cards = 7, each 4-bit
+    input [3:0] cards_num [0:6],      // 5 hand cards + 2 table cards = 7, each 4-bit
     // ---------- SAME_NUM ----------
-    output     Four_of_a_Kind,
-    output     Full_House,
-    output     Three_of_a_Kind,
-    output     Two_Pair,
-    output reg One_Pair,
+    output Four_of_a_Kind,
+    output Full_House,
+    output Three_of_a_Kind,
+    output Two_Pair,
+    output One_Pair,
 
     // output reg [3:0] same_num_key1,
     // output reg [3:0] same_num_key2,
@@ -571,20 +575,21 @@ module NUMBER_COUNT (
     output reg [3:0]straight_key
 );
 
-wire [3:0] cards [0:6];
 wire [6:0] numbers_mask [2:14];
 wire [2:0] numbers_num [2:14];      // 0 ~ 4
-wire [12:0] is_four_mask, is_three_mask, reverse_is_two_mask;
-wire second_big_pair_mask;
+wire [12:0] is_four_mask, reverse_is_three_mask, reverse_is_two_mask;
+wire [12:0] second_three_mask;
+wire [12:0] second_big_pair_mask;
+
+reg [3:0] second_three_key;
 
 genvar i, j;
 
 // wire [6:0] numbers_mask [2:14];
 generate
     for (i = 0; i < 7; i = i + 1) begin: card_unpack_num
-        assign cards[i] = cards_num[(4*i+3):(4*i)];
         for (j = 0; j < 13; j = j + 1) begin
-            assign numbers_mask[j+2][i] = (cards[i] == j+2);
+            assign numbers_mask[j+2][i] = (cards_num[i] == j+2);
         end
     end
 endgenerate
@@ -602,7 +607,6 @@ assign straight_mask = {(|numbers_mask[2]),  (|numbers_mask[3]),  (|numbers_mask
 // output reg has_straight,
 always @(*) begin
     casex (straight_mask)
-        13'b1111xxxxxxxx1,
         13'bxxxxxxxx11111,
         13'bxxxxxxx11111x, 
         13'bxxxxxx11111xx, 
@@ -611,8 +615,8 @@ always @(*) begin
         13'bxxx11111xxxxx, 
         13'bxx11111xxxxxx, 
         13'bx11111xxxxxxx, 
-        13'b11111xxxxxxxx
-        : has_straight = 1'b1;
+        13'b11111xxxxxxxx,
+        13'b1111xxxxxxxx1: has_straight = 1'b1;
         default: has_straight = 1'b0;
     endcase
 end
@@ -643,26 +647,30 @@ generate
     end
 endgenerate
 
-// wire [12:0] is_four_mask, is_three_mask, reverse_is_two_mask;
+// wire [12:0] is_four_mask, reverse_is_three_mask, reverse_is_two_mask;
 generate
     for (i = 0; i < 13; i = i + 1) begin: numbers_num_same_num
-        assign is_four_mask[i]           = numbers_num[i+2] == 3'd4;
-        assign is_three_mask[i]          = numbers_num[i+2] == 3'd3;
-        assign reverse_is_two_mask[12-i] = numbers_num[i+2] == 3'd2;
+        assign is_four_mask[i]             = numbers_num[i+2] == 3'd4;
+        assign reverse_is_three_mask[12-i] = numbers_num[i+2] == 3'd3;
+        assign reverse_is_two_mask[12-i]   = numbers_num[i+2] == 3'd2;
     end
 endgenerate
 
 // n & n - 1, set smallest 1 to 0
+// wire [12:0] second_big_pair_mask;
 assign second_big_pair_mask = reverse_is_two_mask & (reverse_is_two_mask - 13'd1);
+
+// wire [12:0] second_three_mask;
+assign second_three_mask = reverse_is_three_mask & (reverse_is_three_mask - 13'd1);
 
 // output Four_of_a_Kind,
 // output Full_House,
 // output Three_of_a_Kind,
 // output Two_Pair,
-// output reg One_Pair,
+// output One_Pair,
 assign Four_of_a_Kind  = (|is_four_mask);
-assign Full_House      = (|is_three_mask) & (|reverse_is_two_mask);
-assign Three_of_a_Kind = (|is_three_mask);
+assign Full_House      = (|reverse_is_three_mask) & (|reverse_is_two_mask) | (|second_three_mask);
+assign Three_of_a_Kind = (|reverse_is_three_mask);
 assign Two_Pair        = (|second_big_pair_mask);
 assign One_Pair        = (|reverse_is_two_mask);
 
@@ -686,28 +694,49 @@ always @(*) begin
     endcase
 end
 
+// reg [3:0] second_three_key;
+always @(*) begin
+    case (second_three_mask)
+        // 13'bxxxxxxxxxxxx1: second_three_key = 4'd14;
+        13'b0000000000010: second_three_key = 4'd13;
+        13'b0000000000100: second_three_key = 4'd12;
+        13'b0000000001000: second_three_key = 4'd11;
+        13'b0000000010000: second_three_key = 4'd10;
+        13'b0000000100000: second_three_key = 4'd9;
+        13'b0000001000000: second_three_key = 4'd8;
+        13'b0000010000000: second_three_key = 4'd7;
+        13'b0000100000000: second_three_key = 4'd6;
+        13'b0001000000000: second_three_key = 4'd5;
+        13'b0010000000000: second_three_key = 4'd4;
+        13'b0100000000000: second_three_key = 4'd3;
+        13'b1000000000000: second_three_key = 4'd2;
+        default: second_three_key = 4'd0;
+    endcase
+end
+
 // output reg [3:0] Full_House_key1, Full_House_key2,
 always @(*) begin
     Full_House_key1 = Three_of_a_Kind_key;
-    Full_House_key2 = One_Pair_key;
+    if (|second_three_mask) Full_House_key2 = second_three_key;     // 3 + 3
+    else                    Full_House_key2 = One_Pair_key;         // 3 + 2
 end
 
 // output reg [3:0] Three_of_a_Kind_key,
 always @(*) begin
-    casex (is_three_mask)
-        13'b1000000000000: Three_of_a_Kind_key = 4'd14;
-        13'bx100000000000: Three_of_a_Kind_key = 4'd13;
-        13'bxx10000000000: Three_of_a_Kind_key = 4'd12;
-        13'bxxx1000000000: Three_of_a_Kind_key = 4'd11;
-        13'bxxxx100000000: Three_of_a_Kind_key = 4'd10;
-        13'bxxxxx10000000: Three_of_a_Kind_key = 4'd9;
+    casex (reverse_is_three_mask)
+        13'bxxxxxxxxxxxx1: Three_of_a_Kind_key = 4'd14;
+        13'bxxxxxxxxxxx10: Three_of_a_Kind_key = 4'd13;
+        13'bxxxxxxxxxx100: Three_of_a_Kind_key = 4'd12;
+        13'bxxxxxxxxx1000: Three_of_a_Kind_key = 4'd11;
+        13'bxxxxxxxx10000: Three_of_a_Kind_key = 4'd10;
+        13'bxxxxxxx100000: Three_of_a_Kind_key = 4'd9;
         13'bxxxxxx1000000: Three_of_a_Kind_key = 4'd8;
-        13'bxxxxxxx100000: Three_of_a_Kind_key = 4'd7;
-        13'bxxxxxxxx10000: Three_of_a_Kind_key = 4'd6;
-        13'bxxxxxxxxx1000: Three_of_a_Kind_key = 4'd5;
-        13'bxxxxxxxxxx100: Three_of_a_Kind_key = 4'd4;
-        13'bxxxxxxxxxxx10: Three_of_a_Kind_key = 4'd3;
-        13'bxxxxxxxxxxxx1: Three_of_a_Kind_key = 4'd2;
+        13'bxxxxx10000000: Three_of_a_Kind_key = 4'd7;
+        13'bxxxx100000000: Three_of_a_Kind_key = 4'd6;
+        13'bxxx1000000000: Three_of_a_Kind_key = 4'd5;
+        13'bxx10000000000: Three_of_a_Kind_key = 4'd4;
+        13'bx100000000000: Three_of_a_Kind_key = 4'd3;
+        13'b1000000000000: Three_of_a_Kind_key = 4'd2;
         default: Three_of_a_Kind_key = 4'd0;
     endcase
 end
@@ -850,8 +879,8 @@ always @(*) begin
         layer0_1 = player_strength[2];
         mask0_1 = 9'b000000100;
     end
-    else if (player_strength[0] == player_strength[2]) begin
-        layer0_1 = player_strength[0];
+    else if (player_strength[2] == player_strength[3]) begin
+        layer0_1 = player_strength[2];
         mask0_1 = 9'b000001100;
     end
     else begin

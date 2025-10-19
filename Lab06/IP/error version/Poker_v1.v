@@ -129,21 +129,25 @@ reg  [3:0] one_pair_kicker1, one_pair_kicker2, one_pair_kicker3;
 // ===============================================================
 
 // TODO: decode to 7 cards first
+wire [3:0] cards_num_each  [0:6];
+wire [1:0] cards_suit_each [0:6];
 
 // FLUSH player_flush (.cards_suit(cards_suit), .is_flush(is_flush));
 
-wire [5:0] cards_suit_num [0:6];      // 2+4 bits
+wire [5:0] cards_suit_num_each [0:6];      // 2+4 bits
 wire [1:0] cards_suit_sorted [0:6];
 
 generate
-    for (j = 0; j < 7; j = j + 1) begin: suit_add_num
-        assign cards_suit_num[j] = {cards_suit[2*j+1:2*j], cards_num[(4*j+3):(4*j)]};
+    for (j = 0; j < 7; j = j + 1) begin: decode_each_card
+        assign cards_num_each[j]  = cards_num[4*j+3:4*j];
+        assign cards_suit_each[j] = cards_suit[2*j+1:2*j];
+        assign cards_suit_num_each[j] = {cards_suit_each[j], cards_num_each[j]};
     end
 endgenerate
 
 // wire [3:0] cards_suit_sorted [0:6];
 // output [output_bits-1:0] sorted_card [0:6]   // small idx == big num
-SORT_CARD #(6, 2) sort_by_suit (.cards_num(cards_suit_num), .sorted_card(cards_suit_sorted));
+SORT_CARD #(6, 2) sort_by_suit (.cards_num(cards_suit_num_each), .sorted_card(cards_suit_sorted));
 
 // reg [3:0] flush_key1, flush_key2, flush_key3, flush_key4, flush_key5;
 // reg  is_flush;
@@ -200,7 +204,7 @@ assign is_straight_flush = is_straight & is_flush;
 
 // wire [3:0] cards_num_sorted [0:6];
 // output [3:0] sorted_card [0:6]   // small idx == big num
-SORT_CARD #(4, 4) sort_by_num (.cards_num(cards_num), .sorted_card(cards_num_sorted));
+SORT_CARD #(4, 4) sort_by_num (.cards_num(cards_num_each), .sorted_card(cards_num_sorted));
 
 // wire [3:0] four_kicker;
 assign four_kicker = (four_key != cards_num_sorted[0]) ? cards_num_sorted[0] :
@@ -293,7 +297,7 @@ module SORT_CARD #(
     parameter input_bits = 4,
     parameter output_bits = 4
 ) (
-    input [input_bits*7-1:0] cards_num,      // 5 hand cards + 2 table cards = 7, each 4-bit
+    input [input_bits-1:0] cards_num [0:6],      // 5 hand cards + 2 table cards = 7, each 4-bit
     output [output_bits-1:0] sorted_card [0:6]    // small idx == big num
 );
 
@@ -303,7 +307,8 @@ wire [input_bits-1:0] cards [0:6];
 // wire [input_bits-1:0] cards [0:6];
 generate
     for (i = 0; i < 7; i = i + 1) begin: card_unpack_sort
-        assign cards[i] = cards_num[(input_bits*i+input_bits-1):(input_bits*i)];
+        // assign cards[i] = cards_num[(input_bits*i+input_bits-1):(input_bits*i)];
+        assign cards[i] = cards_num[i];
     end
 endgenerate
 
