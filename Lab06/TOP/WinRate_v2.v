@@ -43,8 +43,9 @@ output reg [62:0] out_win_rate;
 genvar j;
 
 parameter S_IDLE   = 2'd0;
-parameter S_CAL    = 2'd1;
-parameter S_OUTPUT = 2'd2;
+parameter S_INPUT  = 2'd1;
+parameter S_CAL    = 2'd2;
+parameter S_OUTPUT = 2'd3;
 
 // ===============================================================
 // Reg & Wire
@@ -93,8 +94,11 @@ always @(*) begin
     next_state = current_state;
     case (current_state)
         S_IDLE: begin
-            if (in_valid) next_state = S_CAL;
+            if (in_valid) next_state = S_INPUT;
             else next_state = S_IDLE;
+        end
+        S_INPUT: begin
+            next_state = S_CAL;
         end
         S_CAL: begin
             if (cal_cnt == 9'd464) next_state = S_OUTPUT;
@@ -158,15 +162,15 @@ end
 generate
     for (j = 0; j < 18; j = j + 1) begin: card_exist_idx_gen_1
         wire [5:0] in_hole_suit_tmp;
-        MULT_13 m_13 (.a(in_hole_suit[2*j+1:2*j]), .z(in_hole_suit_tmp));
-        assign card_exist_idx[j] = in_hole_suit_tmp + in_hole_num[4*j+3:4*j] - 6'd2;
-        // assign card_exist_idx[j] = in_hole_suit[2*j+1:2*j]*6'd13 + in_hole_num[4*j+3:4*j] - 6'd2;
+        MULT_13 m_13 (.a(in_hole_suit_reg[2*j+1:2*j]), .z(in_hole_suit_tmp));
+        assign card_exist_idx[j] = in_hole_suit_tmp + in_hole_num_reg[4*j+3:4*j] - 6'd2;
+        // assign card_exist_idx[j] = in_hole_suit_reg[2*j+1:2*j]*6'd13 + in_hole_num_reg[4*j+3:4*j] - 6'd2;
     end
     for (j = 0; j < 3; j = j + 1) begin: card_exist_idx_gen_2
         wire [5:0] in_pub_suit_tmp;
-        MULT_13 m_13 (.a(in_pub_suit[2*j+1:2*j]), .z(in_pub_suit_tmp));
-        assign card_exist_idx[j+18] = in_pub_suit_tmp + in_pub_num[4*j+3:4*j] - 6'd2;
-        // assign card_exist_idx[j+18] = in_pub_suit[2*j+1:2*j]*6'd13 + in_pub_num[4*j+3:4*j] - 6'd2;
+        MULT_13 m_13 (.a(in_pub_suit_reg[2*j+1:2*j]), .z(in_pub_suit_tmp));
+        assign card_exist_idx[j+18] = in_pub_suit_tmp + in_pub_num_reg[4*j+3:4*j] - 6'd2;
+        // assign card_exist_idx[j+18] = in_pub_suit_reg[2*j+1:2*j]*6'd13 + in_pub_num_reg[4*j+3:4*j] - 6'd2;
     end
 endgenerate
 
@@ -185,14 +189,9 @@ reg need_next_card_1;
 reg [5:0] inner_cnt, inner_cnt_sub;
 
 always @(posedge clk) begin
-    case (current_state)
-        S_IDLE: inner_cnt_sub <= 6'd0;
-        S_CAL:  begin
-            if (inner_cnt == 6'd1) inner_cnt_sub <= inner_cnt_sub + 6'd1;
-            else  inner_cnt_sub <= inner_cnt_sub;
-        end
-        default: inner_cnt_sub <= inner_cnt_sub;
-    endcase
+    if      (current_state == S_IDLE)                     inner_cnt_sub <= 6'd1;
+    else if (current_state == S_CAL && inner_cnt == 6'd1) inner_cnt_sub <= inner_cnt_sub + 6'd1;
+    else                                                  inner_cnt_sub <= inner_cnt_sub;
 end
 
 always @(posedge clk) begin
@@ -212,45 +211,6 @@ always @(*) begin
     else need_next_card_1 = 1'b0;
 end
 
-// // reg need_next_card_1;
-// always @(*) begin
-//     case (cal_cnt)
-//         9'd30,9'd59,9'd87,9'd114,9'd140,9'd165,9'd189,9'd212,9'd234,9'd255,9'd275,9'd294,9'd312,9'd329,9'd345,9'd360,9'd374,9'd387,9'd399,9'd410,9'd420,9'd429,9'd437,9'd444,9'd450,9'd455,9'd459,9'd462,9'd464: need_next_card_1 = 1'b1;
-//         default: need_next_card_1 = 1'b0;
-//     endcase
-// end
-
-// // wire need_next_card_1;
-// assign need_next_card_1 =   (cal_cnt == 9'd30) ||
-//                             (cal_cnt == 9'd59) ||
-//                             (cal_cnt == 9'd87) ||
-//                             (cal_cnt == 9'd114) ||
-//                             (cal_cnt == 9'd140) ||
-//                             (cal_cnt == 9'd165) ||
-//                             (cal_cnt == 9'd189) ||
-//                             (cal_cnt == 9'd212) ||
-//                             (cal_cnt == 9'd234) ||
-//                             (cal_cnt == 9'd255) ||
-//                             (cal_cnt == 9'd275) ||
-//                             (cal_cnt == 9'd294) ||
-//                             (cal_cnt == 9'd312) ||
-//                             (cal_cnt == 9'd329) ||
-//                             (cal_cnt == 9'd345) ||
-//                             (cal_cnt == 9'd360) ||
-//                             (cal_cnt == 9'd374) ||
-//                             (cal_cnt == 9'd387) ||
-//                             (cal_cnt == 9'd399) ||
-//                             (cal_cnt == 9'd410) ||
-//                             (cal_cnt == 9'd420) ||
-//                             (cal_cnt == 9'd429) ||
-//                             (cal_cnt == 9'd437) ||
-//                             (cal_cnt == 9'd444) ||
-//                             (cal_cnt == 9'd450) ||
-//                             (cal_cnt == 9'd455) ||
-//                             (cal_cnt == 9'd459) ||
-//                             (cal_cnt == 9'd462) ||
-//                             (cal_cnt == 9'd464);
-
 // reg [51:0] possible_card_1_reg;    // (0~3) * (2~14)
 always @(posedge clk) begin
     possible_card_1_reg <= possible_card_1;
@@ -258,7 +218,7 @@ end
 
 // reg [51:0] possible_card_1;    // (0~3) * (2~14)
 always @(*) begin
-    if      (current_state == S_IDLE)                    possible_card_1 = init_possible_card_1;
+    if      (current_state == S_INPUT)                   possible_card_1 = init_possible_card_1;
     else if (current_state == S_CAL && need_next_card_1) possible_card_1 = set_smallest_one_to_zero(possible_card_1_reg);
     else                                                 possible_card_1 = possible_card_1_reg;
 end
@@ -600,7 +560,7 @@ reg [20:0] player_win_rate [0:8];
 always @(posedge clk) begin
     integer i;
     for (i = 0; i < 9; i = i + 1) begin
-        player_win_rate[i] <= player_win_numerator[i] / 21'd11718;
+        player_win_rate[i] <= player_win_numerator[i] / 21'd11718;      // 465*2520/100
     end
 end
 

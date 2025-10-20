@@ -377,128 +377,143 @@ always @(*) begin
     endcase
 end
 
+wire [51:0] possible_card_1_lowest_bit, possible_card_2_lowest_bit;
+
+assign possible_card_1_lowest_bit = possible_card_1 & (-possible_card_1);
+assign possible_card_2_lowest_bit = possible_card_2 & (-possible_card_2);
+
 // reg [1:0] current_card_1_suit;
 always @(*) begin
-    casex (possible_card_1)
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000: current_card_1_suit = 2'd0;
+    if      (possible_card_1_lowest_bit <= 52'h8000000000000 && possible_card_1_lowest_bit >= 52'h0008000000000) current_card_1_suit = 2'd3;
+    else if (possible_card_1_lowest_bit <= 52'h0004000000000 && possible_card_1_lowest_bit >= 52'h0000004000000) current_card_1_suit = 2'd2;
+    else if (possible_card_1_lowest_bit <= 52'h0000002000000 && possible_card_1_lowest_bit >= 52'h0000000002000) current_card_1_suit = 2'd1;
+    else if (possible_card_1_lowest_bit <= 52'h0000000001000 && possible_card_1_lowest_bit >= 52'h0000000000001) current_card_1_suit = 2'd0;
+    else current_card_1_suit = 2'd0;
+    // casex (possible_card_1)
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1_0000_0000_0000: current_card_1_suit = 2'd0;
 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000000: current_card_1_suit = 2'd1;
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxx10_0000_0000_0000_0000_0000_0000: current_card_1_suit = 2'd1;
 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxx10000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxx100000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxx1000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxx10000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxx100000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxx1000000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxx10000000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxx100000000000000000000000000000000000000: current_card_1_suit = 2'd2;
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxx10000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxx100000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxx1000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxx10000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxx100000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxx1000000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxx10000000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxx100_0000_0000_0000_0000_0000_0000_0000_0000_0000: current_card_1_suit = 2'd2;
 
-        52'bxxxxxxxxxxxx1000000000000000000000000000000000000000,
-        52'bxxxxxxxxxxx10000000000000000000000000000000000000000,
-        52'bxxxxxxxxxx100000000000000000000000000000000000000000,
-        52'bxxxxxxxxx1000000000000000000000000000000000000000000,
-        52'bxxxxxxxx10000000000000000000000000000000000000000000,
-        52'bxxxxxxx100000000000000000000000000000000000000000000,
-        52'bxxxxxx1000000000000000000000000000000000000000000000,
-        52'bxxxxx10000000000000000000000000000000000000000000000,
-        52'bxxxx100000000000000000000000000000000000000000000000,
-        52'bxxx1000000000000000000000000000000000000000000000000,
-        52'bxx10000000000000000000000000000000000000000000000000,
-        52'bx100000000000000000000000000000000000000000000000000,
-        52'b1000000000000000000000000000000000000000000000000000: current_card_1_suit = 2'd3;
-        default: current_card_1_suit = 2'd0;
-    endcase
+    //     52'bxxxxxxxxxxxx1000000000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxx10000000000000000000000000000000000000000,
+    //     52'bxxxxxxxxxx100000000000000000000000000000000000000000,
+    //     52'bxxxxxxxxx1000000000000000000000000000000000000000000,
+    //     52'bxxxxxxxx10000000000000000000000000000000000000000000,
+    //     52'bxxxxxxx100000000000000000000000000000000000000000000,
+    //     52'bxxxxxx1000000000000000000000000000000000000000000000,
+    //     52'bxxxxx10000000000000000000000000000000000000000000000,
+    //     52'bxxxx100000000000000000000000000000000000000000000000,
+    //     52'bxxx1000000000000000000000000000000000000000000000000,
+    //     52'bxx10000000000000000000000000000000000000000000000000,
+    //     52'bx100000000000000000000000000000000000000000000000000,
+    //     52'b1000000000000000000000000000000000000000000000000000: current_card_1_suit = 2'd3;
+    //     default: current_card_1_suit = 2'd0;
+    // endcase
 end
 
 // reg [1:0] current_card_2_suit;
 always @(*) begin
-    casex (possible_card_2)
-        // 52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000: current_card_2_suit = 2'd0;
+    if      (possible_card_2_lowest_bit <= 52'h8000000000000 && possible_card_2_lowest_bit >= 52'h0008000000000) current_card_2_suit = 2'd3;
+    else if (possible_card_2_lowest_bit <= 52'h0004000000000 && possible_card_2_lowest_bit >= 52'h0000004000000) current_card_2_suit = 2'd2;
+    else if (possible_card_2_lowest_bit <= 52'h0000002000000 && possible_card_2_lowest_bit >= 52'h0000000002000) current_card_2_suit = 2'd1;
+    else if (possible_card_2_lowest_bit <= 52'h0000000001000 && possible_card_2_lowest_bit >= 52'h0000000000002) current_card_2_suit = 2'd0;
+    else current_card_2_suit = 2'd0;
+    // casex (possible_card_2)
+    //     // 52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000: current_card_2_suit = 2'd0;
 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000, 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000000: current_card_2_suit = 2'd1;
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000, 
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000000: current_card_2_suit = 2'd1;
 
-        52'bxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxxx10000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxxx100000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxxx1000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxxx10000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxxx100000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxxx1000000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxxx10000000000000000000000000000000000000,
-        52'bxxxxxxxxxxxxx100000000000000000000000000000000000000: current_card_2_suit = 2'd2;
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxxxx10000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxxx100000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxxx1000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxxx10000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxxx100000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxxx1000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxxx10000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxxx100000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxxx1000000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxxx10000000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxxxx100000000000000000000000000000000000000: current_card_2_suit = 2'd2;
 
-        52'bxxxxxxxxxxxx1000000000000000000000000000000000000000,
-        52'bxxxxxxxxxxx10000000000000000000000000000000000000000,
-        52'bxxxxxxxxxx100000000000000000000000000000000000000000,
-        52'bxxxxxxxxx1000000000000000000000000000000000000000000,
-        52'bxxxxxxxx10000000000000000000000000000000000000000000,
-        52'bxxxxxxx100000000000000000000000000000000000000000000,
-        52'bxxxxxx1000000000000000000000000000000000000000000000,
-        52'bxxxxx10000000000000000000000000000000000000000000000,
-        52'bxxxx100000000000000000000000000000000000000000000000,
-        52'bxxx1000000000000000000000000000000000000000000000000,
-        52'bxx10000000000000000000000000000000000000000000000000,
-        52'bx100000000000000000000000000000000000000000000000000,
-        52'b1000000000000000000000000000000000000000000000000000: current_card_2_suit = 2'd3;
-        default: current_card_2_suit = 2'd0;
-    endcase
+    //     52'bxxxxxxxxxxxx1000000000000000000000000000000000000000,
+    //     52'bxxxxxxxxxxx10000000000000000000000000000000000000000,
+    //     52'bxxxxxxxxxx100000000000000000000000000000000000000000,
+    //     52'bxxxxxxxxx1000000000000000000000000000000000000000000,
+    //     52'bxxxxxxxx10000000000000000000000000000000000000000000,
+    //     52'bxxxxxxx100000000000000000000000000000000000000000000,
+    //     52'bxxxxxx1000000000000000000000000000000000000000000000,
+    //     52'bxxxxx10000000000000000000000000000000000000000000000,
+    //     52'bxxxx100000000000000000000000000000000000000000000000,
+    //     52'bxxx1000000000000000000000000000000000000000000000000,
+    //     52'bxx10000000000000000000000000000000000000000000000000,
+    //     52'bx100000000000000000000000000000000000000000000000000,
+    //     52'b1000000000000000000000000000000000000000000000000000: current_card_2_suit = 2'd3;
+    //     default: current_card_2_suit = 2'd0;
+    // endcase
 end
 
 // wire [19:0] current_pub_card_num;

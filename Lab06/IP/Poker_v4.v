@@ -840,142 +840,267 @@ end
 endmodule
 
 
-
 module PLAYERS_CMP_9 (
     input [23:0] player_strength [0:8],
-    output reg [8:0] winner_mask
+    output [8:0] winner_mask
 );
 
-reg [23:0] layer0_0, layer0_1, layer0_2, layer0_3;
-reg [23:0] layer1_0, layer1_1;
-reg [23:0] layer2_0;
+genvar i;
 
-reg [8:0] mask0_0, mask0_1, mask0_2, mask0_3;
-reg [8:0] mask1_0, mask1_1;
-reg [8:0] mask2_0;
+wire signed [24:0] player_strength_s [0:8];
+wire signed [24:0] left_0 [0:8], left_1 [0:8], left_2 [0:8], left_3 [0:8], left_4 [0:8], left_5 [0:8], left_6 [0:8], left_7 [0:8], left_8 [0:8];
 
-always @(*) begin
-    // layer0
-    // layer0_0
-    // mask0_0
-    if (player_strength[0] > player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 9'b000000001;
+generate
+    for (i = 0; i < 9; i = i + 1) begin
+        assign player_strength_s[i] = {1'b0, player_strength[i]};
     end
-    else if (player_strength[0] == player_strength[1]) begin
-        layer0_0 = player_strength[0];
-        mask0_0 = 9'b000000011;
-    end
-    else begin
-        layer0_0 = player_strength[1];
-        mask0_0 = 9'b000000010;
-    end
+endgenerate
 
-    // layer0_1
-    // mask0_1
-    if (player_strength[2] > player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 9'b000000100;
+generate
+    for (i = 0; i < 9; i = i + 1) begin
+        assign left_0[i] = player_strength_s[0] - player_strength_s[i];
+        assign left_1[i] = player_strength_s[1] - player_strength_s[i];
+        assign left_2[i] = player_strength_s[2] - player_strength_s[i];
+        assign left_3[i] = player_strength_s[3] - player_strength_s[i];
+        assign left_4[i] = player_strength_s[4] - player_strength_s[i];
+        assign left_5[i] = player_strength_s[5] - player_strength_s[i];
+        assign left_6[i] = player_strength_s[6] - player_strength_s[i];
+        assign left_7[i] = player_strength_s[7] - player_strength_s[i];
+        assign left_8[i] = player_strength_s[8] - player_strength_s[i];
     end
-    else if (player_strength[2] == player_strength[3]) begin
-        layer0_1 = player_strength[2];
-        mask0_1 = 9'b000001100;
-    end
-    else begin
-        layer0_1 = player_strength[3];
-        mask0_1 = 9'b000001000;
-    end
+endgenerate
 
-    // layer0_2
-    // mask0_2
-    if (player_strength[4] > player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 9'b000010000;
-    end
-    else if (player_strength[4] == player_strength[5]) begin
-        layer0_2 = player_strength[4];
-        mask0_2 = 9'b000110000;
-    end
-    else begin
-        layer0_2 = player_strength[5];
-        mask0_2 = 9'b000100000;
-    end
+// wire [8:0] all_non_neg;
 
-    // layer0_3
-    // mask0_3
-    if (player_strength[6] > player_strength[7]) begin
-        layer0_3 = player_strength[6];
-        mask0_3 = 9'b001000000;
-    end
-    else if (player_strength[6] == player_strength[7]) begin
-        layer0_3 = player_strength[6];
-        mask0_3 = 9'b011000000;
-    end
-    else begin
-        layer0_3 = player_strength[7];
-        mask0_3 = 9'b010000000;
-    end
+assign winner_mask[0] = left_0[1] >= 0 &&
+                        left_0[2] >= 0 &&
+                        left_0[3] >= 0 &&
+                        left_0[4] >= 0 &&
+                        left_0[5] >= 0 &&
+                        left_0[6] >= 0 &&
+                        left_0[7] >= 0 &&
+                        left_0[8] >= 0;
 
-    // layer1
-    // layer1_0
-    // mask1_0
-    if (layer0_0 > layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0;
-    end
-    else if (layer0_0 == layer0_1) begin
-        layer1_0 = layer0_0;
-        mask1_0 = mask0_0 | mask0_1;
-    end
-    else begin
-        layer1_0 = layer0_1;
-        mask1_0 = mask0_1;
-    end
+assign winner_mask[1] = left_1[0] >= 0 &&
+                        // left_1[1] >= 0 &&
+                        left_1[2] >= 0 &&
+                        left_1[3] >= 0 &&
+                        left_1[4] >= 0 &&
+                        left_1[5] >= 0 &&
+                        left_1[6] >= 0 &&
+                        left_1[7] >= 0 &&
+                        left_1[8] >= 0;
 
-    // layer1_1
-    // mask1_1
-    if (layer0_2 > layer0_3) begin
-        layer1_1 = layer0_2;
-        mask1_1 = mask0_2;
-    end
-    else if (layer0_2 == layer0_3) begin
-        layer1_1 = layer0_2;
-        mask1_1 = mask0_2 | mask0_3;
-    end
-    else begin
-        layer1_1 = layer0_3;
-        mask1_1 = mask0_3;
-    end
+assign winner_mask[2] = left_2[0] >= 0 &&
+                        left_2[1] >= 0 &&
+                        // left_2[2] >= 0 &&
+                        left_2[3] >= 0 &&
+                        left_2[4] >= 0 &&
+                        left_2[5] >= 0 &&
+                        left_2[6] >= 0 &&
+                        left_2[7] >= 0 &&
+                        left_2[8] >= 0;
 
-    // layer2
-    // layer2_0
-    // mask2_0
-    if (layer1_0 > layer1_1) begin
-        layer2_0 = layer1_0;
-        mask2_0 = mask1_0;
-    end
-    else if (layer1_0 == layer1_1) begin
-        layer2_0 = layer1_0;
-        mask2_0 = mask1_0 | mask1_1;
-    end
-    else begin
-        layer2_0 = layer1_1;
-        mask2_0 = mask1_1;
-    end
+assign winner_mask[3] = left_3[0] >= 0 &&
+                        left_3[1] >= 0 &&
+                        left_3[2] >= 0 &&
+                        // left_3[3] >= 0 &&
+                        left_3[4] >= 0 &&
+                        left_3[5] >= 0 &&
+                        left_3[6] >= 0 &&
+                        left_3[7] >= 0 &&
+                        left_3[8] >= 0;
 
-    // winner_mask
-    if (layer2_0 > player_strength[8]) begin
-        winner_mask = mask2_0;
-    end
-    else if (layer2_0 == player_strength[8]) begin
-        winner_mask = mask2_0 | 9'b100000000;
-    end
-    else begin
-        winner_mask = 9'b100000000;
-    end
-end
+assign winner_mask[4] = left_4[0] >= 0 &&
+                        left_4[1] >= 0 &&
+                        left_4[2] >= 0 &&
+                        left_4[3] >= 0 &&
+                        // left_4[4] >= 0 &&
+                        left_4[5] >= 0 &&
+                        left_4[6] >= 0 &&
+                        left_4[7] >= 0 &&
+                        left_4[8] >= 0;
+
+assign winner_mask[5] = left_5[0] >= 0 &&
+                        left_5[1] >= 0 &&
+                        left_5[2] >= 0 &&
+                        left_5[3] >= 0 &&
+                        left_5[4] >= 0 &&
+                        // left_5[5] >= 0 &&
+                        left_5[6] >= 0 &&
+                        left_5[7] >= 0 &&
+                        left_5[8] >= 0;
+
+assign winner_mask[6] = left_6[0] >= 0 &&
+                        left_6[1] >= 0 &&
+                        left_6[2] >= 0 &&
+                        left_6[3] >= 0 &&
+                        left_6[4] >= 0 &&
+                        left_6[5] >= 0 &&
+                        // left_6[6] >= 0 &&
+                        left_6[7] >= 0 &&
+                        left_6[8] >= 0;
+
+assign winner_mask[7] = left_7[0] >= 0 &&
+                        left_7[1] >= 0 &&
+                        left_7[2] >= 0 &&
+                        left_7[3] >= 0 &&
+                        left_7[4] >= 0 &&
+                        left_7[5] >= 0 &&
+                        left_7[6] >= 0 &&
+                        // left_7[7] >= 0 &&
+                        left_7[8] >= 0;
+
+assign winner_mask[8] = left_8[0] >= 0 &&
+                        left_8[1] >= 0 &&
+                        left_8[2] >= 0 &&
+                        left_8[3] >= 0 &&
+                        left_8[4] >= 0 &&
+                        left_8[5] >= 0 &&
+                        left_8[6] >= 0 &&
+                        left_8[7] >= 0;
+
 
 endmodule
+
+
+
+
+// module PLAYERS_CMP_9 (
+//     input [23:0] player_strength [0:8],
+//     output reg [8:0] winner_mask
+// );
+
+// reg [23:0] layer0_0, layer0_1, layer0_2, layer0_3;
+// reg [23:0] layer1_0, layer1_1;
+// reg [23:0] layer2_0;
+
+// reg [8:0] mask0_0, mask0_1, mask0_2, mask0_3;
+// reg [8:0] mask1_0, mask1_1;
+// reg [8:0] mask2_0;
+
+// always @(*) begin
+//     // layer0
+//     // layer0_0
+//     // mask0_0
+//     if (player_strength[0] > player_strength[1]) begin
+//         layer0_0 = player_strength[0];
+//         mask0_0 = 9'b000000001;
+//     end
+//     else if (player_strength[0] == player_strength[1]) begin
+//         layer0_0 = player_strength[0];
+//         mask0_0 = 9'b000000011;
+//     end
+//     else begin
+//         layer0_0 = player_strength[1];
+//         mask0_0 = 9'b000000010;
+//     end
+
+//     // layer0_1
+//     // mask0_1
+//     if (player_strength[2] > player_strength[3]) begin
+//         layer0_1 = player_strength[2];
+//         mask0_1 = 9'b000000100;
+//     end
+//     else if (player_strength[2] == player_strength[3]) begin
+//         layer0_1 = player_strength[2];
+//         mask0_1 = 9'b000001100;
+//     end
+//     else begin
+//         layer0_1 = player_strength[3];
+//         mask0_1 = 9'b000001000;
+//     end
+
+//     // layer0_2
+//     // mask0_2
+//     if (player_strength[4] > player_strength[5]) begin
+//         layer0_2 = player_strength[4];
+//         mask0_2 = 9'b000010000;
+//     end
+//     else if (player_strength[4] == player_strength[5]) begin
+//         layer0_2 = player_strength[4];
+//         mask0_2 = 9'b000110000;
+//     end
+//     else begin
+//         layer0_2 = player_strength[5];
+//         mask0_2 = 9'b000100000;
+//     end
+
+//     // layer0_3
+//     // mask0_3
+//     if (player_strength[6] > player_strength[7]) begin
+//         layer0_3 = player_strength[6];
+//         mask0_3 = 9'b001000000;
+//     end
+//     else if (player_strength[6] == player_strength[7]) begin
+//         layer0_3 = player_strength[6];
+//         mask0_3 = 9'b011000000;
+//     end
+//     else begin
+//         layer0_3 = player_strength[7];
+//         mask0_3 = 9'b010000000;
+//     end
+
+//     // layer1
+//     // layer1_0
+//     // mask1_0
+//     if (layer0_0 > layer0_1) begin
+//         layer1_0 = layer0_0;
+//         mask1_0 = mask0_0;
+//     end
+//     else if (layer0_0 == layer0_1) begin
+//         layer1_0 = layer0_0;
+//         mask1_0 = mask0_0 | mask0_1;
+//     end
+//     else begin
+//         layer1_0 = layer0_1;
+//         mask1_0 = mask0_1;
+//     end
+
+//     // layer1_1
+//     // mask1_1
+//     if (layer0_2 > layer0_3) begin
+//         layer1_1 = layer0_2;
+//         mask1_1 = mask0_2;
+//     end
+//     else if (layer0_2 == layer0_3) begin
+//         layer1_1 = layer0_2;
+//         mask1_1 = mask0_2 | mask0_3;
+//     end
+//     else begin
+//         layer1_1 = layer0_3;
+//         mask1_1 = mask0_3;
+//     end
+
+//     // layer2
+//     // layer2_0
+//     // mask2_0
+//     if (layer1_0 > layer1_1) begin
+//         layer2_0 = layer1_0;
+//         mask2_0 = mask1_0;
+//     end
+//     else if (layer1_0 == layer1_1) begin
+//         layer2_0 = layer1_0;
+//         mask2_0 = mask1_0 | mask1_1;
+//     end
+//     else begin
+//         layer2_0 = layer1_1;
+//         mask2_0 = mask1_1;
+//     end
+
+//     // winner_mask
+//     if (layer2_0 > player_strength[8]) begin
+//         winner_mask = mask2_0;
+//     end
+//     else if (layer2_0 == player_strength[8]) begin
+//         winner_mask = mask2_0 | 9'b100000000;
+//     end
+//     else begin
+//         winner_mask = 9'b100000000;
+//     end
+// end
+
+// endmodule
 
 
 module PLAYERS_CMP_8 (

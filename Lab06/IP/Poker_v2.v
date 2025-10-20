@@ -1475,7 +1475,7 @@ always @(*) begin
         winner_mask = 2'b01;
     end
     else if (player_strength[0] == player_strength[1]) begin
-        winner_mask = 2'b01;
+        winner_mask = 2'b11;
     end
     else begin
         winner_mask = 2'b10;

@@ -1,8 +1,8 @@
 `ifdef RTL
-    `define CYCLE_TIME 20.0
+    `define CYCLE_TIME 15
 `endif
 `ifdef GATE
-    `define CYCLE_TIME 20
+    `define CYCLE_TIME 15
 `endif
 
 module PATTERN(

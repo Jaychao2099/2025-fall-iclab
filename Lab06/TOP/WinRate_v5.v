@@ -98,7 +98,8 @@ always @(*) begin
             else next_state = S_IDLE;
         end
         S_INPUT: begin
-            next_state = S_CAL;
+            if (input_cnt == 5'd50) next_state = S_CAL;
+            else next_state = S_INPUT;
         end
         S_CAL: begin
             if (cal_cnt == 9'd464) next_state = S_OUTPUT;
@@ -210,6 +211,57 @@ always @(*) begin
     if (inner_cnt == 6'd0) need_next_card_1 = 1'b1;
     else need_next_card_1 = 1'b0;
 end
+
+reg [5:0] input_cnt;
+
+// reg [5:0] input_cnt;
+always @(posedge clk) begin
+    if (current_state == S_IDLE) input_cnt <= 6'd0;
+    else if (current_state == S_INPUT) input_cnt <= input_cnt + 6'd1;
+    else input_cnt <= input_cnt;
+end
+
+reg [3:0] num_queue  [0:30], num_queue_reg  [0:30];
+reg [1:0] suit_queue [0:30], suit_queue_reg [0:30];
+
+reg [4:0] queue_rear, queue_rear_reg;
+
+// reg [4:0] queue_rear, queue_rear_reg;
+always @(posedge clk) begin
+    queue_rear_reg <= queue_rear;
+end
+
+// reg [4:0] queue_rear, queue_rear_reg;
+always @(*) begin
+    if (current_state == S_IDLE) queue_rear <= 5'd0;
+    if (current_state == S_INPUT && init_possible_card_1[input_cnt]) queue_rear = queue_rear_reg + 5'd1;
+end
+
+
+always @(posedge clk) begin
+    num_queue_reg <= num_queue;
+end
+
+// reg [3:0] num_queue  [0:30];
+always @(*) begin
+    if (current_state == S_INPUT) num_queue[queue_rear] = init_possible_card_1[input_cnt] ? (input_cnt % 13) : 4'd0;
+    else num_queue = num_queue_reg;
+end
+
+always @(posedge clk) begin
+    suit_queue_reg <= suit_queue;
+end
+
+// reg [1:0] suit_queue [0:30];
+always @(*) begin
+    if (current_state == S_INPUT) suit_queue[queue_rear] = init_possible_card_1[input_cnt] ? (input_cnt / 13) : 2'd0;
+    else suit_queue = suit_queue_reg;
+end
+
+
+
+
+
 
 // reg [51:0] possible_card_1_reg;    // (0~3) * (2~14)
 always @(posedge clk) begin

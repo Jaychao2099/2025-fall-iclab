@@ -200,19 +200,15 @@ wire special_straight_flush_1, special_straight_flush_2, special_straight_flush_
 wire has_flush_ace;
 wire has_special_straight_flush;
 
-assign special_straight_flush_1 = (sorted_siut[3] == sorted_siut[6] && sorted_num[3] == 4'd5 &&
-                                  (sorted_siut[2] == sorted_siut[3] && sorted_num[2] == 4'd14 || 
-                                   sorted_siut[1] == sorted_siut[3] && sorted_num[1] == 4'd14 || 
-                                   sorted_siut[0] == sorted_siut[3] && sorted_num[0] == 4'd14));
+assign has_flush_ace = (sorted_siut[2] == sorted_siut[4] && sorted_num[2] == 4'd14 || 
+                        sorted_siut[1] == sorted_siut[4] && sorted_num[1] == 4'd14 || 
+                        sorted_siut[0] == sorted_siut[4] && sorted_num[0] == 4'd14);
 
-assign special_straight_flush_2 = (sorted_siut[2] == sorted_siut[5] && sorted_num[2] == 4'd5 &&
-                                  (sorted_siut[1] == sorted_siut[2] && sorted_num[1] == 4'd14 || 
-                                   sorted_siut[0] == sorted_siut[2] && sorted_num[0] == 4'd14));
+assign special_straight_flush_1 = (sorted_siut[3] == sorted_siut[6] && sorted_num[3] == 4'd5);
+assign special_straight_flush_2 = (sorted_siut[2] == sorted_siut[5] && sorted_num[2] == 4'd5);
+assign special_straight_flush_3 = (sorted_siut[1] == sorted_siut[4] && sorted_num[1] == 4'd5);
 
-assign special_straight_flush_3 = (sorted_siut[1] == sorted_siut[4] && sorted_num[1] == 4'd5 &&
-                                  (sorted_siut[0] == sorted_siut[1] && sorted_num[0] == 4'd14));
-
-assign has_special_straight_flush = special_straight_flush_1 || special_straight_flush_2 || special_straight_flush_3;
+assign has_special_straight_flush = has_flush_ace && (special_straight_flush_1 || special_straight_flush_2 || special_straight_flush_3);
 
 // reg  is_straight_flush;
 // reg [3:0] straight_flush_key;
