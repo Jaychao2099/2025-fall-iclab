@@ -89,7 +89,7 @@ assign wptr = (w_addr >> 1) ^ w_addr;
 assign rptr = (r_addr >> 1) ^ r_addr;
 
 wire [$clog2(WORDS):0] sync_rptr, sync_wptr;     // 7-bit
-wire [$clog2(WORDS):0] sync_rptr_reg, sync_wptr_reg;     // 7-bit
+reg  [$clog2(WORDS):0] sync_rptr_reg, sync_wptr_reg;     // 7-bit
 
 NDFF_BUS_syn #($clog2(WORDS)+1) ndff_1(.D(rptr), .Q(sync_rptr), .clk(wclk), .rst_n(rst_n));
 NDFF_BUS_syn #($clog2(WORDS)+1) ndff_2(.D(wptr), .Q(sync_wptr), .clk(rclk), .rst_n(rst_n));

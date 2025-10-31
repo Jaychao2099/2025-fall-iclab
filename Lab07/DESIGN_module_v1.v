@@ -126,23 +126,27 @@ output flag_clk2_to_fifo;
 //   Reg / Wire / Parameters DECLARATION          
 //---------------------------------------------------------------------
 
-integer i;
 genvar k;
 
 parameter S_IDLE   = 2'd0;
 parameter S_INPUT  = 2'd1;
 parameter S_NTT    = 2'd2;
-// parameter S_OUTPUT = 2'd3;
 
 reg [3:0] input_cnt;    // 0~15
 reg [5:0] ntt_cnt;      // 0~56
 reg [6:0] out_cnt;      // 0~127
 
+reg [1:0] current_state;
+reg [1:0] next_state;
 
-reg [15:0] ntt_output;
+reg [15:0] ntt_reg [0:127];
 
-localparam GMb_0 = 4091,
-           GMb_1 = 7888,
+reg [15:0] a [0:7], b [0:7];
+reg [13:0] gmb [0:7];
+wire [15:0] result_a [0:7], result_b [0:7];
+
+// localparam GMb_0 = 4091;
+localparam GMb_1 = 7888,
            GMb_2 = 11060,
            GMb_3 = 11208,
            GMb_4 = 6960,
@@ -276,9 +280,6 @@ localparam GMb_0 = 4091,
 
 // -------------------- FSM --------------------
 
-reg [1:0] current_state;
-reg [1:0] next_state;
-
 // reg [1:0] current_state;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) current_state <= S_IDLE;
@@ -313,28 +314,29 @@ always @(posedge clk or negedge rst_n) begin
     else               input_cnt <= input_cnt;
 end
 
-// input [31:0] in_data;
-reg [15:0] ntt_reg [0:127];
-
+// reg [15:0] ntt_reg [0:127];
 always @(posedge clk) begin
+    integer i;
     // -------------------- input --------------------
     if (in_valid) begin     // shift reg
-        for (i = 0; i < 8; i = i + 1) ntt_reg[0*8 + i] <= ntt_reg[1*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[1*8 + i] <= ntt_reg[2*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[2*8 + i] <= ntt_reg[3*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[3*8 + i] <= ntt_reg[4*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[4*8 + i] <= ntt_reg[5*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[5*8 + i] <= ntt_reg[6*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[6*8 + i] <= ntt_reg[7*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[7*8 + i] <= ntt_reg[8*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[8*8 + i] <= ntt_reg[9*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[9*8 + i] <= ntt_reg[10*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[10*8 + i] <= ntt_reg[11*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[11*8 + i] <= ntt_reg[12*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[12*8 + i] <= ntt_reg[13*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[13*8 + i] <= ntt_reg[14*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[14*8 + i] <= ntt_reg[15*8 + i];
-        for (i = 0; i < 8; i = i + 1) ntt_reg[15*8 + i] <= in_data[i*4+3:i*4];      // <----- input
+        for (i = 0; i < 8; i = i + 1) begin
+            ntt_reg[0*8 + i] <= ntt_reg[1*8 + i];
+            ntt_reg[1*8 + i] <= ntt_reg[2*8 + i];
+            ntt_reg[2*8 + i] <= ntt_reg[3*8 + i];
+            ntt_reg[3*8 + i] <= ntt_reg[4*8 + i];
+            ntt_reg[4*8 + i] <= ntt_reg[5*8 + i];
+            ntt_reg[5*8 + i] <= ntt_reg[6*8 + i];
+            ntt_reg[6*8 + i] <= ntt_reg[7*8 + i];
+            ntt_reg[7*8 + i] <= ntt_reg[8*8 + i];
+            ntt_reg[8*8 + i] <= ntt_reg[9*8 + i];
+            ntt_reg[9*8 + i] <= ntt_reg[10*8 + i];
+            ntt_reg[10*8 + i] <= ntt_reg[11*8 + i];
+            ntt_reg[11*8 + i] <= ntt_reg[12*8 + i];
+            ntt_reg[12*8 + i] <= ntt_reg[13*8 + i];
+            ntt_reg[13*8 + i] <= ntt_reg[14*8 + i];
+            ntt_reg[14*8 + i] <= ntt_reg[15*8 + i];
+            ntt_reg[15*8 + i] <= {12'd0, in_data[i*4 +: 4]};      // <----- input
+        end
         // for (i = 0; i < 8; i = i + 1) ntt_reg[input_cnt*8 + i] <= {12'd0, in_data[i*4+3:i*4]};
         // case (input_cnt)
         //     0: for (i = 0; i < 8; i = i + 1) ntt_reg[0*8 + i] <= in_data[i*4+3:i*4];
@@ -437,12 +439,9 @@ end
 // reg [3:0] in_data_reg [0:127];
 // reg [15:0] ntt_reg [0:127];
 
-reg [15:0] a [0:7], b [0:7];
-reg [13:0] gmb [0:7];
-wire [15:0] result_a [0:7], result_b [0:7];
-
 // reg [15:0] a [0:7], b [0:7];
 always @(*) begin
+    integer i;
     for (i = 0; i < 8; i = i + 1) begin
         a[i] = 16'd0;
         b[i] = 16'd0;
@@ -518,7 +517,8 @@ end
 
 // reg [13:0] gmb [0:7];
 always @(*) begin
-    for (i = 0; i < 8; i = i + 1) gmb = 14'd0;
+    integer i;
+    for (i = 0; i < 8; i = i + 1) gmb[i] = 14'd0;
     if (current_state == S_NTT) begin
         case (ntt_cnt)
             0, 1, 2, 3, 4, 5, 6, 7: for (i = 0; i < 8; i = i + 1) gmb[i] = GMb_1;
@@ -566,8 +566,9 @@ endgenerate
 // reg [6:0] out_cnt;      // 0~127
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                                   out_cnt <= 7'd0;
+    else if (current_state == S_IDLE)                                  out_cnt <= 7'd0;
     else if (current_state == S_NTT && ntt_cnt >= 9'd49 && !fifo_full) out_cnt <= out_cnt + 7'd1;
-    else                                                               out_cnt <= 7'd0;
+    else                                                               out_cnt <= out_cnt;
 end
 
 // output reg out_valid;
@@ -581,7 +582,7 @@ end
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                                   out_data <= 16'd0;
     else if (current_state == S_NTT && ntt_cnt >= 9'd49 && !fifo_full) out_data <= ntt_reg[out_cnt];
-    else                                                               out_data <= 16'd0;
+    else                                                               out_data <= out_data;
 end
 
 // output busy;
@@ -609,8 +610,8 @@ wire [15:0] y_;   // 16-bit, 65535
 wire [13:0] z_;   // 14-bit
 
 assign x_ = b * gmb;
-assign y_ = (x_ * Q0I)[15:0];     // (...)%(2^16)   // 16-bit
-assign z_ = ({1'b0, x_} + y_ * Q)[30:16]; // (...)/(2^16)   // 15-bit
+assign y_ = (x_ * Q0I);     // (...)%(2^16)   // 16-bit
+assign z_ = ({1'b0, x_} + y_ * Q) >> 16; // (...)/(2^16)   // 15-bit
 assign b_modq = (z_ < Q) ? z_ : (z_ - Q);
 
 assign result_a = (a + b_modq) % Q;

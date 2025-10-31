@@ -152,7 +152,7 @@ void NTT(uint32_t *array) {     // 4-bit
     for (int m = 1, ht = 64; m < 128; m <<= 1, ht >>= 1) {
         for (int i = 0, j_1 = 0; i < m; i++, j_1 += (ht << 1)) {
             uint32_t s = GMb[m+i];  // 14-bit
-            printf("GMb[%d]\n", m+i);
+            // printf("GMb[%d]\n", m+i);
             // int j_2 = j_1 + ht;
             for (int j = j_1; j < j_1 + ht; j++) {
                 uint32_t u = array[j];                      // 4-bit
@@ -160,23 +160,37 @@ void NTT(uint32_t *array) {     // 4-bit
                 array[j]      = (u + v) % Q;
                 // array[j + ht] = (u - v) % Q;
                 array[j + ht] = (u >= v) ? (u - v) : ((u + Q) - v); // (u - v) % Q;
-                printf("%d, %d\n", j, j + ht);
+                // printf("%d, %d\n", j, j + ht);
             }
             // printf("\n");
         }
-        printf("\n");
+        // printf("\n");
     }
 }
 
-int main() {
-    uint32_t ntt_array[128];
-    for (int i = 0; i < 128; i++) {
-        // ntt_array[i] = i;
-        ntt_array[i] = 1;
+int main(int argc, char **argv) {
+    int pattern_num = 10;
+    if (argc == 2) pattern_num = atoi(argv[1]);
+
+    FILE *fp = fopen("NTT_in.txt", "w");
+    FILE *fp_out = fopen("NTT_out.txt", "w");
+    fprintf(fp, "%d\n", pattern_num);
+
+    uint32_t *ntt_array = calloc(128, sizeof(uint32_t));
+    srand(0);
+
+    for (int p = 0; p < pattern_num; p++) {
+        for (int i = 0; i < 128; i++) ntt_array[i] = rand() % 16; // 4-bit
+        for (int i = 0; i < 128; i++) fprintf(fp, "%d\n", ntt_array[i]);
+        NTT(ntt_array);
+        for (int i = 0; i < 128; i++) fprintf(fp_out, "%d\n", ntt_array[i]);
+
+        fprintf(fp, "\n");
+        fprintf(fp_out, "\n");
     }
-    NTT(ntt_array);
-    // for (int i = 0; i < 128; i++) {
-    //     printf("%d, ", ntt_array[i]);
-    // }
+
+    fclose(fp);
+    fclose(fp_out);
+    free(ntt_array);
     return 0;
 }

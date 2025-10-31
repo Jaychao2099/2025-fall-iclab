@@ -22,7 +22,7 @@ input sready;
 input [WIDTH-1:0] din;
 input dbusy;
 
-output sidle;
+output reg sidle;
 output reg dvalid;
 output reg [WIDTH-1:0] dout;
 
@@ -55,13 +55,13 @@ reg src_ctrl, dest_ctrl;
 
 // input dbusy;
 // output reg dvalid;
-always @(posedge dclk or rst_n) begin
+always @(posedge dclk or negedge rst_n) begin
     if (!rst_n) dvalid <= 1'b0;
     else        dvalid <= (dreq && !dbusy && dack) ? 1'b0 : 1'b1;
 end
 
 // output reg [WIDTH-1:0] dout;
-always @(posedge dclk or rst_n) begin
+always @(posedge dclk or negedge rst_n) begin
     if (!rst_n) dout <= {WIDTH{1'b0}};
     else        dout <= (dreq && !dbusy) ? din : dout;
 end
