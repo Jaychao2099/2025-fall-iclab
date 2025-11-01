@@ -57,6 +57,7 @@ integer i_pat, PAT_NUM;
 integer in_fd, out_fd;
 integer i, j;
 integer temp_val;
+integer file_golden_output;
 
 // Maximum latency allowed by spec before timeout
 parameter MAX_LATENCY = 5000;
@@ -93,12 +94,10 @@ initial begin
         $display("FATAL ERROR: Could not open input/output files.");
         $finish;
     end
-
     reset_task;
-
-    temp_val = $fscanf(in_fd, "%d", PAT_NUM);
+    temp_val = $fscanf(in_fd, "%d\n", PAT_NUM);
     total_latency = 0;
-
+	$display(" Start!!, Total patterns = %d", PAT_NUM);
     for (i_pat = 0; i_pat < PAT_NUM; i_pat = i_pat + 1) begin
         read_and_drive_input_task;
         wait_and_check_output_task;
@@ -117,7 +116,8 @@ end
 //  TASKS
 //---------------------------------------------------------------------
 
-task reset_task; begin
+task reset_task;
+begin
     rst_n    = 1'b1;
     in_valid = 1'b0;
     in_data  = 32'hxxxxxxxx;
@@ -126,32 +126,37 @@ task reset_task; begin
     force clk2 = 1'b0;
     force clk3 = 1'b0;
 
-    #20;
+    #1;
     rst_n = 1'b0;
-    #50;
-    rst_n = 1'b1;
+    #1;
 
     // Protocol Assertion: Check if outputs are reset to 0
     if (out_valid !== 1'b0 || out_data !== 16'b0) begin
         $display("SPEC FAIL: Outputs did not reset to 0 after initial reset.");
         YOU_FAIL_task;
+        repeat(2) @(negedge clk3);
         $finish;
     end
 
+    #10;
+    rst_n = 1'b1;
+	#10;
     release clk1;
     release clk2;
     release clk3;
-    @(negedge clk1);
-end endtask
+end
+endtask
 
-task read_and_drive_input_task; begin
+task read_and_drive_input_task;
+begin
     // Read 128 coefficients for the current pattern for later use in error messages
     for (i = 0; i < 128; i = i + 1) begin
-        temp_val = $fscanf(in_fd, "%d", current_input[i]);
+        temp_val = $fscanf(in_fd, "%d\n", current_input[i]);
     end
     // Skip the blank line between patterns
     temp_val = $fscanf(in_fd, "\n");
 
+    repeat(2) @(negedge clk1);
     in_valid = 1'b1;
     // Drive inputs for 16 cycles
     for (i = 0; i < 16; i = i + 1) begin
@@ -169,13 +174,16 @@ task read_and_drive_input_task; begin
     end
     in_valid = 1'b0;
     in_data = 32'hxxxxxxxx;
-end endtask
+    $display("Read file done.");
+end
+endtask
 
-task wait_and_check_output_task; begin
+task wait_and_check_output_task;
+begin
     latency = 0;
     
     // Start measuring latency from the falling edge of in_valid
-    @(negedge in_valid);
+    while (in_valid);
 
     // Wait for the first out_valid
     while (out_valid !== 1'b1) begin
@@ -198,12 +206,12 @@ task wait_and_check_output_task; begin
             $finish;
         end
         
-        temp_val = $fscanf(out_fd, "%d", golden_output);
+        temp_val = $fscanf(out_fd, "%d\n", golden_output);
 
         if (out_data !== golden_output) begin
-            $strobe("DATA MISMATCH on PATTERN %d, output index %d", i_pat, i);
-            $strobe("  >> Golden Result: %d", golden_output);
-            $strobe("  >> Your   Result: %d", out_data);
+            $display("DATA MISMATCH on PATTERN %d, output index %d", i_pat, i);
+            $display("  >> Golden Result: %d", golden_output);
+            $display("  >> Your   Result: %d", out_data);
             YOU_FAIL_task;
             $finish;
         end
@@ -225,18 +233,22 @@ task wait_and_check_output_task; begin
     
     // Skip the blank line in the golden output file
     temp_val = $fscanf(out_fd, "\n");
-end endtask
+end
+endtask
 
-task YOU_FAIL_task; begin
+task YOU_FAIL_task;
+begin
 	$display("\033[31m \033[5m     //   / /     //   ) )     //   ) )     //   ) )     //   ) )\033[0m");
     $display("\033[31m \033[5m    //____       //___/ /     //___/ /     //   / /     //___/ /\033[0m");
     $display("\033[31m \033[5m   / ____       / ___ (      / ___ (      //   / /     / ___ (\033[0m");
     $display("\033[31m \033[5m  //           //   | |     //   | |     //   / /     //   | |\033[0m");
     $display("\033[31m \033[5m //____/ /    //    | |    //    | |    ((___/ /     //    | |\033[0m");
     $finish;
-end endtask
+end
+endtask
 
-task YOU_PASS_task; begin
+task YOU_PASS_task;
+begin
     $display("\033[0;32m \033[5m    //   ) )     // | |     //   ) )     //   ) )\033[m");
     $display("\033[0;32m \033[5m   //___/ /     //__| |    ((           ((\033[m");
     $display("\033[0;32m \033[5m  / ____ /     / ___  |      \\           \\\033[m");
@@ -251,7 +263,8 @@ task YOU_PASS_task; begin
     $fclose(in_fd);
     $fclose(out_fd);
     $finish;
-end endtask
+end
+endtask
 
 
 endmodule

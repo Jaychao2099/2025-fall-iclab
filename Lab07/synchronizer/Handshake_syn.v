@@ -46,24 +46,33 @@ wire dreq;
 reg  dack;
 wire sack;
 
-reg [WIDTH-1:0] left_hand, right_hand;
-reg src_ctrl, dest_ctrl;
+// reg [WIDTH-1:0] left_hand, right_hand;
+// reg src_ctrl, dest_ctrl;
+
+reg [WIDTH-1:0] din_reg;
 
 //---------------------------------------------------------------------
 //   Design      
 //---------------------------------------------------------------------
 
+always @(posedge sclk) begin
+    if (sready) din_reg <= din;
+    else din_reg <= din_reg;
+end
+
 // input dbusy;
 // output reg dvalid;
 always @(posedge dclk or negedge rst_n) begin
-    if (!rst_n) dvalid <= 1'b0;
-    else        dvalid <= (dreq && !dbusy && dack) ? 1'b0 : 1'b1;
+    if      (!rst_n)                 dvalid <= 1'b0;
+    else if (dreq && !dbusy && dack) dvalid <= 1'b1;
+    else                             dvalid <= 1'b0;
 end
 
 // output reg [WIDTH-1:0] dout;
 always @(posedge dclk or negedge rst_n) begin
-    if (!rst_n) dout <= {WIDTH{1'b0}};
-    else        dout <= (dreq && !dbusy) ? din : dout;
+    if      (!rst_n)         dout <= 0;
+    else if (dreq && !dbusy) dout <= din_reg;
+    else                     dout <= dout;
 end
 
 // output sidle;       tell src i'm idle

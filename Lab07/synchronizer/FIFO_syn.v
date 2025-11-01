@@ -48,6 +48,9 @@ wire [WIDTH-1:0] rdata_q;
 wire [$clog2(WORDS):0] wptr;     // 7-bit
 wire [$clog2(WORDS):0] rptr;     // 7-bit
 
+wire [$clog2(WORDS):0] sync_rptr, sync_wptr;     // 7-bit
+// reg  [$clog2(WORDS):0] sync_rptr_reg, sync_wptr_reg;     // 7-bit
+
 //---------------------------------------------------------------------
 //   Design      
 //---------------------------------------------------------------------
@@ -61,17 +64,18 @@ always @(posedge rclk or negedge rst_n) begin
 end
 
 // output wfull;
-assign wfull = ({~w_addr[6], w_addr[5:0]} == r_addr);
+assign wfull = ({~wptr[6], wptr[5:0]} == sync_rptr);
 // output rempty;
-assign rempty = (w_addr == r_addr);
+assign rempty = (sync_wptr == rptr);
 
 // wire wen_a;
-assign wen_a = winc & ~wfull;
+// assign wen_a = ~winc & wfull;
+assign wen_a = ~winc;
 
 // reg [6:0] w_addr
 always @(posedge wclk or negedge rst_n) begin
     if      (!rst_n) w_addr <= 7'd0;
-    else if (wen_a)  w_addr <= w_addr + 7'd1;
+    else if (!wen_a) w_addr <= w_addr + 7'd1;
     else             w_addr <= w_addr;
 end
 
@@ -88,27 +92,25 @@ assign wptr = (w_addr >> 1) ^ w_addr;
 // wire [$clog2(WORDS):0] rptr;     // 7-bit
 assign rptr = (r_addr >> 1) ^ r_addr;
 
-wire [$clog2(WORDS):0] sync_rptr, sync_wptr;     // 7-bit
-reg  [$clog2(WORDS):0] sync_rptr_reg, sync_wptr_reg;     // 7-bit
-
+// wire [$clog2(WORDS):0] sync_rptr, sync_wptr;     // 7-bit
 NDFF_BUS_syn #($clog2(WORDS)+1) ndff_1(.D(rptr), .Q(sync_rptr), .clk(wclk), .rst_n(rst_n));
 NDFF_BUS_syn #($clog2(WORDS)+1) ndff_2(.D(wptr), .Q(sync_wptr), .clk(rclk), .rst_n(rst_n));
 
-// wire [$clog2(WORDS):0] sync_rptr_reg;     // 7-bit
-always @(posedge wclk or negedge rst_n) begin
-    if (!rst_n) sync_rptr_reg <= 7'd0;
-    else        sync_rptr_reg <= sync_rptr;
-end
+// // wire [$clog2(WORDS):0] sync_rptr_reg;     // 7-bit
+// always @(posedge wclk or negedge rst_n) begin
+//     if (!rst_n) sync_rptr_reg <= 7'd0;
+//     else        sync_rptr_reg <= sync_rptr;
+// end
 
-// wire [$clog2(WORDS):0] sync_wptr_reg;     // 7-bit
-always @(posedge rclk or negedge rst_n) begin
-    if (!rst_n) sync_wptr_reg <= 7'd0;
-    else        sync_wptr_reg <= sync_wptr;
-end
+// // wire [$clog2(WORDS):0] sync_wptr_reg;     // 7-bit
+// always @(posedge rclk or negedge rst_n) begin
+//     if (!rst_n) sync_wptr_reg <= 7'd0;
+//     else        sync_wptr_reg <= sync_wptr;
+// end
 
 DUAL_64X16X1BM1 u_dual_sram (
     .CKA(wclk), .CKB(rclk),
-    .WEAN(wen_a), .WEBN(1'b0),
+    .WEAN(wen_a), .WEBN(1'b1),
     
     .CSA(1'b1), .CSB(1'b1),
     .OEA(1'b1), .OEB(1'b1),

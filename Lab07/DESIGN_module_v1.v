@@ -44,11 +44,33 @@ output flag_clk1_to_handshake;      // tell hankshake it's last data packet
 //   Reg / Wire / Parameters DECLARATION          
 //---------------------------------------------------------------------
 
+reg [31:0] input_buffer [0:15];
 reg [3:0] input_cnt;
+reg [4:0] output_cnt;
 
 //---------------------------------------------------------------------
 //   Calculation         
 //---------------------------------------------------------------------
+
+// reg [3:0] input_cnt;
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)   input_cnt <= 4'd0;
+    else if (output_cnt == 5'd16) input_cnt <= 4'd0;
+    else if (input_cnt == 4'd15) input_cnt <= input_cnt;
+    else if (in_valid) input_cnt <= input_cnt + 4'd1;
+end
+
+// reg [31:0] input_buffer [0:16];
+always @(posedge clk) begin
+    if (in_valid) input_buffer[input_cnt] <= in_data;
+end
+
+// reg [4:0] output_cnt;
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)                                     output_cnt <= 5'd0;
+    else if (out_idle && input_cnt > 4'd0 && !out_valid) output_cnt <= output_cnt + 5'd1;
+    else                                                 output_cnt <= output_cnt;
+end
 
 // output reg        out_valid;
 // output reg [31:0] out_data;
@@ -57,9 +79,9 @@ always @(posedge clk or negedge rst_n) begin
         out_valid <= 1'b0;
         out_data  <= 32'b0;
     end
-    else if (out_idle && in_valid) begin     // Handshake idle
+    else if (out_idle && input_cnt > 4'd0 && !out_valid && output_cnt < 5'd16) begin     // Handshake idle
         out_valid <= 1'b1;
-        out_data  <= in_data;
+        out_data  <= input_buffer[output_cnt];
     end
     else begin
         out_valid <= 1'b0;
@@ -67,20 +89,7 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
-// reg [3:0] input_cnt;
-always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)   input_cnt <= 4'd0;
-    else if (in_valid) input_cnt <= input_cnt + 4'd1;
-    else               input_cnt <= 4'd0;
-end
 
-// // output flag_clk1_to_handshake;      // tell hankshake it's last data packet
-// always @(posedge clk) begin
-//     if (sending_data) begin
-//         if (input_cnt == 4'd15) flag_clk1_to_handshake <= 1'b1;
-//         else                    flag_clk1_to_handshake <= 1'b0;
-//     end
-// end
 
 
 endmodule
@@ -132,7 +141,10 @@ parameter S_IDLE   = 2'd0;
 parameter S_INPUT  = 2'd1;
 parameter S_NTT    = 2'd2;
 
-reg [3:0] input_cnt;    // 0~15
+reg in_valid_reg_1, in_valid_reg_2, in_valid_reg_3;
+reg [31:0] in_data_reg_1, in_data_reg_2;
+
+reg [4:0] input_cnt;    // 0~16
 reg [5:0] ntt_cnt;      // 0~56
 reg [6:0] out_cnt;      // 0~127
 
@@ -290,11 +302,11 @@ end
 always @(*) begin
     case (current_state)
         S_IDLE: begin
-            if (in_valid) next_state = S_INPUT;
+            if (in_valid_reg_2) next_state = S_INPUT;
             else          next_state = S_IDLE;
         end
         S_INPUT: begin
-            if (input_cnt == 4'd15) next_state = S_NTT;
+            if (input_cnt == 5'd16) next_state = S_NTT;
             else                    next_state = S_INPUT;
         end
         S_NTT: begin
@@ -307,18 +319,43 @@ end
 
 // -------------------- input --------------------
 
-// reg [3:0] input_cnt;    // 0~15
+// reg in_valid_reg_1, in_valid_reg_2, in_valid_reg_3;
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)   input_cnt <= 4'd0;
-    else if (in_valid) input_cnt <= input_cnt + 4'd1;
-    else               input_cnt <= input_cnt;
+    if (!rst_n) begin
+        in_valid_reg_1 <= 1'b0;
+        in_valid_reg_2 <= 1'b0;
+        in_valid_reg_3 <= 1'b0;
+    end
+    else begin
+        in_valid_reg_1 <= in_valid;
+        in_valid_reg_2 <= in_valid_reg_1;
+        in_valid_reg_3 <= in_valid_reg_2;
+    end
+end
+
+// reg [31:0] in_data_reg_1, in_data_reg_2;
+always @(posedge clk) begin
+    in_data_reg_1 <= in_data;
+    in_data_reg_2 <= in_data_reg_1;
+end
+
+wire true_in_valid;
+
+// wire true_in_valid;
+assign true_in_valid = in_valid_reg_2 & ~in_valid_reg_3;
+
+// reg [4:0] input_cnt;    // 0~16
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)        input_cnt <= 5'd0;
+    else if (true_in_valid) input_cnt <= input_cnt + 5'd1;
+    else                    input_cnt <= input_cnt;
 end
 
 // reg [15:0] ntt_reg [0:127];
 always @(posedge clk) begin
     integer i;
     // -------------------- input --------------------
-    if (in_valid) begin     // shift reg
+    if (true_in_valid) begin     // shift reg
         for (i = 0; i < 8; i = i + 1) begin
             ntt_reg[0*8 + i] <= ntt_reg[1*8 + i];
             ntt_reg[1*8 + i] <= ntt_reg[2*8 + i];
@@ -335,28 +372,8 @@ always @(posedge clk) begin
             ntt_reg[12*8 + i] <= ntt_reg[13*8 + i];
             ntt_reg[13*8 + i] <= ntt_reg[14*8 + i];
             ntt_reg[14*8 + i] <= ntt_reg[15*8 + i];
-            ntt_reg[15*8 + i] <= {12'd0, in_data[i*4 +: 4]};      // <----- input
+            ntt_reg[15*8 + i] <= {12'd0, in_data_reg_2[i*4 +: 4]};      // <----- input
         end
-        // for (i = 0; i < 8; i = i + 1) ntt_reg[input_cnt*8 + i] <= {12'd0, in_data[i*4+3:i*4]};
-        // case (input_cnt)
-        //     0: for (i = 0; i < 8; i = i + 1) ntt_reg[0*8 + i] <= in_data[i*4+3:i*4];
-        //     1: for (i = 0; i < 8; i = i + 1) ntt_reg[1*8 + i] <= in_data[i*4+3:i*4];
-        //     2: for (i = 0; i < 8; i = i + 1) ntt_reg[2*8 + i] <= in_data[i*4+3:i*4];
-        //     3: for (i = 0; i < 8; i = i + 1) ntt_reg[3*8 + i] <= in_data[i*4+3:i*4];
-        //     4: for (i = 0; i < 8; i = i + 1) ntt_reg[4*8 + i] <= in_data[i*4+3:i*4];
-        //     5: for (i = 0; i < 8; i = i + 1) ntt_reg[5*8 + i] <= in_data[i*4+3:i*4];
-        //     6: for (i = 0; i < 8; i = i + 1) ntt_reg[6*8 + i] <= in_data[i*4+3:i*4];
-        //     7: for (i = 0; i < 8; i = i + 1) ntt_reg[7*8 + i] <= in_data[i*4+3:i*4];
-        //     8: for (i = 0; i < 8; i = i + 1) ntt_reg[8*8 + i] <= in_data[i*4+3:i*4];
-        //     9: for (i = 0; i < 8; i = i + 1) ntt_reg[9*8 + i] <= in_data[i*4+3:i*4];
-        //     10: for (i = 0; i < 8; i = i + 1) ntt_reg[10*8 + i] <= in_data[i*4+3:i*4];
-        //     11: for (i = 0; i < 8; i = i + 1) ntt_reg[11*8 + i] <= in_data[i*4+3:i*4];
-        //     12: for (i = 0; i < 8; i = i + 1) ntt_reg[12*8 + i] <= in_data[i*4+3:i*4];
-        //     13: for (i = 0; i < 8; i = i + 1) ntt_reg[13*8 + i] <= in_data[i*4+3:i*4];
-        //     14: for (i = 0; i < 8; i = i + 1) ntt_reg[14*8 + i] <= in_data[i*4+3:i*4];
-        //     15: for (i = 0; i < 8; i = i + 1) ntt_reg[15*8 + i] <= in_data[i*4+3:i*4];
-        //     // default: for (i = 0; i < 128; i = i + 1) ntt_reg[i] <= 32'd0;
-        // endcase
     end
     // -------------------- NTT --------------------
     else if (current_state == S_NTT) begin
@@ -436,7 +453,7 @@ always @(posedge clk) begin
     else                        ntt_cnt <= 9'd0;
 end
 
-// reg [3:0] in_data_reg [0:127];
+// reg [3:0] in_data_reg_2 [0:127];
 // reg [15:0] ntt_reg [0:127];
 
 // reg [15:0] a [0:7], b [0:7];
@@ -596,7 +613,7 @@ module BUTTERFLY (
     input  [15:0] b,       // 16-bit
     input  [13:0] gmb,       // 14-bit  max = 12276 = 10111111110100
     output [15:0] result_a,  // 16-bit
-    output [15:0] result_b,  // 16-bit
+    output [15:0] result_b  // 16-bit
 );
 
 localparam Q = 14'd12289;   // 11000000000001
