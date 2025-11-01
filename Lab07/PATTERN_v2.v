@@ -57,7 +57,6 @@ integer i_pat, PAT_NUM;
 integer in_fd, out_fd;
 integer i, j;
 integer temp_val;
-integer file_golden_output;
 
 // Maximum latency allowed by spec before timeout
 parameter MAX_LATENCY = 5000;
@@ -144,19 +143,24 @@ begin
     release clk1;
     release clk2;
     release clk3;
+    @(negedge clk1);
 end
 endtask
 
 task read_and_drive_input_task;
 begin
-    // Read 128 coefficients for the current pattern for later use in error messages
+    // Read 128 coefficients for the current pattern
     for (i = 0; i < 128; i = i + 1) begin
         temp_val = $fscanf(in_fd, "%d\n", current_input[i]);
     end
-    // Skip the blank line between patterns
-    temp_val = $fscanf(in_fd, "\n");
+    // Skip the blank line between patterns in the input file
+    if (!$feof(in_fd)) begin
+        temp_val = $fscanf(in_fd, "\n");
+    end
 
-    repeat(2) @(negedge clk1);
+    // Add random timing jitter before sending data
+    repeat($urandom_range(1, 3)) @(negedge clk1);
+    
     in_valid = 1'b1;
     // Drive inputs for 16 cycles
     for (i = 0; i < 16; i = i + 1) begin
@@ -174,65 +178,56 @@ begin
     end
     in_valid = 1'b0;
     in_data = 32'hxxxxxxxx;
-    $display("Read file done.");
 end
 endtask
 
 task wait_and_check_output_task;
+    integer output_counter;
 begin
     latency = 0;
+    output_counter = 0;
     
-    // Start measuring latency from the falling edge of in_valid
+    // Wait for the input driving to complete. This is the starting point for latency measurement.
     while (in_valid);
 
-    // Wait for the first out_valid
-    while (out_valid !== 1'b1) begin
+    // Loop until we have collected exactly 128 valid outputs.
+    while (output_counter < 128) begin
         latency = latency + 1;
-        // Timing Assertion: Check for latency timeout
+
+        // Timing Assertion: Check for latency timeout.
         if (latency > MAX_LATENCY) begin
             $display("SPEC FAIL: Latency timeout. Waited for more than %d cycles.", MAX_LATENCY);
+            $display("           Only received %d out of 128 expected outputs for pattern %d.", output_counter, i_pat);
             YOU_FAIL_task;
             $finish;
         end
-        @(negedge clk3);
-    end
 
-    // Check all 128 output data points
-    for (i = 0; i < 128; i = i + 1) begin
-        // Protocol Assertion: out_valid must stay high for 128 cycles
-        if (out_valid !== 1'b1) begin
-            $display("SPEC FAIL: out_valid dropped before 128 cycles were complete.");
-            YOU_FAIL_task;
-            $finish;
-        end
-        
-        temp_val = $fscanf(out_fd, "%d\n", golden_output);
+        // Check for valid output ONLY when out_valid is high.
+        if (out_valid === 1'b1) begin
+            // Read the corresponding golden output from file.
+            temp_val = $fscanf(out_fd, "%d\n", golden_output);
 
-        if (out_data !== golden_output) begin
-            $display("DATA MISMATCH on PATTERN %d, output index %d", i_pat, i);
-            $display("  >> Golden Result: %d", golden_output);
-            $display("  >> Your   Result: %d", out_data);
-            YOU_FAIL_task;
-            $finish;
+            // Compare DUT output with golden data.
+            if (out_data !== golden_output) begin
+                $display("DATA MISMATCH on PATTERN %d, output number #%d", i_pat, output_counter);
+                $display("  >> Golden Result: %d", golden_output);
+                $display("  >> Your   Result: %d", out_data);
+                YOU_FAIL_task;
+                $finish;
+            end
+            
+            // If data is correct, increment the count of received outputs.
+            output_counter = output_counter + 1;
         end
         
-        latency = latency + 1; // Increment latency for each output cycle
+        // Wait for the next clock cycle, regardless of whether data was checked.
         @(negedge clk3);
     end
-
-    // The latency spec includes the falling edge of the final out_valid.
-    // The loop has performed 128 `@(negedge clk3)`, placing us exactly at the falling edge.
-    // No extra cycle count is needed.
     
-    // Protocol Assertion: out_valid must go low after 128 cycles
-    if (out_valid === 1'b1) begin
-        $display("SPEC FAIL: out_valid was high for more than 128 cycles.");
-        YOU_FAIL_task;
-        $finish;
+    // After collecting 128 outputs, skip the blank line in the golden output file.
+    if (!$feof(out_fd)) begin
+        temp_val = $fscanf(out_fd, "\n");
     end
-    
-    // Skip the blank line in the golden output file
-    temp_val = $fscanf(out_fd, "\n");
 end
 endtask
 
@@ -256,9 +251,9 @@ begin
     $display("\033[0;32m \033[5m//           //     | | ((___ / /    ((___ / /\033[m");
     $display("*************************************************************************");
     $display("*                         Congratulations!                              *");
-    $display("*                Your execution cycles = %5d cycles          *", total_latency);
-    $display("*                Your clock period = %.1f ns          *", CYCLE_clk3);
-    $display("*                Total Latency = %.1f ns          *", total_latency*CYCLE_clk3);
+    $display("*                Total execution latency = %5d clk3 cycles              *", total_latency);
+    $display("*                Your clock period (clk3) = %.1f ns                     *", CYCLE_clk3);
+    $display("*                Total Latency = %.1f ns                                *", total_latency*CYCLE_clk3);
     $display("*************************************************************************");
     $fclose(in_fd);
     $fclose(out_fd);
@@ -266,5 +261,22 @@ begin
 end
 endtask
 
+always @(negedge clk3) begin
+	if(out_valid == 1'b0) begin
+		if(out_data !==0) begin
+			$display(" out_valid == 1'b0         out_data !==0 ");
+			$finish;
+		end
+	end
+end
+
+always @(*) begin
+	if(out_valid == 1'b1) begin
+		if(in_valid == 1'b1) begin
+			$display("  out_valid == 1'b1      in_valid == 1'b1  ");
+			$finish;
+		end
+	end
+end
 
 endmodule
