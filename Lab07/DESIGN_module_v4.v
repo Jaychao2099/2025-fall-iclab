@@ -157,7 +157,10 @@ reg [15:0] ntt [0:127], ntt_reg [0:127];
 reg [15:0] a [0:7], b [0:7];
 reg [13:0] gmb [0:7];
 wire [15:0] result_a [0:7], result_b [0:7];
-// Pipeline Registers
+
+reg [5:0] ntt_cnt_d1, ntt_cnt_d2;
+reg [15:0] a_reg [0:7], b_reg [0:7];
+reg [13:0] gmb_reg [0:7];
 reg [15:0] result_a_reg [0:7], result_b_reg [0:7];
 
 // localparam GMb_0 = 4091;
@@ -388,10 +391,10 @@ end
 // -------------------- NTT --------------------
 
 // delay ntt_cnt 
-reg [5:0] ntt_cnt_d1;
-
+// reg [5:0] ntt_cnt_d1, ntt_cnt_d2;
 always @(posedge clk) begin
     ntt_cnt_d1 <= ntt_cnt;
+    ntt_cnt_d2 <= ntt_cnt_d1;
 end
 
 // reg [5:0] ntt_cnt;
@@ -404,7 +407,7 @@ end
 always @(*) begin
     integer i;
     ntt = ntt_reg;
-    case (ntt_cnt_d1)
+    case (ntt_cnt_d2)
         0: for (i = 0; i < 8; i = i + 1) begin ntt[8*0+i] = result_a_reg[i]; ntt[8*(8+0)+i] = result_b_reg[i]; end
         1: for (i = 0; i < 8; i = i + 1) begin ntt[8*1+i] = result_a_reg[i]; ntt[8*(8+1)+i] = result_b_reg[i]; end
         2: for (i = 0; i < 8; i = i + 1) begin ntt[8*2+i] = result_a_reg[i]; ntt[8*(8+2)+i] = result_b_reg[i]; end
@@ -543,6 +546,12 @@ always @(*) begin
     endcase
 end
 
+// reg [15:0] a_reg [0:7], b_reg [0:7];
+always @(posedge clk) begin
+    a_reg <= a;
+    b_reg <= b;
+end
+
 // reg [13:0] gmb [0:7];
 always @(*) begin
     integer i;
@@ -585,10 +594,15 @@ always @(*) begin
     endcase
 end
 
+// reg [13:0] gmb_reg [0:7];
+always @(posedge clk) begin
+    gmb_reg <= gmb;
+end
+
 // wire [15:0] result_a [0:7], result_b [0:7];
 generate
     for (k = 0; k < 8; k = k + 1) begin: modq_gen
-        BUTTERFLY butterfly(.a(a[k]), .b(b[k]), .gmb(gmb[k]), .result_a(result_a[k]), .result_b(result_b[k]));
+        BUTTERFLY butterfly(.a(a_reg[k]), .b(b_reg[k]), .gmb(gmb_reg[k]), .result_a(result_a[k]), .result_b(result_b[k]));
     end
 endgenerate
 
@@ -605,21 +619,21 @@ end
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                                      out_cnt <= 8'd0;
     else if (current_state == S_IDLE)                                     out_cnt <= 8'd0;
-    else if (current_state == S_NTT && ntt_cnt_d1 >= 9'd49 && !fifo_full) out_cnt <= out_cnt + 8'd1;
+    else if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full) out_cnt <= out_cnt + 8'd1;
     else                                                                  out_cnt <= out_cnt;
 end
 
 // output reg out_valid;
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                                      out_valid <= 1'b0;
-    else if (current_state == S_NTT && ntt_cnt_d1 >= 9'd49 && !fifo_full) out_valid <= 1'b1;
+    else if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full) out_valid <= 1'b1;
     else                                                                  out_valid <= 1'b0;
 end
 
 // output reg [15:0] out_data;
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                                                          out_data <= 16'd0;
-    else if (current_state == S_NTT && ntt_cnt_d1 >= 9'd49 && !fifo_full && out_cnt < 8'd128) out_data <= ntt_reg[out_cnt];
+    else if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full && out_cnt < 8'd128) out_data <= ntt_reg[out_cnt];
     else                                                                                      out_data <= out_data;
 end
 
