@@ -74,18 +74,27 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 // output reg        out_valid;
-// output reg [31:0] out_data;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         out_valid <= 1'b0;
-        out_data  <= 32'b0;
     end
     else if (out_idle && input_cnt > 4'd0 && !out_valid && output_cnt < 5'd16) begin     // Handshake idle
         out_valid <= 1'b1;
-        out_data  <= input_buffer[output_cnt];
     end
     else begin
         out_valid <= 1'b0;
+    end
+end
+
+// output reg [31:0] out_data;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        out_data  <= 32'b0;
+    end
+    else if (out_idle && input_cnt > 4'd0 && !out_valid && output_cnt < 5'd16) begin     // Handshake idle
+        out_data  <= input_buffer[output_cnt];
+    end
+    else begin
         out_data  <= 32'd0;
     end
 end
@@ -546,12 +555,6 @@ always @(*) begin
     endcase
 end
 
-// reg [15:0] a_reg [0:7], b_reg [0:7];
-always @(posedge clk) begin
-    a_reg <= a;
-    b_reg <= b;
-end
-
 // reg [13:0] gmb [0:7];
 always @(*) begin
     integer i;
@@ -594,8 +597,11 @@ always @(*) begin
     endcase
 end
 
+// reg [15:0] a_reg [0:7], b_reg [0:7];
 // reg [13:0] gmb_reg [0:7];
 always @(posedge clk) begin
+    a_reg <= a;
+    b_reg <= b;
     gmb_reg <= gmb;
 end
 

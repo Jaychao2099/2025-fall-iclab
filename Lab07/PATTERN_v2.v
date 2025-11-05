@@ -14,6 +14,9 @@
 	`define CYCLE_TIME_clk1 14.1
 	`define CYCLE_TIME_clk2 10.1
 	`define CYCLE_TIME_clk3 20.7
+	// `define CYCLE_TIME_clk3 11.1
+	// `define CYCLE_TIME_clk3 4.1
+	// `define CYCLE_TIME_clk3 3.1
 `endif
 `ifdef GATE
 	`define CYCLE_TIME_clk1 14.1
@@ -90,19 +93,19 @@ initial begin
     in_fd = $fopen("../00_TESTBED/NTT_in.txt", "r");
     out_fd = $fopen("../00_TESTBED/NTT_out.txt", "r");
     if (in_fd === 0 || out_fd === 0) begin
-        $display("FATAL ERROR: Could not open input/output files.");
+        $display("\033[31mFATAL ERROR: Could not open input/output files.\033[0m");
         $finish;
     end
     reset_task;
     temp_val = $fscanf(in_fd, "%d\n", PAT_NUM);
     total_latency = 0;
-	$display(" Start!!, Total patterns = %d", PAT_NUM);
+	$display("\033[32m Start!!, Total patterns = %d\033[0m", PAT_NUM);
     for (i_pat = 0; i_pat < PAT_NUM; i_pat = i_pat + 1) begin
         read_and_drive_input_task;
         wait_and_check_output_task;
 
         total_latency = total_latency + latency;
-        $display("PASS PATTERN NO.%4d, Latency: %4d clk3 cycles", i_pat, latency);
+        $display("\033[32mPASS PATTERN NO.%4d, Latency: %4d clk3 cycles\033[0m", i_pat, latency);
 
         // Add random timing jitter between patterns
         repeat($urandom_range(1, 3)) @(negedge clk1);
@@ -127,11 +130,11 @@ begin
 
     #1;
     rst_n = 1'b0;
-    #1;
+    #100;
 
     // Protocol Assertion: Check if outputs are reset to 0
     if (out_valid !== 1'b0 || out_data !== 16'b0) begin
-        $display("SPEC FAIL: Outputs did not reset to 0 after initial reset.");
+        $display("\033[31mSPEC FAIL: Outputs did not reset to 0 after initial reset.\033[0m");
         YOU_FAIL_task;
         repeat(2) @(negedge clk3);
         $finish;
@@ -196,8 +199,8 @@ begin
 
         // Timing Assertion: Check for latency timeout.
         if (latency > MAX_LATENCY) begin
-            $display("SPEC FAIL: Latency timeout. Waited for more than %d cycles.", MAX_LATENCY);
-            $display("           Only received %d out of 128 expected outputs for pattern %d.", output_counter, i_pat);
+            $display("\033[31mSPEC FAIL: Latency timeout. Waited for more than %d cycles.\033[0m", MAX_LATENCY);
+            $display("\033[31m           Only received %d out of 128 expected outputs for pattern %d.\033[0m", output_counter, i_pat);
             YOU_FAIL_task;
             $finish;
         end
@@ -209,9 +212,9 @@ begin
 
             // Compare DUT output with golden data.
             if (out_data !== golden_output) begin
-                $display("DATA MISMATCH on PATTERN %d, output number #%d", i_pat, output_counter);
-                $display("  >> Golden Result: %d", golden_output);
-                $display("  >> Your   Result: %d", out_data);
+                $display("\033[31mDATA MISMATCH on PATTERN %d, output number #%d\033[0m", i_pat, output_counter);
+                $display("\033[31m  >> Golden Result: %d\033[0m", golden_output);
+                $display("\033[31m  >> Your   Result: %d\033[0m", out_data);
                 YOU_FAIL_task;
                 $finish;
             end
@@ -264,7 +267,7 @@ endtask
 always @(negedge clk3) begin
 	if(out_valid == 1'b0) begin
 		if(out_data !==0) begin
-			$display(" out_valid == 1'b0         out_data !==0 ");
+			$display("\033[31m out_valid == 1'b0         out_data !==0\033[0m");
 			$finish;
 		end
 	end
@@ -273,7 +276,7 @@ end
 always @(*) begin
 	if(out_valid == 1'b1) begin
 		if(in_valid == 1'b1) begin
-			$display("  out_valid == 1'b1      in_valid == 1'b1  ");
+			$display("\033[31m  out_valid == 1'b1      in_valid == 1'b1\033[0m");
 			$finish;
 		end
 	end

@@ -130,7 +130,8 @@ input             in_valid;
 input             fifo_full;
 input      [31:0] in_data;
 
-output reg        out_valid;
+// output reg        out_valid;
+output            out_valid;
 output reg [15:0] out_data;
 output            busy;
 
@@ -621,7 +622,6 @@ end
 
 // -------------------- output --------------------
 
-// reg [7:0] out_cnt;      // 0~128
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                                      out_cnt <= 8'd0;
     else if (current_state == S_IDLE)                                     out_cnt <= 8'd0;
@@ -629,18 +629,25 @@ always @(posedge clk or negedge rst_n) begin
     else                                                                  out_cnt <= out_cnt;
 end
 
-// output reg out_valid;
-always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                                                      out_valid <= 1'b0;
-    else if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full) out_valid <= 1'b1;
-    else                                                                  out_valid <= 1'b0;
-end
+// // output reg out_valid;
+// always @(posedge clk or negedge rst_n) begin
+//     if      (!rst_n)                                                      out_valid <= 1'b0;
+//     else if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full) out_valid <= 1'b1;
+//     else                                                                  out_valid <= 1'b0;
+// end
+
+// comb.
+assign out_valid = (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full) ? 1'b1 : 1'b0;
 
 // output reg [15:0] out_data;
-always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                                                                          out_data <= 16'd0;
-    else if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full && out_cnt < 8'd128) out_data <= ntt_reg[out_cnt];
-    else                                                                                      out_data <= out_data;
+// always @(posedge clk or negedge rst_n) begin
+//     if      (!rst_n)                                                                          out_data <= 16'd0;
+//     else if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full && out_cnt < 8'd128) out_data <= ntt_reg[out_cnt];
+//     else                                                                                      out_data <= out_data;
+// end
+always @(*) begin
+    if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full && out_cnt < 8'd128) out_data = ntt_reg[out_cnt];
+    else                                                                                 out_data = 16'd0;
 end
 
 // output busy;
@@ -703,7 +710,8 @@ input             rst_n;
 input             fifo_empty;
 input      [15:0] fifo_rdata;
 
-output reg        fifo_rinc;
+// output reg        fifo_rinc;
+output            fifo_rinc;
 output reg        out_valid;
 output reg [15:0] out_data;
 
@@ -721,11 +729,14 @@ reg read_request_delayed_1, read_request_delayed_2;
 //   Calculation        
 //---------------------------------------------------------------------
 
-// output reg        fifo_rinc;
-always @(posedge clk) begin
-    if (!fifo_empty) fifo_rinc <= 1'b1;    // request data
-    else             fifo_rinc <= 1'b0;
-end
+// // output reg        fifo_rinc;
+// always @(posedge clk) begin
+//     if (!fifo_empty) fifo_rinc <= 1'b1;    // request data
+//     else             fifo_rinc <= 1'b0;
+// end
+
+// output        fifo_rinc;
+assign fifo_rinc = !fifo_empty;
 
 // reg read_request_delayed_1, read_request_delayed_2;
 always @(posedge clk) begin
@@ -736,16 +747,16 @@ end
 // output reg        out_valid;
 // output reg [15:0] out_data;
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                                           out_valid <= 1'b0;
-    else if (read_request_delayed_2 && read_request_delayed_1) out_valid <= 1'b1;
-    else                                                       out_valid <= 1'b0;
+    if      (!rst_n)                 out_valid <= 1'b0;
+    else if (read_request_delayed_2) out_valid <= 1'b1;
+    else                             out_valid <= 1'b0;
 end
 
 // output reg [15:0] out_data;
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                                           out_data  <= 16'b0;
-    else if (read_request_delayed_2 && read_request_delayed_1) out_data  <= fifo_rdata;
-    else                                                       out_data  <= 16'b0;
+    if      (!rst_n)                 out_data  <= 16'b0;
+    else if (read_request_delayed_2) out_data  <= fifo_rdata;
+    else                             out_data  <= 16'b0;
 end
 
 endmodule

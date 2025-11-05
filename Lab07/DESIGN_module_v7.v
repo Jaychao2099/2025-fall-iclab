@@ -89,13 +89,13 @@ end
 // output reg [31:0] out_data;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        out_data  <= 32'b0;
+        out_data <= 32'b0;
     end
     else if (out_idle && input_cnt > 4'd0 && !out_valid && output_cnt < 5'd16) begin     // Handshake idle
-        out_data  <= input_buffer[output_cnt];
+        out_data <= input_buffer[output_cnt];
     end
     else begin
-        out_data  <= 32'd0;
+        out_data <= out_data;
     end
 end
 
@@ -132,7 +132,7 @@ input      [31:0] in_data;
 
 // output reg        out_valid;
 output            out_valid;
-output reg [15:0] out_data;
+output     [15:0] out_data;
 output            busy;
 
 // You can use the the custom flag ports for your design
@@ -319,7 +319,7 @@ always @(*) begin
     case (current_state)
         S_IDLE: begin
             if (in_valid_reg_2) next_state = S_INPUT;
-            else          next_state = S_IDLE;
+            else                next_state = S_IDLE;
         end
         S_INPUT: begin
             if (input_cnt == 5'd16) next_state = S_NTT;
@@ -645,10 +645,12 @@ assign out_valid = (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full)
 //     else if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full && out_cnt < 8'd128) out_data <= ntt_reg[out_cnt];
 //     else                                                                                      out_data <= out_data;
 // end
-always @(*) begin
-    if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full && out_cnt < 8'd128) out_data = ntt_reg[out_cnt];
-    else                                                                                 out_data = 16'd0;
-end
+// always @(*) begin
+//     if (current_state == S_NTT && ntt_cnt_d2 >= 9'd49 && !fifo_full) out_data = ntt_reg[out_cnt];
+//     else                                                                                 out_data = 16'd0;
+// end
+
+assign out_data = out_valid ? ntt_reg[out_cnt] : 16'd0;
 
 // output busy;
 assign busy = (current_state == S_NTT);

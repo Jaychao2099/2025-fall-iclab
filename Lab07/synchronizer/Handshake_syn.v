@@ -37,8 +37,6 @@ input  flag_clk2_to_handshake;
 //   Reg / Wire / Parameters DECLARATION          
 //---------------------------------------------------------------------
 
-parameter ndff_width = 8;
-
 // Remember:
 //   Don't modify the signal name
 reg  sreq;
@@ -49,16 +47,16 @@ wire sack;
 // reg [WIDTH-1:0] left_hand, right_hand;
 // reg src_ctrl, dest_ctrl;
 
-reg [WIDTH-1:0] din_reg;
+// reg [WIDTH-1:0] din_reg;
 
 //---------------------------------------------------------------------
 //   Design      
 //---------------------------------------------------------------------
 
-always @(posedge sclk) begin
-    if (sready) din_reg <= din;
-    else din_reg <= din_reg;
-end
+// always @(posedge sclk) begin
+//     if (sready) din_reg <= din;
+//     else din_reg <= din_reg;
+// end
 
 // input dbusy;
 // output reg dvalid;
@@ -71,7 +69,7 @@ end
 // output reg [WIDTH-1:0] dout;
 always @(posedge dclk or negedge rst_n) begin
     if      (!rst_n)         dout <= 0;
-    else if (dreq && !dbusy) dout <= din_reg;
+    else if (dreq && !dbusy) dout <= din;
     else                     dout <= dout;
 end
 
@@ -92,9 +90,9 @@ end
 
 // reg  dack;
 always @(posedge dclk or negedge rst_n) begin
-    if      (!rst_n)         dack <= 1'b0;
-    else if (dreq && !dbusy) dack <= 1'b1;
-    else                     dack <= 1'b0;
+    if      (!rst_n)                   dack <= 1'b0;
+    else if (dreq && (!dbusy || dack)) dack <= 1'b1;
+    else                               dack <= 1'b0;
 end
 
 // output Q;

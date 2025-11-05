@@ -174,7 +174,6 @@ begin
     end
     in_valid = 1'b0;
     in_data = 32'hxxxxxxxx;
-    $display("Read file done.");
 end
 endtask
 
@@ -265,6 +264,5 @@ begin
     $finish;
 end
 endtask
-
 
 endmodule

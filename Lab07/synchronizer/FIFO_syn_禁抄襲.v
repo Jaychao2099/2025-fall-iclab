@@ -90,8 +90,7 @@ always @(*) waddr = w_binary_q[5:0];
 //* wfull
 always @(posedge wclk or negedge rst_n) begin
     if  (~rst_n) wfull <= 1'b0;
-    // else wfull <= ( {~wptr_d[6:5],wptr_d[4:0]} == rptr_q ) ? 1'b1 : 1'b0;
-    else wfull <= ( {~wptr_d[6],wptr_d[5:0]} == rptr_q ) ? 1'b1 : 1'b0;
+    else wfull <= ( {~wptr_d[6:5],wptr_d[4:0]} == rptr_q ) ? 1'b1 : 1'b0;
 end
 
 // --------------
@@ -118,13 +117,13 @@ DUAL_64X16X1BM1 u_dual_sram (
     .DIA15(wdata[15]),
 .DOB0(rdata_d[0]),  .DOB1(rdata_d[1]),  .DOB2(rdata_d[2]),  .DOB3(rdata_d[3]),
 .DOB4(rdata_d[4]),  .DOB5(rdata_d[5]),  .DOB6(rdata_d[6]),  .DOB7(rdata_d[7]),
-    .DOB8(rdata_q[8]),
-    .DOB9(rdata_q[9]),
-    .DOB10(rdata_q[10]),
-    .DOB11(rdata_q[11]),
-    .DOB12(rdata_q[12]),
-    .DOB13(rdata_q[13]),
-    .DOB14(rdata_q[14]),
-    .DOB15(rdata_q[15]));
+    .DOB8(rdata_d[8]),
+    .DOB9(rdata_d[9]),
+    .DOB10(rdata_d[10]),
+    .DOB11(rdata_d[11]),
+    .DOB12(rdata_d[12]),
+    .DOB13(rdata_d[13]),
+    .DOB14(rdata_d[14]),
+    .DOB15(rdata_d[15]));
 
 endmodule

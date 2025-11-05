@@ -69,6 +69,7 @@ end
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                     output_cnt <= 5'd0;
     else if (out_idle && input_cnt > 4'd0 && !out_valid) output_cnt <= output_cnt + 5'd1;
+    else if (output_cnt == 5'd16)                        output_cnt <= 5'd0;
     else                                                 output_cnt <= output_cnt;
 end
 
@@ -146,7 +147,7 @@ reg [31:0] in_data_reg_1, in_data_reg_2;
 
 reg [4:0] input_cnt;    // 0~16
 reg [5:0] ntt_cnt;      // 0~56
-reg [6:0] out_cnt;      // 0~127
+reg [7:0] out_cnt;      // 0~128
 
 reg [1:0] current_state;
 reg [1:0] next_state;
@@ -310,7 +311,7 @@ always @(*) begin
             else                    next_state = S_INPUT;
         end
         S_NTT: begin
-            if (out_cnt == 7'd127) next_state = S_IDLE;
+            if (out_cnt == 8'd128) next_state = S_IDLE;
             else                   next_state = S_NTT;
         end
         default: next_state = current_state;
@@ -346,9 +347,10 @@ assign true_in_valid = in_valid_reg_2 & ~in_valid_reg_3;
 
 // reg [4:0] input_cnt;    // 0~16
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)        input_cnt <= 5'd0;
-    else if (true_in_valid) input_cnt <= input_cnt + 5'd1;
-    else                    input_cnt <= input_cnt;
+    if      (!rst_n)             input_cnt <= 5'd0;
+    else if (true_in_valid)      input_cnt <= input_cnt + 5'd1;
+    else if (input_cnt == 5'd16) input_cnt <= 5'd0;
+    else                         input_cnt <= input_cnt;
 end
 
 // reg [15:0] ntt_reg [0:127];
@@ -387,17 +389,17 @@ always @(posedge clk) begin
             6: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*6+i] <= result_a[i]; ntt_reg[8*(8+6)+i] <= result_b[i]; end
             7: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*7+i] <= result_a[i]; ntt_reg[8*(8+7)+i] <= result_b[i]; end
 
-            8:  for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*0+i] <= result_a[i]; ntt_reg[8*(4+0)+i] <= result_b[i]; end
-            9:  for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*1+i] <= result_a[i]; ntt_reg[8*(4+1)+i] <= result_b[i]; end
-            10: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*2+i] <= result_a[i]; ntt_reg[8*(4+2)+i] <= result_b[i]; end
-            11: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*3+i] <= result_a[i]; ntt_reg[8*(4+3)+i] <= result_b[i]; end
+            8:  for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*0+i]    <= result_a[i]; ntt_reg[8*(4+0)+i]    <= result_b[i]; end
+            9:  for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*1+i]    <= result_a[i]; ntt_reg[8*(4+1)+i]    <= result_b[i]; end
+            10: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*2+i]    <= result_a[i]; ntt_reg[8*(4+2)+i]    <= result_b[i]; end
+            11: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*3+i]    <= result_a[i]; ntt_reg[8*(4+3)+i]    <= result_b[i]; end
             12: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*0+i+64] <= result_a[i]; ntt_reg[8*(4+0)+i+64] <= result_b[i]; end
             13: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*1+i+64] <= result_a[i]; ntt_reg[8*(4+1)+i+64] <= result_b[i]; end
             14: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*2+i+64] <= result_a[i]; ntt_reg[8*(4+2)+i+64] <= result_b[i]; end
             15: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*3+i+64] <= result_a[i]; ntt_reg[8*(4+3)+i+64] <= result_b[i]; end
 
-            16: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*0+i] <= result_a[i]; ntt_reg[8*(2+0)+i] <= result_b[i]; end
-            17: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*1+i] <= result_a[i]; ntt_reg[8*(2+1)+i] <= result_b[i]; end
+            16: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*0+i]    <= result_a[i]; ntt_reg[8*(2+0)+i]    <= result_b[i]; end
+            17: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*1+i]    <= result_a[i]; ntt_reg[8*(2+1)+i]    <= result_b[i]; end
             18: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*0+i+32] <= result_a[i]; ntt_reg[8*(2+0)+i+32] <= result_b[i]; end
             19: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*1+i+32] <= result_a[i]; ntt_reg[8*(2+1)+i+32] <= result_b[i]; end
             20: for (i = 0; i < 8; i = i + 1) begin ntt_reg[8*0+i+64] <= result_a[i]; ntt_reg[8*(2+0)+i+64] <= result_b[i]; end
@@ -414,28 +416,28 @@ always @(posedge clk) begin
             30: for (i = 0; i < 8; i = i + 1) begin ntt_reg[i+16*6] <= result_a[i]; ntt_reg[8+i+16*6] <= result_b[i]; end
             31: for (i = 0; i < 8; i = i + 1) begin ntt_reg[i+16*7] <= result_a[i]; ntt_reg[8+i+16*7] <= result_b[i]; end
 
-            32: for (i = 0; i < 8; i = i + 1) begin ntt_reg[0+i*8] <= result_a[i]; ntt_reg[4+i*8] <= result_b[i]; end
-            33: for (i = 0; i < 8; i = i + 1) begin ntt_reg[1+i*8] <= result_a[i]; ntt_reg[5+i*8] <= result_b[i]; end
-            34: for (i = 0; i < 8; i = i + 1) begin ntt_reg[2+i*8] <= result_a[i]; ntt_reg[6+i*8] <= result_b[i]; end
-            35: for (i = 0; i < 8; i = i + 1) begin ntt_reg[3+i*8] <= result_a[i]; ntt_reg[7+i*8] <= result_b[i]; end
+            32: for (i = 0; i < 8; i = i + 1) begin ntt_reg[0+i*8]    <= result_a[i]; ntt_reg[4+i*8]    <= result_b[i]; end
+            33: for (i = 0; i < 8; i = i + 1) begin ntt_reg[1+i*8]    <= result_a[i]; ntt_reg[5+i*8]    <= result_b[i]; end
+            34: for (i = 0; i < 8; i = i + 1) begin ntt_reg[2+i*8]    <= result_a[i]; ntt_reg[6+i*8]    <= result_b[i]; end
+            35: for (i = 0; i < 8; i = i + 1) begin ntt_reg[3+i*8]    <= result_a[i]; ntt_reg[7+i*8]    <= result_b[i]; end
             36: for (i = 0; i < 8; i = i + 1) begin ntt_reg[0+i*8+64] <= result_a[i]; ntt_reg[4+i*8+64] <= result_b[i]; end
             37: for (i = 0; i < 8; i = i + 1) begin ntt_reg[1+i*8+64] <= result_a[i]; ntt_reg[5+i*8+64] <= result_b[i]; end
             38: for (i = 0; i < 8; i = i + 1) begin ntt_reg[2+i*8+64] <= result_a[i]; ntt_reg[6+i*8+64] <= result_b[i]; end
             39: for (i = 0; i < 8; i = i + 1) begin ntt_reg[3+i*8+64] <= result_a[i]; ntt_reg[7+i*8+64] <= result_b[i]; end
 
-            40: for (i = 0; i < 8; i = i + 1) begin ntt_reg[0+i*8] <= result_a[i]; ntt_reg[2+i*8] <= result_b[i]; end
-            41: for (i = 0; i < 8; i = i + 1) begin ntt_reg[1+i*8] <= result_a[i]; ntt_reg[3+i*8] <= result_b[i]; end
-            42: for (i = 0; i < 8; i = i + 1) begin ntt_reg[4+i*8] <= result_a[i]; ntt_reg[6+i*8] <= result_b[i]; end
-            43: for (i = 0; i < 8; i = i + 1) begin ntt_reg[5+i*8] <= result_a[i]; ntt_reg[7+i*8] <= result_b[i]; end
+            40: for (i = 0; i < 8; i = i + 1) begin ntt_reg[0+i*8]    <= result_a[i]; ntt_reg[2+i*8]    <= result_b[i]; end
+            41: for (i = 0; i < 8; i = i + 1) begin ntt_reg[1+i*8]    <= result_a[i]; ntt_reg[3+i*8]    <= result_b[i]; end
+            42: for (i = 0; i < 8; i = i + 1) begin ntt_reg[4+i*8]    <= result_a[i]; ntt_reg[6+i*8]    <= result_b[i]; end
+            43: for (i = 0; i < 8; i = i + 1) begin ntt_reg[5+i*8]    <= result_a[i]; ntt_reg[7+i*8]    <= result_b[i]; end
             44: for (i = 0; i < 8; i = i + 1) begin ntt_reg[0+i*8+64] <= result_a[i]; ntt_reg[2+i*8+64] <= result_b[i]; end
             45: for (i = 0; i < 8; i = i + 1) begin ntt_reg[1+i*8+64] <= result_a[i]; ntt_reg[3+i*8+64] <= result_b[i]; end
             46: for (i = 0; i < 8; i = i + 1) begin ntt_reg[4+i*8+64] <= result_a[i]; ntt_reg[6+i*8+64] <= result_b[i]; end
-            47: for (i = 0; i < 8; i = i + 1) begin ntt_reg[6+i*8+64] <= result_a[i]; ntt_reg[7+i*8+64] <= result_b[i]; end
+            47: for (i = 0; i < 8; i = i + 1) begin ntt_reg[5+i*8+64] <= result_a[i]; ntt_reg[7+i*8+64] <= result_b[i]; end
 
-            48: for (i = 0; i < 8; i = i + 1) begin ntt_reg[0+i*8] <= result_a[i]; ntt_reg[1+i*8] <= result_b[i]; end
-            49: for (i = 0; i < 8; i = i + 1) begin ntt_reg[2+i*8] <= result_a[i]; ntt_reg[3+i*8] <= result_b[i]; end
-            50: for (i = 0; i < 8; i = i + 1) begin ntt_reg[4+i*8] <= result_a[i]; ntt_reg[5+i*8] <= result_b[i]; end
-            51: for (i = 0; i < 8; i = i + 1) begin ntt_reg[6+i*8] <= result_a[i]; ntt_reg[7+i*8] <= result_b[i]; end
+            48: for (i = 0; i < 8; i = i + 1) begin ntt_reg[0+i*8]    <= result_a[i]; ntt_reg[1+i*8]    <= result_b[i]; end
+            49: for (i = 0; i < 8; i = i + 1) begin ntt_reg[2+i*8]    <= result_a[i]; ntt_reg[3+i*8]    <= result_b[i]; end
+            50: for (i = 0; i < 8; i = i + 1) begin ntt_reg[4+i*8]    <= result_a[i]; ntt_reg[5+i*8]    <= result_b[i]; end
+            51: for (i = 0; i < 8; i = i + 1) begin ntt_reg[6+i*8]    <= result_a[i]; ntt_reg[7+i*8]    <= result_b[i]; end
             52: for (i = 0; i < 8; i = i + 1) begin ntt_reg[0+i*8+64] <= result_a[i]; ntt_reg[1+i*8+64] <= result_b[i]; end
             53: for (i = 0; i < 8; i = i + 1) begin ntt_reg[2+i*8+64] <= result_a[i]; ntt_reg[3+i*8+64] <= result_b[i]; end
             54: for (i = 0; i < 8; i = i + 1) begin ntt_reg[4+i*8+64] <= result_a[i]; ntt_reg[5+i*8+64] <= result_b[i]; end
@@ -474,17 +476,17 @@ always @(*) begin
             6: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*6+i]; b[i] = ntt_reg[8*(8+6)+i]; end
             7: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*7+i]; b[i] = ntt_reg[8*(8+7)+i]; end
 
-            8:  for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*0+i]; b[i] = ntt_reg[8*(4+0)+i]; end
-            9:  for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*1+i]; b[i] = ntt_reg[8*(4+1)+i]; end
-            10: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*2+i]; b[i] = ntt_reg[8*(4+2)+i]; end
-            11: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*3+i]; b[i] = ntt_reg[8*(4+3)+i]; end
+            8:  for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*0+i];    b[i] = ntt_reg[8*(4+0)+i]; end
+            9:  for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*1+i];    b[i] = ntt_reg[8*(4+1)+i]; end
+            10: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*2+i];    b[i] = ntt_reg[8*(4+2)+i]; end
+            11: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*3+i];    b[i] = ntt_reg[8*(4+3)+i]; end
             12: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*0+i+64]; b[i] = ntt_reg[8*(4+0)+i+64]; end
             13: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*1+i+64]; b[i] = ntt_reg[8*(4+1)+i+64]; end
             14: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*2+i+64]; b[i] = ntt_reg[8*(4+2)+i+64]; end
             15: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*3+i+64]; b[i] = ntt_reg[8*(4+3)+i+64]; end
 
-            16: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*0+i]; b[i] = ntt_reg[8*(2+0)+i]; end
-            17: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*1+i]; b[i] = ntt_reg[8*(2+1)+i]; end
+            16: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*0+i];    b[i] = ntt_reg[8*(2+0)+i]; end
+            17: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*1+i];    b[i] = ntt_reg[8*(2+1)+i]; end
             18: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*0+i+32]; b[i] = ntt_reg[8*(2+0)+i+32]; end
             19: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*1+i+32]; b[i] = ntt_reg[8*(2+1)+i+32]; end
             20: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[8*0+i+64]; b[i] = ntt_reg[8*(2+0)+i+64]; end
@@ -501,28 +503,28 @@ always @(*) begin
             30: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[i+16*6]; b[i] = ntt_reg[8+i+16*6]; end
             31: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[i+16*7]; b[i] = ntt_reg[8+i+16*7]; end
 
-            32: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[0+i*8]; b[i] = ntt_reg[4+i*8]; end
-            33: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[1+i*8]; b[i] = ntt_reg[5+i*8]; end
-            34: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[2+i*8]; b[i] = ntt_reg[6+i*8]; end
-            35: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[3+i*8]; b[i] = ntt_reg[7+i*8]; end
+            32: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[0+i*8];    b[i] = ntt_reg[4+i*8]; end
+            33: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[1+i*8];    b[i] = ntt_reg[5+i*8]; end
+            34: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[2+i*8];    b[i] = ntt_reg[6+i*8]; end
+            35: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[3+i*8];    b[i] = ntt_reg[7+i*8]; end
             36: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[0+i*8+64]; b[i] = ntt_reg[4+i*8+64]; end
             37: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[1+i*8+64]; b[i] = ntt_reg[5+i*8+64]; end
             38: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[2+i*8+64]; b[i] = ntt_reg[6+i*8+64]; end
             39: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[3+i*8+64]; b[i] = ntt_reg[7+i*8+64]; end
 
-            40: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[0+i*8]; b[i] = ntt_reg[2+i*8]; end
-            41: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[1+i*8]; b[i] = ntt_reg[3+i*8]; end
-            42: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[4+i*8]; b[i] = ntt_reg[6+i*8]; end
-            43: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[5+i*8]; b[i] = ntt_reg[7+i*8]; end
+            40: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[0+i*8];    b[i] = ntt_reg[2+i*8]; end
+            41: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[1+i*8];    b[i] = ntt_reg[3+i*8]; end
+            42: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[4+i*8];    b[i] = ntt_reg[6+i*8]; end
+            43: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[5+i*8];    b[i] = ntt_reg[7+i*8]; end
             44: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[0+i*8+64]; b[i] = ntt_reg[2+i*8+64]; end
             45: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[1+i*8+64]; b[i] = ntt_reg[3+i*8+64]; end
             46: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[4+i*8+64]; b[i] = ntt_reg[6+i*8+64]; end
-            47: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[6+i*8+64]; b[i] = ntt_reg[7+i*8+64]; end
+            47: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[5+i*8+64]; b[i] = ntt_reg[7+i*8+64]; end
 
-            48: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[0+i*8]; b[i] = ntt_reg[1+i*8]; end
-            49: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[2+i*8]; b[i] = ntt_reg[3+i*8]; end
-            50: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[4+i*8]; b[i] = ntt_reg[5+i*8]; end
-            51: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[6+i*8]; b[i] = ntt_reg[7+i*8]; end
+            48: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[0+i*8];    b[i] = ntt_reg[1+i*8]; end
+            49: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[2+i*8];    b[i] = ntt_reg[3+i*8]; end
+            50: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[4+i*8];    b[i] = ntt_reg[5+i*8]; end
+            51: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[6+i*8];    b[i] = ntt_reg[7+i*8]; end
             52: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[0+i*8+64]; b[i] = ntt_reg[1+i*8+64]; end
             53: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[2+i*8+64]; b[i] = ntt_reg[3+i*8+64]; end
             54: for (i = 0; i < 8; i = i + 1) begin a[i] = ntt_reg[4+i*8+64]; b[i] = ntt_reg[5+i*8+64]; end
@@ -553,20 +555,25 @@ always @(*) begin
             29:                     for (i = 0; i < 8; i = i + 1) gmb[i] = GMb_13;
             30:                     for (i = 0; i < 8; i = i + 1) gmb[i] = GMb_14;
             31:                     for (i = 0; i < 8; i = i + 1) gmb[i] = GMb_15;
-            32, 33, 34, 35: begin gmb[0] = GMb_16; gmb[1] = GMb_17; gmb[2] = GMb_18; gmb[3] = GMb_19; gmb[4] = GMb_20; gmb[5] = GMb_21; gmb[6] = GMb_22; gmb[7] = GMb_23; end
-            36, 37, 38, 39: begin gmb[0] = GMb_24; gmb[1] = GMb_25; gmb[2] = GMb_26; gmb[3] = GMb_27; gmb[4] = GMb_28; gmb[5] = GMb_29; gmb[6] = GMb_30; gmb[7] = GMb_31; end
-            40, 41: begin gmb[0] = GMb_32; gmb[1] = GMb_34; gmb[2] = GMb_36; gmb[3] = GMb_38; gmb[4] = GMb_40; gmb[5] = GMb_42; gmb[6] = GMb_44; gmb[7] = GMb_46; end
-            42, 43: begin gmb[0] = GMb_33; gmb[1] = GMb_35; gmb[2] = GMb_37; gmb[3] = GMb_39; gmb[4] = GMb_41; gmb[5] = GMb_43; gmb[6] = GMb_45; gmb[7] = GMb_47; end
-            44, 45: begin gmb[0] = GMb_48; gmb[1] = GMb_50; gmb[2] = GMb_52; gmb[3] = GMb_54; gmb[4] = GMb_56; gmb[5] = GMb_58; gmb[6] = GMb_60; gmb[7] = GMb_62; end
-            46, 47: begin gmb[0] = GMb_49; gmb[1] = GMb_51; gmb[2] = GMb_53; gmb[3] = GMb_55; gmb[4] = GMb_57; gmb[5] = GMb_59; gmb[6] = GMb_61; gmb[7] = GMb_63; end
-            48: begin gmb[0] = GMb_64; gmb[1] = GMb_68; gmb[2] = GMb_72; gmb[3] = GMb_76; gmb[4] = GMb_80; gmb[5] = GMb_84; gmb[6] = GMb_88; gmb[7] = GMb_92; end
-            49: begin gmb[0] = GMb_65; gmb[1] = GMb_69; gmb[2] = GMb_73; gmb[3] = GMb_77; gmb[4] = GMb_81; gmb[5] = GMb_85; gmb[6] = GMb_89; gmb[7] = GMb_93; end
-            50: begin gmb[0] = GMb_66; gmb[1] = GMb_70; gmb[2] = GMb_74; gmb[3] = GMb_78; gmb[4] = GMb_82; gmb[5] = GMb_86; gmb[6] = GMb_90; gmb[7] = GMb_94; end
-            51: begin gmb[0] = GMb_67; gmb[1] = GMb_71; gmb[2] = GMb_75; gmb[3] = GMb_79; gmb[4] = GMb_83; gmb[5] = GMb_87; gmb[6] = GMb_91; gmb[7] = GMb_95; end
-            52: begin gmb[0] = GMb_96; gmb[1] = GMb_100; gmb[2] = GMb_104; gmb[3] = GMb_108; gmb[4] = GMb_112; gmb[5] = GMb_116; gmb[6] = GMb_120; gmb[7] = GMb_124; end
-            53: begin gmb[0] = GMb_97; gmb[1] = GMb_101; gmb[2] = GMb_105; gmb[3] = GMb_109; gmb[4] = GMb_113; gmb[5] = GMb_117; gmb[6] = GMb_121; gmb[7] = GMb_125; end
-            54: begin gmb[0] = GMb_98; gmb[1] = GMb_102; gmb[2] = GMb_106; gmb[3] = GMb_110; gmb[4] = GMb_114; gmb[5] = GMb_118; gmb[6] = GMb_122; gmb[7] = GMb_126; end
-            55: begin gmb[0] = GMb_99; gmb[1] = GMb_103; gmb[2] = GMb_107; gmb[3] = GMb_111; gmb[4] = GMb_115; gmb[5] = GMb_119; gmb[6] = GMb_123; gmb[7] = GMb_127; end
+            32, 33, 34, 35: begin gmb[0] = GMb_16; gmb[1] = GMb_17;  gmb[2] = GMb_18;  gmb[3] = GMb_19;  gmb[4] = GMb_20;  gmb[5] = GMb_21;  gmb[6] = GMb_22;  gmb[7] = GMb_23; end
+            
+            36, 37, 38, 39: begin gmb[0] = GMb_24; gmb[1] = GMb_25;  gmb[2] = GMb_26;  gmb[3] = GMb_27;  gmb[4] = GMb_28;  gmb[5] = GMb_29;  gmb[6] = GMb_30;  gmb[7] = GMb_31; end
+
+            40, 41:         begin gmb[0] = GMb_32; gmb[1] = GMb_34;  gmb[2] = GMb_36;  gmb[3] = GMb_38;  gmb[4] = GMb_40;  gmb[5] = GMb_42;  gmb[6] = GMb_44;  gmb[7] = GMb_46; end
+            42, 43:         begin gmb[0] = GMb_33; gmb[1] = GMb_35;  gmb[2] = GMb_37;  gmb[3] = GMb_39;  gmb[4] = GMb_41;  gmb[5] = GMb_43;  gmb[6] = GMb_45;  gmb[7] = GMb_47; end
+            
+            44, 45:         begin gmb[0] = GMb_48; gmb[1] = GMb_50;  gmb[2] = GMb_52;  gmb[3] = GMb_54;  gmb[4] = GMb_56;  gmb[5] = GMb_58;  gmb[6] = GMb_60;  gmb[7] = GMb_62; end
+            46, 47:         begin gmb[0] = GMb_49; gmb[1] = GMb_51;  gmb[2] = GMb_53;  gmb[3] = GMb_55;  gmb[4] = GMb_57;  gmb[5] = GMb_59;  gmb[6] = GMb_61;  gmb[7] = GMb_63; end
+            
+            48:             begin gmb[0] = GMb_64; gmb[1] = GMb_68;  gmb[2] = GMb_72;  gmb[3] = GMb_76;  gmb[4] = GMb_80;  gmb[5] = GMb_84;  gmb[6] = GMb_88;  gmb[7] = GMb_92; end
+            49:             begin gmb[0] = GMb_65; gmb[1] = GMb_69;  gmb[2] = GMb_73;  gmb[3] = GMb_77;  gmb[4] = GMb_81;  gmb[5] = GMb_85;  gmb[6] = GMb_89;  gmb[7] = GMb_93; end
+            50:             begin gmb[0] = GMb_66; gmb[1] = GMb_70;  gmb[2] = GMb_74;  gmb[3] = GMb_78;  gmb[4] = GMb_82;  gmb[5] = GMb_86;  gmb[6] = GMb_90;  gmb[7] = GMb_94; end
+            51:             begin gmb[0] = GMb_67; gmb[1] = GMb_71;  gmb[2] = GMb_75;  gmb[3] = GMb_79;  gmb[4] = GMb_83;  gmb[5] = GMb_87;  gmb[6] = GMb_91;  gmb[7] = GMb_95; end
+            
+            52:             begin gmb[0] = GMb_96; gmb[1] = GMb_100; gmb[2] = GMb_104; gmb[3] = GMb_108; gmb[4] = GMb_112; gmb[5] = GMb_116; gmb[6] = GMb_120; gmb[7] = GMb_124; end
+            53:             begin gmb[0] = GMb_97; gmb[1] = GMb_101; gmb[2] = GMb_105; gmb[3] = GMb_109; gmb[4] = GMb_113; gmb[5] = GMb_117; gmb[6] = GMb_121; gmb[7] = GMb_125; end
+            54:             begin gmb[0] = GMb_98; gmb[1] = GMb_102; gmb[2] = GMb_106; gmb[3] = GMb_110; gmb[4] = GMb_114; gmb[5] = GMb_118; gmb[6] = GMb_122; gmb[7] = GMb_126; end
+            55:             begin gmb[0] = GMb_99; gmb[1] = GMb_103; gmb[2] = GMb_107; gmb[3] = GMb_111; gmb[4] = GMb_115; gmb[5] = GMb_119; gmb[6] = GMb_123; gmb[7] = GMb_127; end
         endcase
     end
 end
@@ -580,11 +587,11 @@ endgenerate
 
 // -------------------- output --------------------
 
-// reg [6:0] out_cnt;      // 0~127
+// reg [7:0] out_cnt;      // 0~128
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                                                   out_cnt <= 7'd0;
-    else if (current_state == S_IDLE)                                  out_cnt <= 7'd0;
-    else if (current_state == S_NTT && ntt_cnt >= 9'd49 && !fifo_full) out_cnt <= out_cnt + 7'd1;
+    if      (!rst_n)                                                   out_cnt <= 8'd0;
+    else if (current_state == S_IDLE)                                  out_cnt <= 8'd0;
+    else if (current_state == S_NTT && ntt_cnt >= 9'd49 && !fifo_full) out_cnt <= out_cnt + 8'd1;
     else                                                               out_cnt <= out_cnt;
 end
 
@@ -597,9 +604,12 @@ end
 
 // output reg [15:0] out_data;
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                                                   out_data <= 16'd0;
-    else if (current_state == S_NTT && ntt_cnt >= 9'd49 && !fifo_full) out_data <= ntt_reg[out_cnt];
-    else                                                               out_data <= out_data;
+    if      (!rst_n)          out_data <= 16'd0;
+    else if (current_state == S_NTT && 
+             ntt_cnt >= 9'd49 && 
+             !fifo_full && 
+             out_cnt < 8'd128) out_data <= ntt_reg[out_cnt];
+    else                      out_data <= out_data;
 end
 
 // output busy;
@@ -619,16 +629,15 @@ module BUTTERFLY (
 localparam Q = 14'd12289;   // 11000000000001
 localparam Q0I = 14'd12287;
 
-wire [13:0] b_modq;
-
-wire [29:0] x_;   // 28-bit, b*gmb, 804,507,660, 30'b101111111100111101000000001100
+wire [29:0] x_;   // 30-bit, b*gmb, 804,507,660, 30'b101111111100111101000000001100 1000001011100011001110101100
 wire [15:0] y_;   // 16-bit, 65535
-// wire [29:0] t;    // 30-bit, y * Q, 804,507,660, 30'b101111111100111101000000001100
-wire [13:0] z_;   // 14-bit
+// wire [30:0] t;    // 31-bit, y * Q, 1,610,731,519, 31'b1100000000000011100111111111111
+wire [15:0] z_;   // 16-bit
+wire [15:0] b_modq;
 
 assign x_ = b * gmb;
 assign y_ = (x_ * Q0I);     // (...)%(2^16)   // 16-bit
-assign z_ = ({1'b0, x_} + y_ * Q) >> 16; // (...)/(2^16)   // 15-bit
+assign z_ = ({2'b0, x_} + y_ * Q) >> 16; // (...)/(2^16)   // 32-bit ---> 16-bit
 assign b_modq = (z_ < Q) ? z_ : (z_ - Q);
 
 assign result_a = (a + b_modq) % Q;
@@ -670,7 +679,7 @@ output flag_clk3_to_fifo;
 //   Reg / Wire / Parameters DECLARATION          
 //---------------------------------------------------------------------
 
-reg read_request_delayed;
+reg read_request_delayed_1, read_request_delayed_2;
 
 //---------------------------------------------------------------------
 //   Calculation        
@@ -682,29 +691,25 @@ always @(posedge clk) begin
     else             fifo_rinc <= 1'b0;
 end
 
-// reg read_request_delayed;
+// reg read_request_delayed_1, read_request_delayed_2;
 always @(posedge clk) begin
-    read_request_delayed <= fifo_rinc;
+    read_request_delayed_1 <= fifo_rinc;
+    read_request_delayed_2 <= read_request_delayed_1;
 end
 
 // output reg        out_valid;
 // output reg [15:0] out_data;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-        out_valid <= 1'b0;
-        out_data  <= 16'b0;
-    end
-    else if (read_request_delayed) begin
-        out_valid <= 1'b1;
-        out_data  <= fifo_rdata;
-    end
-    else begin
-        out_valid <= 1'b0;
-        out_data  <= 16'b0;
-    end
+    if      (!rst_n)                                           out_valid <= 1'b0;
+    else if (read_request_delayed_2 && read_request_delayed_1) out_valid <= 1'b1;
+    else                                                       out_valid <= 1'b0;
 end
 
-
-
+// output reg [15:0] out_data;
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)                                           out_data  <= 16'b0;
+    else if (read_request_delayed_2 && read_request_delayed_1) out_data  <= fifo_rdata;
+    else                                                       out_data  <= 16'b0;
+end
 
 endmodule

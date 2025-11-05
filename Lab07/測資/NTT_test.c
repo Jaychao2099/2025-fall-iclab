@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <time.h>
 
 #define Q   12289   // 14'b11000000000001
 #define Q0I 12287   // 14'b10111111111111
@@ -148,28 +149,21 @@ uint32_t modq_mul(uint32_t a, uint32_t b) {
 }
 
 void NTT(uint32_t *array) {     // 4-bit
-    // int t = 128;
     for (int m = 1, ht = 64; m < 128; m <<= 1, ht >>= 1) {
         for (int i = 0, j_1 = 0; i < m; i++, j_1 += (ht << 1)) {
             uint32_t s = GMb[m+i];  // 14-bit
-            // printf("GMb[%d]\n", m+i);
-            // int j_2 = j_1 + ht;
             for (int j = j_1; j < j_1 + ht; j++) {
-                uint32_t u = array[j];                      // 4-bit
+                uint32_t u = array[j];                      // 16-bit
                 uint32_t v = modq_mul(array[j + ht], s);    // 14-bit, 12288, 14'b11000000000000
                 array[j]      = (u + v) % Q;
-                // array[j + ht] = (u - v) % Q;
                 array[j + ht] = (u >= v) ? (u - v) : ((u + Q) - v); // (u - v) % Q;
-                // printf("%d, %d\n", j, j + ht);
             }
-            // printf("\n");
         }
-        // printf("\n");
     }
 }
 
 int main(int argc, char **argv) {
-    int pattern_num = 10;
+    int pattern_num = 10000;
     if (argc == 2) pattern_num = atoi(argv[1]);
 
     FILE *fp = fopen("NTT_in.txt", "w");
