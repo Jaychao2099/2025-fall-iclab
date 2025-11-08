@@ -68,7 +68,6 @@ genvar k;
 //           reg & wire declaration             //
 //==============================================//
 
-
 reg [8:0] cnt_clk, next_cnt_clk;  // 0 ~ 307 (9 bits)
 reg [6:0] handle_cycles_t8;   // 1*8 or 4*8 or 8*8 = 8 ~ 64
 reg [6:0] handle_cycles_tt;   // 1*1 or 4*4 or 8*8 = 1 ~ 64
@@ -134,8 +133,7 @@ reg signed [53:0] mult_b_z [0:7];
 
 reg signed [24:0] mult_f_a;
 reg signed [53:0] mult_f_b;
-// reg signed [91:0] mult_f_z;
-reg signed [77:0] mult_f_z;
+reg signed [91:0] mult_f_z;
 
 reg signed [18:0] Q_reg [0:63], K_reg [0:63], V_reg [0:63];     // 19-bit
 
@@ -148,7 +146,6 @@ reg signed [18:0] Q_reg [0:63], K_reg [0:63], V_reg [0:63];     // 19-bit
 //==============================================//
 //                  design                      //
 //==============================================//
-
 
 // reg [8:0] cnt_clk;  // 0 ~ 307 (9 bits)
 always @(posedge clk or negedge rst_n) begin
@@ -791,8 +788,7 @@ endgenerate
 // reg signed [24:0] mult_f_a;
 // reg signed [53:0] mult_f_b;
 // reg signed [91:0] mult_f_z;
-// MULT #(25, 54, 92) mult_final (.a(mult_f_a), .b(mult_f_b), .z(mult_f_z));
-MULT #(25, 54, 78) mult_final (.a(mult_f_a), .b(mult_f_b), .z(mult_f_z));
+MULT #(25, 54, 92) mult_final (.a(mult_f_a), .b(mult_f_b), .z(mult_f_z));
 
 
 // -------------- output --------------
@@ -808,7 +804,7 @@ end
 
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                            out_data <= 92'd0;
-    else if (cnt_clk >= out_start_cycle && cnt_clk < end_cycle) out_data <= {{14{mult_f_z[77]}}, mult_f_z};
+    else if (cnt_clk >= out_start_cycle && cnt_clk < end_cycle) out_data <= mult_f_z;
     else                                                        out_data <= 92'd0;
 end
 
