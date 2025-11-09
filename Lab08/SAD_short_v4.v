@@ -132,14 +132,14 @@ reg signed [7:0]  mult_s2_b [0:7];
 reg signed [15:0] mult_s2_z [0:7];
 
 reg signed [18:0] mult_b_a [0:7];
-reg signed [36:0] mult_b_b [0:7];
+wire signed [36:0] mult_b_b [0:7];
 reg signed [53:0] mult_b_z [0:7];
 
 reg signed [24:0] mult_f_a;
 reg signed [53:0] mult_f_b;
 reg signed [91:0] mult_f_z;
 
-wire signed [18:0] Q_reg [0:63], K_reg [0:63], V_reg [0:63];     // 19-bit
+reg signed [18:0] Q_reg [0:63], K_reg [0:63], V_reg [0:63];     // 19-bit
 
 //==============================================//
 //                  design                      //
@@ -622,10 +622,20 @@ always @(posedge mult_s2_clk or negedge rst_n) begin
     end
 end
 
-wire mult_b_a_clk, mult_b_b_clk;
+wire mult_b_a_clk, mult_b_b_clk_h1, mult_b_b_clk_h2;
 wire mult_b_sleep = cg_en & ~is_det_d1 & ~is_QK & ~is_SV & ~(the_end);
 GATED_OR GATED_mult_b_a (.CLOCK(clk), .SLEEP_CTRL(mult_b_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_b_a_clk));
-GATED_OR GATED_mult_b_b (.CLOCK(clk), .SLEEP_CTRL(mult_b_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_b_b_clk));
+GATED_OR GATED_mult_b_b_h1 (.CLOCK(clk), .SLEEP_CTRL(mult_b_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_b_b_clk_h1));
+GATED_OR GATED_mult_b_b_h2 (.CLOCK(clk), .SLEEP_CTRL(mult_b_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_b_b_clk_h2));
+
+reg signed [36:0] mult_b_b_h1[0:3], mult_b_b_h2[4:7];
+
+generate
+    for (k = 0; k < 4; k = k + 1) begin: recover_mult_b_b
+        assign mult_b_b[k]   = mult_b_b_h1[k];
+        assign mult_b_b[k+4] = mult_b_b_h2[k+4];
+    end
+endgenerate
 
 // reg signed [18:0] mult_b_a[0:7]
 // reg signed [36:0] mult_b_b[0:7]
@@ -667,41 +677,59 @@ always @(posedge mult_b_a_clk or negedge rst_n) begin
         end
     end
 end
-always @(posedge mult_b_b_clk or negedge rst_n) begin
+always @(posedge mult_b_b_clk_h1 or negedge rst_n) begin
 // always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
-        for (i = 0; i < 8; i = i + 1) begin
-            mult_b_b[i] <= 37'd0;
+        for (i = 0; i < 4; i = i + 1) begin
+            mult_b_b_h1[i] <= 37'd0;
         end
     end
     else if (is_det_d1) begin
-        mult_b_b[0] <= {{21{mult_s1_z[1][15]}}, mult_s1_z[1]};
-        mult_b_b[1] <= {{21{mult_s1_z[3][15]}}, mult_s1_z[3]};
+        mult_b_b_h1[0] <= {{21{mult_s1_z[1][15]}}, mult_s1_z[1]};
+        mult_b_b_h1[1] <= {{21{mult_s1_z[3][15]}}, mult_s1_z[3]};
     end
     else if (is_QK) begin
-        mult_b_b[0] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd0}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd0}]};
-        mult_b_b[1] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd1}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd1}]};
-        mult_b_b[2] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd2}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd2}]};
-        mult_b_b[3] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd3}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd3}]};
-        mult_b_b[4] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd4}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd4}]};
-        mult_b_b[5] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd5}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd5}]};
-        mult_b_b[6] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd6}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd6}]};
-        mult_b_b[7] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd7}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd7}]};
+        mult_b_b_h1[0] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd0}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd0}]};
+        mult_b_b_h1[1] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd1}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd1}]};
+        mult_b_b_h1[2] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd2}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd2}]};
+        mult_b_b_h1[3] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd3}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd3}]};
     end
     else if (is_SV) begin
-        mult_b_b[0] <= S_reg[{mult_cnt_SV[5:3], 3'd0}];        // 37-bit
-        mult_b_b[1] <= S_reg[{mult_cnt_SV[5:3], 3'd1}];
-        mult_b_b[2] <= S_reg[{mult_cnt_SV[5:3], 3'd2}];
-        mult_b_b[3] <= S_reg[{mult_cnt_SV[5:3], 3'd3}];
-        mult_b_b[4] <= S_reg[{mult_cnt_SV[5:3], 3'd4}];
-        mult_b_b[5] <= S_reg[{mult_cnt_SV[5:3], 3'd5}];
-        mult_b_b[6] <= S_reg[{mult_cnt_SV[5:3], 3'd6}];
-        mult_b_b[7] <= S_reg[{mult_cnt_SV[5:3], 3'd7}];
+        mult_b_b_h1[0] <= S_reg[{mult_cnt_SV[5:3], 3'd0}];        // 37-bit
+        mult_b_b_h1[1] <= S_reg[{mult_cnt_SV[5:3], 3'd1}];
+        mult_b_b_h1[2] <= S_reg[{mult_cnt_SV[5:3], 3'd2}];
+        mult_b_b_h1[3] <= S_reg[{mult_cnt_SV[5:3], 3'd3}];
     end
     else if (the_end) begin
-        for (i = 0; i < 8; i = i + 1) begin
-            mult_b_b[i] <= 37'd0;
+        for (i = 0; i < 4; i = i + 1) begin
+            mult_b_b_h1[i] <= 37'd0;
+        end
+    end
+end
+always @(posedge mult_b_b_clk_h2 or negedge rst_n) begin
+// always @(posedge clk or negedge rst_n) begin
+    integer i;
+    if (!rst_n) begin
+        for (i = 4; i < 8; i = i + 1) begin
+            mult_b_b_h2[i] <= 37'd0;
+        end
+    end
+    else if (is_QK) begin
+        mult_b_b_h2[4] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd4}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd4}]};
+        mult_b_b_h2[5] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd5}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd5}]};
+        mult_b_b_h2[6] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd6}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd6}]};
+        mult_b_b_h2[7] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd7}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd7}]};
+    end
+    else if (is_SV) begin
+        mult_b_b_h2[4] <= S_reg[{mult_cnt_SV[5:3], 3'd4}];
+        mult_b_b_h2[5] <= S_reg[{mult_cnt_SV[5:3], 3'd5}];
+        mult_b_b_h2[6] <= S_reg[{mult_cnt_SV[5:3], 3'd6}];
+        mult_b_b_h2[7] <= S_reg[{mult_cnt_SV[5:3], 3'd7}];
+    end
+    else if (the_end) begin
+        for (i = 4; i < 8; i = i + 1) begin
+            mult_b_b_h2[i] <= 37'd0;
         end
     end
 end
@@ -937,9 +965,9 @@ end
 
 // reg signed [37:0] A_tmp;     // 38-bit
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)               A_tmp <= 38'd0;
-    else if (is_QK_d1)             A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
-    else if (the_end) A_tmp <= 38'd0;
+    if      (!rst_n)   A_tmp <= 38'd0;
+    else if (is_QK_d1) A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
+    else if (the_end)  A_tmp <= 38'd0;
 end
 
 // wire signed [36:0] A_pos;     // 37-bit
