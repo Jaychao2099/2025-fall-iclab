@@ -10,26 +10,17 @@
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
-//   File Name   : SAD.v
+//   File Name   : SAD_wocg.v
 //   Module Name : SAD
 //   Release version : v1.0
-//   Note : Design w/ CG
+//   Note : Design w/o CG
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //############################################################################
-
-// synopsys translate_off
-`ifdef RTL
-	`include "GATED_OR.v"
-`else
-	`include "Netlist/GATED_OR_SYN.v"
-`endif
-// synopsys translate_on
 
 module SAD(
     //Input signals
     clk,
     rst_n,
-    cg_en,
     in_valid,
 	in_data1,
     T,
@@ -46,7 +37,6 @@ module SAD(
 input clk;
 input rst_n;
 input in_valid;
-input cg_en;
 input signed [5:0] in_data1;
 input [3:0] T;
 input signed [7:0] in_data2;
@@ -61,6 +51,7 @@ output reg signed [91:0] out_data;
 //       parameter & integer declaration        //
 //==============================================//
 parameter d_model = 'd8;
+
 
 genvar k;
 
@@ -136,12 +127,6 @@ reg signed [53:0] mult_f_b;
 reg signed [91:0] mult_f_z;
 
 reg signed [18:0] Q_reg [0:63], K_reg [0:63], V_reg [0:63];     // 19-bit
-
-//==============================================//
-//                 GATED_OR                     //
-//==============================================//
-
-
 
 //==============================================//
 //                  design                      //
@@ -678,16 +663,9 @@ end
 
 // reg signed [37:0] A_tmp;     // 38-bit
 always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if (!rst_n) begin
-        for (i = 0; i < 64; i = i + 1) A_tmp[i] <= 38'd0;
-    end
-    else if (is_QK_d1) begin
-        A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
-    end
-    else if (cnt_clk == end_cycle) begin
-        for (i = 0; i < 64; i = i + 1) A_tmp[i] <= 38'd0;
-    end
+    if      (!rst_n)               A_tmp <= 38'd0;
+    else if (is_QK_d1)             A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
+    else if (cnt_clk == end_cycle) A_tmp <= 38'd0;
 end
 
 // wire signed [36:0] A_pos;     // 37-bit
@@ -793,8 +771,10 @@ MULT #(25, 54, 92) mult_final (.a(mult_f_a), .b(mult_f_b), .z(mult_f_z));
 
 // -------------- output --------------
 
+
 // output reg out_valid;
 // output reg signed [91:0] out_data;
+
 
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                            out_valid <= 1'b0;
@@ -809,6 +789,7 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 endmodule
+
 
 module MULT #(
     parameter a_bits = 8,

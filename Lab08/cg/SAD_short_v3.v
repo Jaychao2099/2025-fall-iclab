@@ -639,7 +639,7 @@ endgenerate
 
 // reg signed [18:0] mult_b_a[0:7]
 // reg signed [36:0] mult_b_b[0:7]
-// always @(posedge mult_b_a_clk or negedge rst_n) begin
+// always @(posedge mult_b_a_clk or negedge rst_n) begin        // may wrong
 always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin

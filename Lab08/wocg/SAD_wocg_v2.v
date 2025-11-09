@@ -86,8 +86,8 @@ reg signed [20:0] det_tmp;   // 21-bit
 reg signed [24:0] det_result;
 
 // ----------------- matrix multiply -----------------
-reg [7:0] mult_cnt_small;   // 0~191
-reg [7:0] mult_cnt_small_d1;
+reg [4:0] mult_cnt_small;   // 0~191
+reg [4:0] mult_cnt_small_d1;
 wire is_multiplying;
 wire Q_mult, K_mult, V_mult;
 reg  Q_mult_d1, K_mult_d1, V_mult_d1;
@@ -109,14 +109,18 @@ reg signed [36:0] S_reg [0:63];
 
 wire is_SV;
 reg is_SV_d1;
-reg [7:0] mult_cnt_SV, mult_cnt_SV_d1;   // 0~191
+reg [7:0] mult_cnt_SV;   // 0~191
 
-reg signed [18:0] V_transpose [0:63];
+wire signed [18:0] V_transpose [0:63];
 
 // ----------------- mult -----------------
-reg signed [7:0]  mult_s_a [0:7];
-reg signed [7:0]  mult_s_b [0:7];
-reg signed [15:0] mult_s_z [0:7];
+reg signed [7:0]  mult_s1_a [0:7];
+reg signed [7:0]  mult_s1_b [0:7];
+reg signed [15:0] mult_s1_z [0:7];
+
+reg signed [7:0]  mult_s2_a [0:7];
+reg signed [7:0]  mult_s2_b [0:7];
+reg signed [15:0] mult_s2_z [0:7];
 
 reg signed [18:0] mult_b_a [0:7];
 reg signed [36:0] mult_b_b [0:7];
@@ -124,14 +128,15 @@ reg signed [53:0] mult_b_z [0:7];
 
 reg signed [24:0] mult_f_a;
 reg signed [53:0] mult_f_b;
-// reg signed [91:0] mult_f_z;
-reg signed [77:0] mult_f_z;
+reg signed [91:0] mult_f_z;
 
 reg signed [18:0] Q_reg [0:63], K_reg [0:63], V_reg [0:63];     // 19-bit
 
 //==============================================//
 //                  design                      //
 //==============================================//
+
+wire the_end = (cnt_clk == end_cycle);
 
 // reg [8:0] cnt_clk;  // 0 ~ 307 (9 bits)
 always @(posedge clk or negedge rst_n) begin
@@ -142,7 +147,7 @@ end
 // reg [8:0] next_cnt_clk;  // 0 ~ 307 (9 bits)
 always @(*) begin
     next_cnt_clk = cnt_clk;
-    if      (cnt_clk == end_cycle)       next_cnt_clk = 9'b0;
+    if      (the_end)       next_cnt_clk = 9'b0;
     else if (cnt_clk > 9'b0 || in_valid) next_cnt_clk = cnt_clk + 9'd1;
 end
 
@@ -182,8 +187,8 @@ end
 always @(*) begin
     case (T_reg)
         1:       QK_start_cycle = 9'd190;
-        4:       QK_start_cycle = 9'd179;
-        default: QK_start_cycle = 9'd179;
+        4:       QK_start_cycle = 9'd148;
+        default: QK_start_cycle = 9'd148;
     endcase
 end
 
@@ -191,8 +196,8 @@ end
 always @(*) begin
     case (T_reg)
         1:       SV_start_cycle = 9'd194;
-        4:       SV_start_cycle = 9'd211;
-        default: SV_start_cycle = 9'd243;
+        4:       SV_start_cycle = 9'd195;
+        default: SV_start_cycle = 9'd212;
     endcase
 end
 
@@ -200,8 +205,8 @@ end
 always @(*) begin
     case (T_reg)
         1:       out_start_cycle = 9'd196;
-        4:       out_start_cycle = 9'd213;
-        default: out_start_cycle = 9'd245;
+        4:       out_start_cycle = 9'd197;
+        default: out_start_cycle = 9'd214;
     endcase
 end
 
@@ -209,8 +214,8 @@ end
 always @(*) begin
     case (T_reg)
         1:       end_cycle = 9'd204;
-        4:       end_cycle = 9'd245;
-        default: end_cycle = 9'd309;
+        4:       end_cycle = 9'd229;
+        default: end_cycle = 9'd278;
     endcase
 end
 
@@ -249,7 +254,7 @@ always @(posedge clk or negedge rst_n) begin
     integer i;
     if      (!rst_n)               for (i = 0; i < 64; i  = i + 1) in_data2_reg[i] <= 8'd0;
     else if (in_data2_valid)       in_data2_reg[cnt_clk] <= in_data2;
-    else if (cnt_clk == end_cycle) for (i = 8; i < 64; i  = i + 1) in_data2_reg[i] <= 8'd0;
+    else if (the_end) for (i = 8; i < 64; i  = i + 1) in_data2_reg[i] <= 8'd0;
 end
 
 // reg signed [7:0] w_Q_reg [0:63];
@@ -331,129 +336,187 @@ end
 // + a3 a5 a8  a14
 
 
-// reg signed [7:0] mult_s_a[0:7], mult_s_b[0:7]
+// reg signed [7:0] mult_s1_a[0:7], mult_s1_b[0:7]
 always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
         for (i = 0; i < 8; i = i + 1) begin
-            mult_s_a[i] <= 8'd0;
-            mult_s_b[i] <= 8'd0;
+            mult_s1_a[i] <= 8'd0;
+            mult_s1_b[i] <= 8'd0;
+            mult_s2_a[i] <= 8'd0;
+            mult_s2_b[i] <= 8'd0;
         end
     end
     else if (is_det) begin
         case (det_cnt[3:2])
             // 2'd0: begin
             //     // +
-            //     mult_s_a[0] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
-            //     mult_s_b[0] <= {{2{in_data1_reg[5][5]}},  in_data1_reg[5]};
-            //     mult_s_a[1] <= {{2{in_data1_reg[10][5]}}, in_data1_reg[10]};
-            //     mult_s_b[1] <= {{2{in_data1_reg[15][5]}}, in_data1_reg[15]};
+            //     mult_s1_a[0] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
+            //     mult_s1_b[0] <= {{2{in_data1_reg[5][5]}},  in_data1_reg[5]};
+            //     mult_s1_a[1] <= {{2{in_data1_reg[10][5]}}, in_data1_reg[10]};
+            //     mult_s1_b[1] <= {{2{in_data1_reg[15][5]}}, in_data1_reg[15]};
             //     // -
-            //     mult_s_a[2] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
-            //     mult_s_b[2] <= {{2{in_data1_reg[7][5]}},  in_data1_reg[7]};
-            //     mult_s_a[3] <= {{2{in_data1_reg[10][5]}}, in_data1_reg[10]};
-            //     mult_s_b[3] <= {{2{in_data1_reg[13][5]}}, in_data1_reg[13]};
+            //     mult_s1_a[2] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
+            //     mult_s1_b[2] <= {{2{in_data1_reg[7][5]}},  in_data1_reg[7]};
+            //     mult_s1_a[3] <= {{2{in_data1_reg[10][5]}}, in_data1_reg[10]};
+            //     mult_s1_b[3] <= {{2{in_data1_reg[13][5]}}, in_data1_reg[13]};
             // end
             2'd1: begin
                 // -
-                mult_s_a[0] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
-                mult_s_b[0] <= {{2{in_data1_reg[6][5]}},  in_data1_reg[6]};
-                mult_s_a[1] <= {{2{in_data1_reg[11][5]}}, in_data1_reg[11]};
-                mult_s_b[1] <= {{2{in_data1_reg[13][5]}}, in_data1_reg[13]};
+                mult_s1_a[0] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
+                mult_s1_b[0] <= {{2{in_data1_reg[6][5]}},  in_data1_reg[6]};
+                mult_s1_a[1] <= {{2{in_data1_reg[11][5]}}, in_data1_reg[11]};
+                mult_s1_b[1] <= {{2{in_data1_reg[13][5]}}, in_data1_reg[13]};
                 // +
                 
-                mult_s_a[2] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
-                mult_s_b[2] <= {{2{in_data1_reg[5][5]}},  in_data1_reg[5]};
-                mult_s_a[3] <= {{2{in_data1_reg[11][5]}}, in_data1_reg[11]};
-                mult_s_b[3] <= {{2{in_data1_reg[14][5]}}, in_data1_reg[14]};
+                mult_s1_a[2] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
+                mult_s1_b[2] <= {{2{in_data1_reg[5][5]}},  in_data1_reg[5]};
+                mult_s1_a[3] <= {{2{in_data1_reg[11][5]}}, in_data1_reg[11]};
+                mult_s1_b[3] <= {{2{in_data1_reg[14][5]}}, in_data1_reg[14]};
             end
             2'd2: begin
                 // +
-                mult_s_a[0] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
-                mult_s_b[0] <= {{2{in_data1_reg[7][5]}},  in_data1_reg[7]};
-                mult_s_a[1] <= {{2{in_data1_reg[9][5]}},  in_data1_reg[9]};
-                mult_s_b[1] <= {{2{in_data1_reg[14][5]}}, in_data1_reg[14]};
+                mult_s1_a[0] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
+                mult_s1_b[0] <= {{2{in_data1_reg[7][5]}},  in_data1_reg[7]};
+                mult_s1_a[1] <= {{2{in_data1_reg[9][5]}},  in_data1_reg[9]};
+                mult_s1_b[1] <= {{2{in_data1_reg[14][5]}}, in_data1_reg[14]};
                 // -
-                mult_s_a[2] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
-                mult_s_b[2] <= {{2{in_data1_reg[6][5]}},  in_data1_reg[6]};
-                mult_s_a[3] <= {{2{in_data1_reg[9][5]}},  in_data1_reg[9]};
-                mult_s_b[3] <= {{2{in_data1_reg[15][5]}}, in_data1_reg[15]};
+                mult_s1_a[2] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
+                mult_s1_b[2] <= {{2{in_data1_reg[6][5]}},  in_data1_reg[6]};
+                mult_s1_a[3] <= {{2{in_data1_reg[9][5]}},  in_data1_reg[9]};
+                mult_s1_b[3] <= {{2{in_data1_reg[15][5]}}, in_data1_reg[15]};
             end
             default: begin
                 // -
-                mult_s_a[0] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
-                mult_s_b[0] <= {{2{in_data1_reg[5][5]}},  in_data1_reg[5]};
-                mult_s_a[1] <= {{2{in_data1_reg[10][5]}}, in_data1_reg[10]};
-                mult_s_b[1] <= {{2{in_data1_reg[15][5]}}, in_data1_reg[15]};
+                mult_s1_a[0] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
+                mult_s1_b[0] <= {{2{in_data1_reg[5][5]}},  in_data1_reg[5]};
+                mult_s1_a[1] <= {{2{in_data1_reg[10][5]}}, in_data1_reg[10]};
+                mult_s1_b[1] <= {{2{in_data1_reg[15][5]}}, in_data1_reg[15]};
                 // +
-                mult_s_a[2] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
-                mult_s_b[2] <= {{2{in_data1_reg[7][5]}},  in_data1_reg[7]};
-                mult_s_a[3] <= {{2{in_data1_reg[10][5]}}, in_data1_reg[10]};
-                mult_s_b[3] <= {{2{in_data1_reg[13][5]}}, in_data1_reg[13]};
+                mult_s1_a[2] <= {{2{in_data1_reg[0][5]}},  in_data1_reg[0]};
+                mult_s1_b[2] <= {{2{in_data1_reg[7][5]}},  in_data1_reg[7]};
+                mult_s1_a[3] <= {{2{in_data1_reg[10][5]}}, in_data1_reg[10]};
+                mult_s1_b[3] <= {{2{in_data1_reg[13][5]}}, in_data1_reg[13]};
             end
         endcase
     end
     else if (Q_mult) begin
-        mult_s_a[0] <= in_data2_reg[{mult_cnt_small[5:3], 3'd0}];
-        mult_s_a[1] <= in_data2_reg[{mult_cnt_small[5:3], 3'd1}];
-        mult_s_a[2] <= in_data2_reg[{mult_cnt_small[5:3], 3'd2}];
-        mult_s_a[3] <= in_data2_reg[{mult_cnt_small[5:3], 3'd3}];
-        mult_s_a[4] <= in_data2_reg[{mult_cnt_small[5:3], 3'd4}];
-        mult_s_a[5] <= in_data2_reg[{mult_cnt_small[5:3], 3'd5}];
-        mult_s_a[6] <= in_data2_reg[{mult_cnt_small[5:3], 3'd6}];
-        mult_s_a[7] <= in_data2_reg[{mult_cnt_small[5:3], 3'd7}];
+        mult_s1_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 4'd0}];
+        mult_s1_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 4'd1}];
+        mult_s1_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 4'd2}];
+        mult_s1_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 4'd3}];
+        mult_s1_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 4'd4}];
+        mult_s1_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 4'd5}];
+        mult_s1_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 4'd6}];
+        mult_s1_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 4'd7}];
 
-        mult_s_b[0] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd0}];
-        mult_s_b[1] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd1}];
-        mult_s_b[2] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd2}];
-        mult_s_b[3] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd3}];
-        mult_s_b[4] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd4}];
-        mult_s_b[5] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd5}];
-        mult_s_b[6] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd6}];
-        mult_s_b[7] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd7}];
+        mult_s1_b[0] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd0}];
+        mult_s1_b[1] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd1}];
+        mult_s1_b[2] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd2}];
+        mult_s1_b[3] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd3}];
+        mult_s1_b[4] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd4}];
+        mult_s1_b[5] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd5}];
+        mult_s1_b[6] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd6}];
+        mult_s1_b[7] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd7}];
+
+        mult_s2_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd0}];
+        mult_s2_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd1}];
+        mult_s2_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd2}];
+        mult_s2_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd3}];
+        mult_s2_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd4}];
+        mult_s2_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd5}];
+        mult_s2_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd6}];
+        mult_s2_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd7}];
+
+        mult_s2_b[0] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd0}];
+        mult_s2_b[1] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd1}];
+        mult_s2_b[2] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd2}];
+        mult_s2_b[3] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd3}];
+        mult_s2_b[4] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd4}];
+        mult_s2_b[5] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd5}];
+        mult_s2_b[6] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd6}];
+        mult_s2_b[7] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd7}];
     end
     else if (K_mult) begin
-        mult_s_a[0] <= in_data2_reg[{mult_cnt_small[5:3], 3'd0}];
-        mult_s_a[1] <= in_data2_reg[{mult_cnt_small[5:3], 3'd1}];
-        mult_s_a[2] <= in_data2_reg[{mult_cnt_small[5:3], 3'd2}];
-        mult_s_a[3] <= in_data2_reg[{mult_cnt_small[5:3], 3'd3}];
-        mult_s_a[4] <= in_data2_reg[{mult_cnt_small[5:3], 3'd4}];
-        mult_s_a[5] <= in_data2_reg[{mult_cnt_small[5:3], 3'd5}];
-        mult_s_a[6] <= in_data2_reg[{mult_cnt_small[5:3], 3'd6}];
-        mult_s_a[7] <= in_data2_reg[{mult_cnt_small[5:3], 3'd7}];
+        mult_s1_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 4'd0}];
+        mult_s1_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 4'd1}];
+        mult_s1_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 4'd2}];
+        mult_s1_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 4'd3}];
+        mult_s1_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 4'd4}];
+        mult_s1_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 4'd5}];
+        mult_s1_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 4'd6}];
+        mult_s1_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 4'd7}];
 
-        mult_s_b[0] <= w_K_transpose[{mult_cnt_small[2:0], 3'd0}];
-        mult_s_b[1] <= w_K_transpose[{mult_cnt_small[2:0], 3'd1}];
-        mult_s_b[2] <= w_K_transpose[{mult_cnt_small[2:0], 3'd2}];
-        mult_s_b[3] <= w_K_transpose[{mult_cnt_small[2:0], 3'd3}];
-        mult_s_b[4] <= w_K_transpose[{mult_cnt_small[2:0], 3'd4}];
-        mult_s_b[5] <= w_K_transpose[{mult_cnt_small[2:0], 3'd5}];
-        mult_s_b[6] <= w_K_transpose[{mult_cnt_small[2:0], 3'd6}];
-        mult_s_b[7] <= w_K_transpose[{mult_cnt_small[2:0], 3'd7}];
+        mult_s1_b[0] <= w_K_transpose[{mult_cnt_small[2:0], 3'd0}];
+        mult_s1_b[1] <= w_K_transpose[{mult_cnt_small[2:0], 3'd1}];
+        mult_s1_b[2] <= w_K_transpose[{mult_cnt_small[2:0], 3'd2}];
+        mult_s1_b[3] <= w_K_transpose[{mult_cnt_small[2:0], 3'd3}];
+        mult_s1_b[4] <= w_K_transpose[{mult_cnt_small[2:0], 3'd4}];
+        mult_s1_b[5] <= w_K_transpose[{mult_cnt_small[2:0], 3'd5}];
+        mult_s1_b[6] <= w_K_transpose[{mult_cnt_small[2:0], 3'd6}];
+        mult_s1_b[7] <= w_K_transpose[{mult_cnt_small[2:0], 3'd7}];
+
+        mult_s2_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd0}];
+        mult_s2_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd1}];
+        mult_s2_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd2}];
+        mult_s2_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd3}];
+        mult_s2_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd4}];
+        mult_s2_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd5}];
+        mult_s2_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd6}];
+        mult_s2_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd7}];
+
+        mult_s2_b[0] <= w_K_transpose[{mult_cnt_small[2:0], 3'd0}];
+        mult_s2_b[1] <= w_K_transpose[{mult_cnt_small[2:0], 3'd1}];
+        mult_s2_b[2] <= w_K_transpose[{mult_cnt_small[2:0], 3'd2}];
+        mult_s2_b[3] <= w_K_transpose[{mult_cnt_small[2:0], 3'd3}];
+        mult_s2_b[4] <= w_K_transpose[{mult_cnt_small[2:0], 3'd4}];
+        mult_s2_b[5] <= w_K_transpose[{mult_cnt_small[2:0], 3'd5}];
+        mult_s2_b[6] <= w_K_transpose[{mult_cnt_small[2:0], 3'd6}];
+        mult_s2_b[7] <= w_K_transpose[{mult_cnt_small[2:0], 3'd7}];
     end
     else if (V_mult) begin
-        mult_s_a[0] <= in_data2_reg[{mult_cnt_small[5:3], 3'd0}];
-        mult_s_a[1] <= in_data2_reg[{mult_cnt_small[5:3], 3'd1}];
-        mult_s_a[2] <= in_data2_reg[{mult_cnt_small[5:3], 3'd2}];
-        mult_s_a[3] <= in_data2_reg[{mult_cnt_small[5:3], 3'd3}];
-        mult_s_a[4] <= in_data2_reg[{mult_cnt_small[5:3], 3'd4}];
-        mult_s_a[5] <= in_data2_reg[{mult_cnt_small[5:3], 3'd5}];
-        mult_s_a[6] <= in_data2_reg[{mult_cnt_small[5:3], 3'd6}];
-        mult_s_a[7] <= in_data2_reg[{mult_cnt_small[5:3], 3'd7}];
+        mult_s1_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 4'd0}];
+        mult_s1_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 4'd1}];
+        mult_s1_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 4'd2}];
+        mult_s1_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 4'd3}];
+        mult_s1_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 4'd4}];
+        mult_s1_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 4'd5}];
+        mult_s1_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 4'd6}];
+        mult_s1_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 4'd7}];
 
-        mult_s_b[0] <= w_V_transpose[{mult_cnt_small[2:0], 3'd0}];
-        mult_s_b[1] <= w_V_transpose[{mult_cnt_small[2:0], 3'd1}];
-        mult_s_b[2] <= w_V_transpose[{mult_cnt_small[2:0], 3'd2}];
-        mult_s_b[3] <= w_V_transpose[{mult_cnt_small[2:0], 3'd3}];
-        mult_s_b[4] <= w_V_transpose[{mult_cnt_small[2:0], 3'd4}];
-        mult_s_b[5] <= w_V_transpose[{mult_cnt_small[2:0], 3'd5}];
-        mult_s_b[6] <= w_V_transpose[{mult_cnt_small[2:0], 3'd6}];
-        mult_s_b[7] <= w_V_transpose[{mult_cnt_small[2:0], 3'd7}];
+        mult_s1_b[0] <= w_V_transpose[{mult_cnt_small[2:0], 3'd0}];
+        mult_s1_b[1] <= w_V_transpose[{mult_cnt_small[2:0], 3'd1}];
+        mult_s1_b[2] <= w_V_transpose[{mult_cnt_small[2:0], 3'd2}];
+        mult_s1_b[3] <= w_V_transpose[{mult_cnt_small[2:0], 3'd3}];
+        mult_s1_b[4] <= w_V_transpose[{mult_cnt_small[2:0], 3'd4}];
+        mult_s1_b[5] <= w_V_transpose[{mult_cnt_small[2:0], 3'd5}];
+        mult_s1_b[6] <= w_V_transpose[{mult_cnt_small[2:0], 3'd6}];
+        mult_s1_b[7] <= w_V_transpose[{mult_cnt_small[2:0], 3'd7}];
+
+        mult_s2_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd0}];
+        mult_s2_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd1}];
+        mult_s2_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd2}];
+        mult_s2_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd3}];
+        mult_s2_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd4}];
+        mult_s2_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd5}];
+        mult_s2_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd6}];
+        mult_s2_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd7}];
+
+        mult_s2_b[0] <= w_V_transpose[{mult_cnt_small[2:0], 3'd0}];
+        mult_s2_b[1] <= w_V_transpose[{mult_cnt_small[2:0], 3'd1}];
+        mult_s2_b[2] <= w_V_transpose[{mult_cnt_small[2:0], 3'd2}];
+        mult_s2_b[3] <= w_V_transpose[{mult_cnt_small[2:0], 3'd3}];
+        mult_s2_b[4] <= w_V_transpose[{mult_cnt_small[2:0], 3'd4}];
+        mult_s2_b[5] <= w_V_transpose[{mult_cnt_small[2:0], 3'd5}];
+        mult_s2_b[6] <= w_V_transpose[{mult_cnt_small[2:0], 3'd6}];
+        mult_s2_b[7] <= w_V_transpose[{mult_cnt_small[2:0], 3'd7}];
     end
-    else if (cnt_clk == end_cycle) begin
+    else if (the_end) begin
         for (i = 0; i < 8; i = i + 1) begin
-            mult_s_a[i] <= 8'd0;
-            mult_s_b[i] <= 8'd0;
+            mult_s1_a[i] <= 8'd0;
+            mult_s1_b[i] <= 8'd0;
+            mult_s2_a[i] <= 8'd0;
+            mult_s2_b[i] <= 8'd0;
         end
     end
 end
@@ -469,10 +532,10 @@ always @(posedge clk or negedge rst_n) begin
         end
     end
     else if (is_det_d1) begin
-        mult_b_a[0] <= {{ 3{mult_s_z[0][15]}}, mult_s_z[0]};
-        mult_b_b[0] <= {{21{mult_s_z[1][15]}}, mult_s_z[1]};
-        mult_b_a[1] <= {{ 3{mult_s_z[2][15]}}, mult_s_z[2]};
-        mult_b_b[1] <= {{21{mult_s_z[3][15]}}, mult_s_z[3]};
+        mult_b_a[0] <= {{ 3{mult_s1_z[0][15]}}, mult_s1_z[0]};
+        mult_b_b[0] <= {{21{mult_s1_z[1][15]}}, mult_s1_z[1]};
+        mult_b_a[1] <= {{ 3{mult_s1_z[2][15]}}, mult_s1_z[2]};
+        mult_b_b[1] <= {{21{mult_s1_z[3][15]}}, mult_s1_z[3]};
     end
     else if (is_QK) begin
         mult_b_a[0] <= Q_reg[{mult_cnt_QK[5:3], 3'd0}];
@@ -512,7 +575,7 @@ always @(posedge clk or negedge rst_n) begin
         mult_b_b[6] <= S_reg[{mult_cnt_SV[5:3], 3'd6}];
         mult_b_b[7] <= S_reg[{mult_cnt_SV[5:3], 3'd7}];
     end
-    else if (cnt_clk == end_cycle) begin
+    else if (the_end) begin
         for (i = 0; i < 8; i = i + 1) begin
             mult_b_a[i] <= 19'd0;
             mult_b_b[i] <= 37'd0;
@@ -531,16 +594,16 @@ end
 
 // reg signed [24:0] det_result;
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)               det_result <= 25'd0;
-    else if (is_det_d3)            det_result <= det_result + det_tmp;
-    else if (cnt_clk == end_cycle) det_result <= 25'd0;
+    if      (!rst_n)    det_result <= 25'd0;
+    else if (is_det_d3) det_result <= det_result + det_tmp;
+    else if (the_end)   det_result <= 25'd0;
 end
 
 // -------------- attention --------------
 
-assign Q_mult = cnt_clk >= 9'd57  && cnt_clk <= 9'd120;
-assign K_mult = cnt_clk >= 9'd121 && cnt_clk <= 9'd184;
-assign V_mult = cnt_clk >= 9'd185 && cnt_clk < 9'd185 + handle_cycles_t8;
+assign Q_mult = cnt_clk >= 9'd57  && cnt_clk <= 9'd88;
+assign K_mult = cnt_clk >= 9'd121 && cnt_clk <= 9'd152;
+assign V_mult = cnt_clk >= 9'd185 && cnt_clk < (T_reg[0] ? 9'd193 : (9'd185 + (handle_cycles_t8>>1)));
 
 // reg Q_mult_d1, K_mult_d1, V_mult_d1;
 always @(posedge clk or negedge rst_n) begin
@@ -559,16 +622,16 @@ end
 // wire is_multiplying;
 assign is_multiplying = (Q_mult || K_mult || V_mult);
 
-// reg [7:0] mult_cnt_small;   // 0~191
+// reg [4:0] mult_cnt_small;   // 0~191
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)               mult_cnt_small <= 8'd0;
-    else if (is_multiplying)       mult_cnt_small <= mult_cnt_small + 8'd1;
-    else if (cnt_clk == end_cycle) mult_cnt_small <= 8'd0;
+    if      (!rst_n)               mult_cnt_small <= 5'd0;
+    else if (is_multiplying)       mult_cnt_small <= mult_cnt_small + 5'd1;
+    else if (the_end) mult_cnt_small <= 5'd0;
 end
 
 // reg [7:0] mult_cnt_small_d1;   // 0~191
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) mult_cnt_small_d1 <= 8'd0;
+    if (!rst_n) mult_cnt_small_d1 <= 5'd0;
     else        mult_cnt_small_d1 <= mult_cnt_small;
 end
 
@@ -590,33 +653,38 @@ always @(posedge clk or negedge rst_n) begin
         for (i = 0; i < 64; i = i + 1) Q_reg[i] <= 19'd0;
     end
     else if (Q_mult_d1) begin
-        Q_reg[mult_cnt_small_d1[5:0]] <= mult_s_z[0] + mult_s_z[1] + mult_s_z[2] + mult_s_z[3] + mult_s_z[4] + mult_s_z[5] + mult_s_z[6] + mult_s_z[7];
+        Q_reg[{mult_cnt_small_d1[4:3], 1'b0, mult_cnt_small_d1[2:0]}] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
+        Q_reg[{mult_cnt_small_d1[4:3], 1'b1, mult_cnt_small_d1[2:0]}] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
     end
-    else if (cnt_clk == end_cycle) begin
+    else if (the_end) begin
         for (i = 0; i < 64; i = i + 1) Q_reg[i] <= 19'd0;
     end
 end
+
 always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
         for (i = 0; i < 64; i = i + 1) K_reg[i] <= 19'd0;
     end
     else if (K_mult_d1) begin
-        K_reg[mult_cnt_small_d1[5:0]] <= mult_s_z[0] + mult_s_z[1] + mult_s_z[2] + mult_s_z[3] + mult_s_z[4] + mult_s_z[5] + mult_s_z[6] + mult_s_z[7];
+        K_reg[{mult_cnt_small_d1[4:3], 1'b0, mult_cnt_small_d1[2:0]}] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
+        K_reg[{mult_cnt_small_d1[4:3], 1'b1, mult_cnt_small_d1[2:0]}] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
     end
-    else if (cnt_clk == end_cycle) begin
+    else if (the_end) begin
         for (i = 0; i < 64; i = i + 1) K_reg[i] <= 19'd0;
     end
 end
+
 always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
         for (i = 0; i < 64; i = i + 1) V_reg[i] <= 19'd0;
     end
     else if (V_mult_d1) begin
-        V_reg[mult_cnt_small_d1[5:0]] <= mult_s_z[0] + mult_s_z[1] + mult_s_z[2] + mult_s_z[3] + mult_s_z[4] + mult_s_z[5] + mult_s_z[6] + mult_s_z[7];
+        V_reg[{mult_cnt_small_d1[4:3], 1'b0, mult_cnt_small_d1[2:0]}] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
+        V_reg[{mult_cnt_small_d1[4:3], 1'b1, mult_cnt_small_d1[2:0]}] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
     end
-    else if (cnt_clk == end_cycle) begin
+    else if (the_end) begin
         for (i = 0; i < 64; i = i + 1) V_reg[i] <= 19'd0;
     end
 end
@@ -664,16 +732,9 @@ end
 
 // reg signed [37:0] A_tmp;     // 38-bit
 always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if (!rst_n) begin
-        for (i = 0; i < 64; i = i + 1) A_tmp[i] <= 38'd0;
-    end
-    else if (is_QK_d1) begin
-        A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
-    end
-    else if (cnt_clk == end_cycle) begin
-        for (i = 0; i < 64; i = i + 1) A_tmp[i] <= 38'd0;
-    end
+    if      (!rst_n)               A_tmp <= 38'd0;
+    else if (is_QK_d1)             A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
+    else if (the_end) A_tmp <= 38'd0;
 end
 
 // wire signed [36:0] A_pos;     // 37-bit
@@ -697,7 +758,7 @@ always @(posedge clk or negedge rst_n) begin
     else if (is_QK_d3) begin
         S_reg[mult_cnt_QK_d3] <= {1'b0, div_z};
     end
-    else if (cnt_clk == end_cycle) begin
+    else if (the_end) begin
         for (i = 0; i < 64; i = i + 1) S_reg[i] <= 37'd0;
     end
 end
@@ -724,16 +785,6 @@ always @(posedge clk or negedge rst_n) begin
     else             mult_cnt_SV <= 8'd0;
 end
 
-// reg [7:0] mult_cnt_SV_d1;   // 0~191
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-        mult_cnt_SV_d1 <= 8'd0;
-    end
-    else begin
-        mult_cnt_SV_d1 <= mult_cnt_SV;
-    end
-end
-
 // reg signed [18:0] V_transpose [0:63];
 generate
     for (k = 0; k < 64; k = k + 1) begin: transpose_V
@@ -757,25 +808,25 @@ end
 
 // -------------- mult IP --------------
 
-// reg signed [7:0]  mult_s_a [0:7];
-// reg signed [7:0]  mult_s_b [0:7];
-// reg signed [15:0] mult_s_z [0:7];
+// reg signed [7:0]  mult_s1_a [0:7];
+// reg signed [7:0]  mult_s1_b [0:7];
+// reg signed [15:0] mult_s1_z [0:7];
 
 // reg signed [18:0] mult_b_a [0:7];
 // reg signed [36:0] mult_b_b [0:7];
 // reg signed [53:0] mult_b_z [0:7];
 generate
     for (k = 0; k < 8; k = k + 1) begin: mult_gen
-        MULT #(8, 8, 16) mult_small (.a(mult_s_a[k]), .b(mult_s_b[k]), .z(mult_s_z[k]));
-        MULT #(19, 37, 54) mult_big (.a(mult_b_a[k]), .b(mult_b_b[k]), .z(mult_b_z[k]));
+        MULT #(8, 8, 16) mult_small_1 (.a(mult_s1_a[k]), .b(mult_s1_b[k]), .z(mult_s1_z[k]));
+        MULT #(8, 8, 16) mult_small_2 (.a(mult_s2_a[k]), .b(mult_s2_b[k]), .z(mult_s2_z[k]));
+        MULT #(19, 37, 54) mult_big   (.a(mult_b_a[k]),  .b(mult_b_b[k]),  .z(mult_b_z[k]));
     end
 endgenerate
 
 // reg signed [24:0] mult_f_a;
 // reg signed [53:0] mult_f_b;
 // reg signed [91:0] mult_f_z;
-// MULT #(25, 54, 92) mult_final (.a(mult_f_a), .b(mult_f_b), .z(mult_f_z));
-MULT #(25, 54, 78) mult_final (.a(mult_f_a), .b(mult_f_b), .z(mult_f_z));
+MULT #(25, 54, 92) mult_final (.a(mult_f_a), .b(mult_f_b), .z(mult_f_z));
 
 
 // -------------- output --------------
@@ -793,7 +844,7 @@ end
 
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                                            out_data <= 92'd0;
-    else if (cnt_clk >= out_start_cycle && cnt_clk < end_cycle) out_data <= {{14{mult_f_z[77]}}, mult_f_z};
+    else if (cnt_clk >= out_start_cycle && cnt_clk < end_cycle) out_data <= mult_f_z;
     else                                                        out_data <= 92'd0;
 end
 

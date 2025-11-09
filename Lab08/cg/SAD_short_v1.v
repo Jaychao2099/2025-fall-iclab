@@ -118,9 +118,9 @@ reg signed [36:0] S_reg [0:63];
 
 wire is_SV;
 reg is_SV_d1;
-reg [7:0] mult_cnt_SV, mult_cnt_SV_d1;   // 0~191
+reg [7:0] mult_cnt_SV;   // 0~191
 
-reg signed [18:0] V_transpose [0:63];
+wire signed [18:0] V_transpose [0:63];
 
 // ----------------- mult -----------------
 reg signed [7:0]  mult_s1_a [0:7];
@@ -426,20 +426,20 @@ end
 // - a2 a4 a11 a13 
 // + a3 a5 a8  a14
 
-wire mult_s1_clk, mult_s2_clk;
-wire mult_s1_sleep = cg_en & ~is_det & ~Q_mult & ~K_mult & ~V_mult & ~(the_end);
-wire mult_s2_sleep = cg_en           & ~Q_mult & ~K_mult & ~V_mult & ~(the_end);
-GATED_OR GATED_mult_s1 (.CLOCK(clk), .SLEEP_CTRL(mult_s1_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_s1_clk));
-GATED_OR GATED_mult_s2 (.CLOCK(clk), .SLEEP_CTRL(mult_s2_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_s2_clk));
+wire mult_s_clk;
+wire mult_s_sleep = cg_en & ~is_det & ~Q_mult & ~K_mult & ~V_mult & ~(the_end);
+GATED_OR GATED_mult_s (.CLOCK(clk), .SLEEP_CTRL(mult_s_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_s_clk));
 
 // reg signed [7:0] mult_s_a[0:7], mult_s_b[0:7]
-always @(posedge mult_s1_clk or negedge rst_n) begin
+always @(posedge mult_s_clk or negedge rst_n) begin
 // always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
         for (i = 0; i < 8; i = i + 1) begin
             mult_s1_a[i] <= 8'd0;
             mult_s1_b[i] <= 8'd0;
+            mult_s2_a[i] <= 8'd0;
+            mult_s2_b[i] <= 8'd0;
         end
     end
     else if (is_det) begin
@@ -501,63 +501,7 @@ always @(posedge mult_s1_clk or negedge rst_n) begin
         mult_s1_b[5] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd5}];
         mult_s1_b[6] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd6}];
         mult_s1_b[7] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd7}];
-    end
-    else if (K_mult) begin
-        mult_s1_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 4'd0}];
-        mult_s1_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 4'd1}];
-        mult_s1_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 4'd2}];
-        mult_s1_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 4'd3}];
-        mult_s1_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 4'd4}];
-        mult_s1_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 4'd5}];
-        mult_s1_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 4'd6}];
-        mult_s1_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 4'd7}];
 
-        mult_s1_b[0] <= w_K_transpose[{mult_cnt_small[2:0], 3'd0}];
-        mult_s1_b[1] <= w_K_transpose[{mult_cnt_small[2:0], 3'd1}];
-        mult_s1_b[2] <= w_K_transpose[{mult_cnt_small[2:0], 3'd2}];
-        mult_s1_b[3] <= w_K_transpose[{mult_cnt_small[2:0], 3'd3}];
-        mult_s1_b[4] <= w_K_transpose[{mult_cnt_small[2:0], 3'd4}];
-        mult_s1_b[5] <= w_K_transpose[{mult_cnt_small[2:0], 3'd5}];
-        mult_s1_b[6] <= w_K_transpose[{mult_cnt_small[2:0], 3'd6}];
-        mult_s1_b[7] <= w_K_transpose[{mult_cnt_small[2:0], 3'd7}];
-    end
-    else if (V_mult) begin
-        mult_s1_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 4'd0}];
-        mult_s1_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 4'd1}];
-        mult_s1_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 4'd2}];
-        mult_s1_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 4'd3}];
-        mult_s1_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 4'd4}];
-        mult_s1_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 4'd5}];
-        mult_s1_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 4'd6}];
-        mult_s1_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 4'd7}];
-
-        mult_s1_b[0] <= w_V_transpose[{mult_cnt_small[2:0], 3'd0}];
-        mult_s1_b[1] <= w_V_transpose[{mult_cnt_small[2:0], 3'd1}];
-        mult_s1_b[2] <= w_V_transpose[{mult_cnt_small[2:0], 3'd2}];
-        mult_s1_b[3] <= w_V_transpose[{mult_cnt_small[2:0], 3'd3}];
-        mult_s1_b[4] <= w_V_transpose[{mult_cnt_small[2:0], 3'd4}];
-        mult_s1_b[5] <= w_V_transpose[{mult_cnt_small[2:0], 3'd5}];
-        mult_s1_b[6] <= w_V_transpose[{mult_cnt_small[2:0], 3'd6}];
-        mult_s1_b[7] <= w_V_transpose[{mult_cnt_small[2:0], 3'd7}];
-    end
-    else if (the_end) begin
-        for (i = 0; i < 8; i = i + 1) begin
-            mult_s1_a[i] <= 8'd0;
-            mult_s1_b[i] <= 8'd0;
-        end
-    end
-end
-// reg signed [7:0] mult_s_a[0:7], mult_s_b[0:7]
-always @(posedge mult_s2_clk or negedge rst_n) begin
-// always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if (!rst_n) begin
-        for (i = 0; i < 8; i = i + 1) begin
-            mult_s2_a[i] <= 8'd0;
-            mult_s2_b[i] <= 8'd0;
-        end
-    end
-    else if (Q_mult) begin
         mult_s2_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd0}];
         mult_s2_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd1}];
         mult_s2_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd2}];
@@ -577,6 +521,24 @@ always @(posedge mult_s2_clk or negedge rst_n) begin
         mult_s2_b[7] <= w_Q_transpose[{mult_cnt_small[2:0], 3'd7}];
     end
     else if (K_mult) begin
+        mult_s1_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 4'd0}];
+        mult_s1_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 4'd1}];
+        mult_s1_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 4'd2}];
+        mult_s1_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 4'd3}];
+        mult_s1_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 4'd4}];
+        mult_s1_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 4'd5}];
+        mult_s1_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 4'd6}];
+        mult_s1_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 4'd7}];
+
+        mult_s1_b[0] <= w_K_transpose[{mult_cnt_small[2:0], 3'd0}];
+        mult_s1_b[1] <= w_K_transpose[{mult_cnt_small[2:0], 3'd1}];
+        mult_s1_b[2] <= w_K_transpose[{mult_cnt_small[2:0], 3'd2}];
+        mult_s1_b[3] <= w_K_transpose[{mult_cnt_small[2:0], 3'd3}];
+        mult_s1_b[4] <= w_K_transpose[{mult_cnt_small[2:0], 3'd4}];
+        mult_s1_b[5] <= w_K_transpose[{mult_cnt_small[2:0], 3'd5}];
+        mult_s1_b[6] <= w_K_transpose[{mult_cnt_small[2:0], 3'd6}];
+        mult_s1_b[7] <= w_K_transpose[{mult_cnt_small[2:0], 3'd7}];
+
         mult_s2_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd0}];
         mult_s2_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd1}];
         mult_s2_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd2}];
@@ -596,6 +558,24 @@ always @(posedge mult_s2_clk or negedge rst_n) begin
         mult_s2_b[7] <= w_K_transpose[{mult_cnt_small[2:0], 3'd7}];
     end
     else if (V_mult) begin
+        mult_s1_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 4'd0}];
+        mult_s1_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 4'd1}];
+        mult_s1_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 4'd2}];
+        mult_s1_a[3] <= in_data2_reg[{mult_cnt_small[4:3], 4'd3}];
+        mult_s1_a[4] <= in_data2_reg[{mult_cnt_small[4:3], 4'd4}];
+        mult_s1_a[5] <= in_data2_reg[{mult_cnt_small[4:3], 4'd5}];
+        mult_s1_a[6] <= in_data2_reg[{mult_cnt_small[4:3], 4'd6}];
+        mult_s1_a[7] <= in_data2_reg[{mult_cnt_small[4:3], 4'd7}];
+
+        mult_s1_b[0] <= w_V_transpose[{mult_cnt_small[2:0], 3'd0}];
+        mult_s1_b[1] <= w_V_transpose[{mult_cnt_small[2:0], 3'd1}];
+        mult_s1_b[2] <= w_V_transpose[{mult_cnt_small[2:0], 3'd2}];
+        mult_s1_b[3] <= w_V_transpose[{mult_cnt_small[2:0], 3'd3}];
+        mult_s1_b[4] <= w_V_transpose[{mult_cnt_small[2:0], 3'd4}];
+        mult_s1_b[5] <= w_V_transpose[{mult_cnt_small[2:0], 3'd5}];
+        mult_s1_b[6] <= w_V_transpose[{mult_cnt_small[2:0], 3'd6}];
+        mult_s1_b[7] <= w_V_transpose[{mult_cnt_small[2:0], 3'd7}];
+
         mult_s2_a[0] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd0}];
         mult_s2_a[1] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd1}];
         mult_s2_a[2] <= in_data2_reg[{mult_cnt_small[4:3], 1'b1, 3'd2}];
@@ -616,20 +596,16 @@ always @(posedge mult_s2_clk or negedge rst_n) begin
     end
     else if (the_end) begin
         for (i = 0; i < 8; i = i + 1) begin
+            mult_s1_a[i] <= 8'd0;
+            mult_s1_b[i] <= 8'd0;
             mult_s2_a[i] <= 8'd0;
             mult_s2_b[i] <= 8'd0;
         end
     end
 end
 
-wire mult_b_a_clk, mult_b_b_clk;
-wire mult_b_sleep = cg_en & ~is_det_d1 & ~is_QK & ~is_SV & ~(the_end);
-GATED_OR GATED_mult_b_a (.CLOCK(clk), .SLEEP_CTRL(mult_b_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_b_a_clk));
-GATED_OR GATED_mult_b_b (.CLOCK(clk), .SLEEP_CTRL(mult_b_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_b_b_clk));
-
 // reg signed [18:0] mult_b_a[0:7]
 // reg signed [36:0] mult_b_b[0:7]
-// always @(posedge mult_b_clk or negedge rst_n) begin  // fuck
 always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
@@ -839,9 +815,9 @@ end
 
 // reg signed [37:0] A_tmp;     // 38-bit
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)               A_tmp <= 38'd0;
-    else if (is_QK_d1)             A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
-    else if (the_end) A_tmp <= 38'd0;
+    if      (!rst_n)   A_tmp <= 38'd0;
+    else if (is_QK_d1) A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
+    else if (the_end)  A_tmp <= 38'd0;
 end
 
 // wire signed [36:0] A_pos;     // 37-bit
@@ -890,16 +866,6 @@ always @(posedge clk or negedge rst_n) begin
     if      (!rst_n) mult_cnt_SV <= 8'd0;
     else if (is_SV)  mult_cnt_SV <= mult_cnt_SV + 8'd1;
     else             mult_cnt_SV <= 8'd0;
-end
-
-// reg [7:0] mult_cnt_SV_d1;   // 0~191
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-        mult_cnt_SV_d1 <= 8'd0;
-    end
-    else begin
-        mult_cnt_SV_d1 <= mult_cnt_SV;
-    end
 end
 
 // reg signed [18:0] V_transpose [0:63];

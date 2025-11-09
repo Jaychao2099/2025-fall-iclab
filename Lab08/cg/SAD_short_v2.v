@@ -132,14 +132,14 @@ reg signed [7:0]  mult_s2_b [0:7];
 reg signed [15:0] mult_s2_z [0:7];
 
 reg signed [18:0] mult_b_a [0:7];
-wire signed [36:0] mult_b_b [0:7];
+reg signed [36:0] mult_b_b [0:7];
 reg signed [53:0] mult_b_z [0:7];
 
 reg signed [24:0] mult_f_a;
 reg signed [53:0] mult_f_b;
 reg signed [91:0] mult_f_z;
 
-wire signed [18:0] Q_reg [0:63], K_reg [0:63], V_reg [0:63];     // 19-bit
+reg signed [18:0] Q_reg [0:63], K_reg [0:63], V_reg [0:63];     // 19-bit
 
 //==============================================//
 //                  design                      //
@@ -622,37 +622,21 @@ always @(posedge mult_s2_clk or negedge rst_n) begin
     end
 end
 
-wire mult_b_a_clk, mult_b_b_clk_h1, mult_b_b_clk_h2;
-wire mult_b_sleep = cg_en & ~is_det_d1 & ~is_QK & ~is_SV & ~(the_end);
-// GATED_OR GATED_mult_b_a (.CLOCK(clk), .SLEEP_CTRL(mult_b_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_b_a_clk));
-GATED_OR GATED_mult_b_b_h1 (.CLOCK(clk), .SLEEP_CTRL(mult_b_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_b_b_clk_h1));
-GATED_OR GATED_mult_b_b_h2 (.CLOCK(clk), .SLEEP_CTRL(mult_b_sleep), .RST_N(rst_n), .CLOCK_GATED(mult_b_b_clk_h2));
-
-reg signed [36:0] mult_b_b_h1[0:3], mult_b_b_h2[4:7];
-
-generate
-    for (k = 0; k < 4; k = k + 1) begin: recover_mult_b_b
-        assign mult_b_b[k]   = mult_b_b_h1[k];
-        assign mult_b_b[k+4] = mult_b_b_h2[k+4];
-    end
-endgenerate
-
 // reg signed [18:0] mult_b_a[0:7]
 // reg signed [36:0] mult_b_b[0:7]
-// always @(posedge mult_b_a_clk or negedge rst_n) begin        // may wrong
 always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
         for (i = 0; i < 8; i = i + 1) begin
             mult_b_a[i] <= 19'd0;
+            mult_b_b[i] <= 37'd0;
         end
     end
     else if (is_det_d1) begin
         mult_b_a[0] <= {{ 3{mult_s1_z[0][15]}}, mult_s1_z[0]};
+        mult_b_b[0] <= {{21{mult_s1_z[1][15]}}, mult_s1_z[1]};
         mult_b_a[1] <= {{ 3{mult_s1_z[2][15]}}, mult_s1_z[2]};
-        for (i = 2; i < 8; i = i + 1) begin
-            mult_b_a[i] <= 19'd0;
-        end
+        mult_b_b[1] <= {{21{mult_s1_z[3][15]}}, mult_s1_z[3]};
     end
     else if (is_QK) begin
         mult_b_a[0] <= Q_reg[{mult_cnt_QK[5:3], 3'd0}];
@@ -663,6 +647,15 @@ always @(posedge clk or negedge rst_n) begin
         mult_b_a[5] <= Q_reg[{mult_cnt_QK[5:3], 3'd5}];
         mult_b_a[6] <= Q_reg[{mult_cnt_QK[5:3], 3'd6}];
         mult_b_a[7] <= Q_reg[{mult_cnt_QK[5:3], 3'd7}];
+
+        mult_b_b[0] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd0}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd0}]};
+        mult_b_b[1] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd1}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd1}]};
+        mult_b_b[2] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd2}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd2}]};
+        mult_b_b[3] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd3}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd3}]};
+        mult_b_b[4] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd4}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd4}]};
+        mult_b_b[5] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd5}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd5}]};
+        mult_b_b[6] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd6}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd6}]};
+        mult_b_b[7] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd7}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd7}]};
     end
     else if (is_SV) begin
         mult_b_a[0] <= V_transpose[{mult_cnt_SV[2:0], 3'd0}];  // 19-bit
@@ -673,81 +666,27 @@ always @(posedge clk or negedge rst_n) begin
         mult_b_a[5] <= V_transpose[{mult_cnt_SV[2:0], 3'd5}];
         mult_b_a[6] <= V_transpose[{mult_cnt_SV[2:0], 3'd6}];
         mult_b_a[7] <= V_transpose[{mult_cnt_SV[2:0], 3'd7}];
+
+        mult_b_b[0] <= S_reg[{mult_cnt_SV[5:3], 3'd0}];        // 37-bit
+        mult_b_b[1] <= S_reg[{mult_cnt_SV[5:3], 3'd1}];
+        mult_b_b[2] <= S_reg[{mult_cnt_SV[5:3], 3'd2}];
+        mult_b_b[3] <= S_reg[{mult_cnt_SV[5:3], 3'd3}];
+        mult_b_b[4] <= S_reg[{mult_cnt_SV[5:3], 3'd4}];
+        mult_b_b[5] <= S_reg[{mult_cnt_SV[5:3], 3'd5}];
+        mult_b_b[6] <= S_reg[{mult_cnt_SV[5:3], 3'd6}];
+        mult_b_b[7] <= S_reg[{mult_cnt_SV[5:3], 3'd7}];
     end
     else if (the_end) begin
         for (i = 0; i < 8; i = i + 1) begin
             mult_b_a[i] <= 19'd0;
-        end
-    end
-end
-always @(posedge mult_b_b_clk_h1 or negedge rst_n) begin
-// always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if (!rst_n) begin
-        for (i = 0; i < 4; i = i + 1) begin
-            mult_b_b_h1[i] <= 37'd0;
-        end
-    end
-    else if (is_det_d1) begin
-        mult_b_b_h1[0] <= {{21{mult_s1_z[1][15]}}, mult_s1_z[1]};
-        mult_b_b_h1[1] <= {{21{mult_s1_z[3][15]}}, mult_s1_z[3]};
-        mult_b_b_h1[2] <= 37'd0;
-        mult_b_b_h1[3] <= 37'd0;
-    end
-    else if (is_QK) begin
-        mult_b_b_h1[0] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd0}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd0}]};
-        mult_b_b_h1[1] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd1}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd1}]};
-        mult_b_b_h1[2] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd2}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd2}]};
-        mult_b_b_h1[3] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd3}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd3}]};
-    end
-    else if (is_SV) begin
-        mult_b_b_h1[0] <= S_reg[{mult_cnt_SV[5:3], 3'd0}];        // 37-bit
-        mult_b_b_h1[1] <= S_reg[{mult_cnt_SV[5:3], 3'd1}];
-        mult_b_b_h1[2] <= S_reg[{mult_cnt_SV[5:3], 3'd2}];
-        mult_b_b_h1[3] <= S_reg[{mult_cnt_SV[5:3], 3'd3}];
-    end
-    else if (the_end) begin
-        for (i = 0; i < 4; i = i + 1) begin
-            mult_b_b_h1[i] <= 37'd0;
-        end
-    end
-end
-always @(posedge mult_b_b_clk_h2 or negedge rst_n) begin
-// always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if (!rst_n) begin
-        for (i = 4; i < 8; i = i + 1) begin
-            mult_b_b_h2[i] <= 37'd0;
-        end
-    end
-    else if (is_det_d1) begin
-        mult_b_b_h2[4] <= 37'd0;
-        mult_b_b_h2[5] <= 37'd0;
-        mult_b_b_h2[6] <= 37'd0;
-        mult_b_b_h2[7] <= 37'd0;
-    end
-    else if (is_QK) begin
-        mult_b_b_h2[4] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd4}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd4}]};
-        mult_b_b_h2[5] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd5}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd5}]};
-        mult_b_b_h2[6] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd6}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd6}]};
-        mult_b_b_h2[7] <= {{18{K_reg[{mult_cnt_QK[2:0], 3'd7}][18]}}, K_reg[{mult_cnt_QK[2:0], 3'd7}]};
-    end
-    else if (is_SV) begin
-        mult_b_b_h2[4] <= S_reg[{mult_cnt_SV[5:3], 3'd4}];
-        mult_b_b_h2[5] <= S_reg[{mult_cnt_SV[5:3], 3'd5}];
-        mult_b_b_h2[6] <= S_reg[{mult_cnt_SV[5:3], 3'd6}];
-        mult_b_b_h2[7] <= S_reg[{mult_cnt_SV[5:3], 3'd7}];
-    end
-    else if (the_end) begin
-        for (i = 4; i < 8; i = i + 1) begin
-            mult_b_b_h2[i] <= 37'd0;
+            mult_b_b[i] <= 37'd0;
         end
     end
 end
 
 // reg signed [20:0] det_tmp;   // 21-bit
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)     det_tmp <= 21'd0;
+    if      (!rst_n)     det_tmp <= 25'd0;
     else if (is_det_d2) begin
         if (~cnt_clk[0]) det_tmp <= mult_b_z[0] - mult_b_z[1];
         else             det_tmp <= mult_b_z[1] - mult_b_z[0];
@@ -808,118 +747,46 @@ generate
     end
 endgenerate
 
-wire Q_reg_clk_h1, Q_reg_clk_h2;
-wire V_reg_clk_h1, V_reg_clk_h2;
-wire K_reg_clk_h1, K_reg_clk_h2;
-wire Q_reg_sleep = cg_en & ~Q_mult_d1 & ~the_end;
-wire K_reg_sleep = cg_en & ~K_mult_d1 & ~the_end;
-wire V_reg_sleep = cg_en & ~V_mult_d1 & ~the_end;
-GATED_OR GATED_Q_reg_h1 (.CLOCK(clk), .SLEEP_CTRL(Q_reg_sleep), .RST_N(rst_n), .CLOCK_GATED(Q_reg_clk_h1));
-GATED_OR GATED_Q_reg_h2 (.CLOCK(clk), .SLEEP_CTRL(Q_reg_sleep), .RST_N(rst_n), .CLOCK_GATED(Q_reg_clk_h2));
-GATED_OR GATED_K_reg_h1 (.CLOCK(clk), .SLEEP_CTRL(K_reg_sleep), .RST_N(rst_n), .CLOCK_GATED(K_reg_clk_h1));
-GATED_OR GATED_K_reg_h2 (.CLOCK(clk), .SLEEP_CTRL(K_reg_sleep), .RST_N(rst_n), .CLOCK_GATED(K_reg_clk_h2));
-GATED_OR GATED_V_reg_h1 (.CLOCK(clk), .SLEEP_CTRL(V_reg_sleep), .RST_N(rst_n), .CLOCK_GATED(V_reg_clk_h1));
-GATED_OR GATED_V_reg_h2 (.CLOCK(clk), .SLEEP_CTRL(V_reg_sleep), .RST_N(rst_n), .CLOCK_GATED(V_reg_clk_h2));
-
-reg signed [18:0] Q_reg_h1 [0:31], Q_reg_h2 [32:63];
-reg signed [18:0] K_reg_h1 [0:31], K_reg_h2 [32:63];
-reg signed [18:0] V_reg_h1 [0:31], V_reg_h2 [32:63];
-
-generate
-    for (k = 0; k < 32; k = k + 1) begin: recover_QKV_reg
-        assign Q_reg[k]    = Q_reg_h1[k];
-        assign K_reg[k]    = K_reg_h1[k];
-        assign V_reg[k]    = V_reg_h1[k];
-        assign Q_reg[k+32] = Q_reg_h2[k+32];
-        assign K_reg[k+32] = K_reg_h2[k+32];
-        assign V_reg[k+32] = V_reg_h2[k+32];
-    end
-endgenerate
-
-wire [5:0] QKV_idx_s1 = {mult_cnt_small_d1[4:3], 1'b0, mult_cnt_small_d1[2:0]};
-wire [5:0] QKV_idx_s2 = {mult_cnt_small_d1[4:3], 1'b1, mult_cnt_small_d1[2:0]};
-
-// reg signed [18:0] Q_reg [0:63]     // 19-bit
-always @(posedge Q_reg_clk_h1 or negedge rst_n) begin
+// reg signed [18:0] Q_reg [0:63], K_reg [0:63], V_reg [0:63];     // 19-bit
+always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
-        for (i = 0; i < 32; i = i + 1) Q_reg_h1[i] <= 19'd0;
+        for (i = 0; i < 64; i = i + 1) Q_reg[i] <= 19'd0;
     end
-    else if (Q_mult_d1 && QKV_idx_s1 < 6'd32 && QKV_idx_s2 < 6'd32) begin
-        Q_reg_h1[QKV_idx_s1] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
-        Q_reg_h1[QKV_idx_s2] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
-    end
-    else if (the_end) begin
-        for (i = 0; i < 32; i = i + 1) Q_reg_h1[i] <= 19'd0;
-    end
-end
-always @(posedge Q_reg_clk_h2 or negedge rst_n) begin
-    integer i;
-    if (!rst_n) begin
-        for (i = 32; i < 64; i = i + 1) Q_reg_h2[i] <= 19'd0;
-    end
-    else if (Q_mult_d1 && QKV_idx_s1 > 6'd31 && QKV_idx_s2 > 6'd31) begin
-        Q_reg_h2[QKV_idx_s1] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
-        Q_reg_h2[QKV_idx_s2] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
+    else if (Q_mult_d1) begin
+        Q_reg[{mult_cnt_small_d1[4:3], 1'b0, mult_cnt_small_d1[2:0]}] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
+        Q_reg[{mult_cnt_small_d1[4:3], 1'b1, mult_cnt_small_d1[2:0]}] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
     end
     else if (the_end) begin
-        for (i = 32; i < 64; i = i + 1) Q_reg_h2[i] <= 19'd0;
+        for (i = 0; i < 64; i = i + 1) Q_reg[i] <= 19'd0;
     end
 end
 
-// reg signed [18:0] K_reg [0:63]     // 19-bit
-always @(posedge K_reg_clk_h1 or negedge rst_n) begin
+always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
-        for (i = 0; i < 32; i = i + 1) K_reg_h1[i] <= 19'd0;
+        for (i = 0; i < 64; i = i + 1) K_reg[i] <= 19'd0;
     end
-    else if (K_mult_d1 && QKV_idx_s1 < 6'd32 && QKV_idx_s2 < 6'd32) begin
-        K_reg_h1[QKV_idx_s1] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
-        K_reg_h1[QKV_idx_s2] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
-    end
-    else if (the_end) begin
-        for (i = 0; i < 32; i = i + 1) K_reg_h1[i] <= 19'd0;
-    end
-end
-always @(posedge K_reg_clk_h2 or negedge rst_n) begin
-    integer i;
-    if (!rst_n) begin
-        for (i = 32; i < 64; i = i + 1) K_reg_h2[i] <= 19'd0;
-    end
-    else if (K_mult_d1 && QKV_idx_s1 > 6'd31 && QKV_idx_s2 > 6'd31) begin
-        K_reg_h2[QKV_idx_s1] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
-        K_reg_h2[QKV_idx_s2] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
+    else if (K_mult_d1) begin
+        K_reg[{mult_cnt_small_d1[4:3], 1'b0, mult_cnt_small_d1[2:0]}] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
+        K_reg[{mult_cnt_small_d1[4:3], 1'b1, mult_cnt_small_d1[2:0]}] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
     end
     else if (the_end) begin
-        for (i = 32; i < 64; i = i + 1) K_reg_h2[i] <= 19'd0;
+        for (i = 0; i < 64; i = i + 1) K_reg[i] <= 19'd0;
     end
 end
 
-// reg signed [18:0] V_reg [0:63];     // 19-bit
-always @(posedge V_reg_clk_h1 or negedge rst_n) begin
+always @(posedge clk or negedge rst_n) begin
     integer i;
     if (!rst_n) begin
-        for (i = 0; i < 32; i = i + 1) V_reg_h1[i] <= 19'd0;
+        for (i = 0; i < 64; i = i + 1) V_reg[i] <= 19'd0;
     end
-    else if (V_mult_d1 && QKV_idx_s1 < 6'd32 && QKV_idx_s2 < 6'd32) begin
-        V_reg_h1[QKV_idx_s1] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
-        V_reg_h1[QKV_idx_s2] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
-    end
-    else if (the_end) begin
-        for (i = 0; i < 32; i = i + 1) V_reg_h1[i] <= 19'd0;
-    end
-end
-always @(posedge V_reg_clk_h2 or negedge rst_n) begin
-    integer i;
-    if (!rst_n) begin
-        for (i = 32; i < 64; i = i + 1) V_reg_h2[i] <= 19'd0;
-    end
-    else if (V_mult_d1 && QKV_idx_s1 > 6'd31 && QKV_idx_s2 > 6'd31) begin
-        V_reg_h2[QKV_idx_s1] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
-        V_reg_h2[QKV_idx_s2] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
+    else if (V_mult_d1) begin
+        V_reg[{mult_cnt_small_d1[4:3], 1'b0, mult_cnt_small_d1[2:0]}] <= mult_s1_z[0] + mult_s1_z[1] + mult_s1_z[2] + mult_s1_z[3] + mult_s1_z[4] + mult_s1_z[5] + mult_s1_z[6] + mult_s1_z[7];
+        V_reg[{mult_cnt_small_d1[4:3], 1'b1, mult_cnt_small_d1[2:0]}] <= mult_s2_z[0] + mult_s2_z[1] + mult_s2_z[2] + mult_s2_z[3] + mult_s2_z[4] + mult_s2_z[5] + mult_s2_z[6] + mult_s2_z[7];
     end
     else if (the_end) begin
-        for (i = 32; i < 64; i = i + 1) V_reg_h2[i] <= 19'd0;
+        for (i = 0; i < 64; i = i + 1) V_reg[i] <= 19'd0;
     end
 end
 
