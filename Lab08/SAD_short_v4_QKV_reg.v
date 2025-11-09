@@ -120,7 +120,7 @@ wire is_SV;
 reg is_SV_d1;
 reg [7:0] mult_cnt_SV, mult_cnt_SV_d1;   // 0~191
 
-reg signed [18:0] V_transpose [0:63];
+wire signed [18:0] V_transpose [0:63];
 
 // ----------------- mult -----------------
 reg signed [7:0]  mult_s1_a [0:7];
@@ -734,13 +734,8 @@ always @(posedge mult_b_b_clk_h2 or negedge rst_n) begin
     end
 end
 
-wire det_tmp_clk;
-wire det_tmp_sleep = cg_en & ~is_det_d2;
-GATED_OR GATED_det_tmp (.CLOCK(clk), .SLEEP_CTRL(det_tmp_sleep), .RST_N(rst_n), .CLOCK_GATED(det_tmp_clk));
-
 // reg signed [20:0] det_tmp;   // 21-bit
-always @(posedge det_tmp_clk or negedge rst_n) begin
-// always @(posedge clk or negedge rst_n) begin
+always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)     det_tmp <= 25'd0;
     else if (is_det_d2) begin
         if (~cnt_clk[0]) det_tmp <= mult_b_z[0] - mult_b_z[1];
@@ -748,13 +743,8 @@ always @(posedge det_tmp_clk or negedge rst_n) begin
     end
 end
 
-wire det_result_clk;
-wire det_result_sleep = cg_en & ~is_det_d3 & ~(the_end);
-GATED_OR GATED_det_result (.CLOCK(clk), .SLEEP_CTRL(det_result_sleep), .RST_N(rst_n), .CLOCK_GATED(det_result_clk));
-
 // reg signed [24:0] det_result;
-always @(posedge det_result_clk or negedge rst_n) begin
-// always @(posedge clk or negedge rst_n) begin
+always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)    det_result <= 25'd0;
     else if (is_det_d3) det_result <= det_result + det_tmp;
     else if (the_end)   det_result <= 25'd0;
