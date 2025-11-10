@@ -263,100 +263,60 @@ always @(posedge in_data1_clk or negedge rst_n) begin
     end
 end
 
-wire in_data2_clk_h1, in_data2_clk_h2;
 wire in_data2_sleep = cg_en & ~(cnt_clk < ({3'd0, T_reg} << 3)) & ~(the_end);
-GATED_OR GATED_in_data2_h1 (.CLOCK(clk), .SLEEP_CTRL(in_data2_sleep), .RST_N(rst_n), .CLOCK_GATED(in_data2_clk_h1));
-GATED_OR GATED_in_data2_h2 (.CLOCK(clk), .SLEEP_CTRL(in_data2_sleep), .RST_N(rst_n), .CLOCK_GATED(in_data2_clk_h2));
-
-reg signed [7:0] in_data2_reg_h1 [0:31], in_data2_reg_h2 [32:63];
-
-// reg signed [7:0] in_data2_reg [0:63];
-always @(posedge in_data2_clk_h1 or negedge rst_n) begin
-// always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)                            for (i = 0; i < 32; i  = i + 1) in_data2_reg_h1[i] <= 8'd0;
-    else if (the_end)                           for (i = 8; i < 32; i  = i + 1) in_data2_reg_h1[i] <= 8'd0;
-    else if (in_data2_valid && cnt_clk < 9'd32) in_data2_reg_h1[cnt_clk] <= in_data2;
-end
-
-always @(posedge in_data2_clk_h2 or negedge rst_n) begin
-// always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)                            for (i = 32; i < 64; i  = i + 1) in_data2_reg_h2[i] <= 8'd0;
-    else if (the_end)                           for (i = 32; i < 64; i  = i + 1) in_data2_reg_h2[i] <= 8'd0;
-    else if (in_data2_valid && cnt_clk > 9'd31) in_data2_reg_h2[cnt_clk] <= in_data2;
-end
 
 generate
-    for (k = 0; k < 32; k = k + 1) begin: recover_in_data2_reg
-        assign in_data2_reg[k]    = in_data2_reg_h1[k];
-        assign in_data2_reg[k+32] = in_data2_reg_h2[k+32];
+    for (k = 0; k < 64; k = k + 1) begin: in_data2_gen
+        wire in_data2_clk_h;
+        wire in_data2_current_clk = (cnt_clk == k);
+        GATED_OR GATED_in_data2_h (.CLOCK(clk), .SLEEP_CTRL(in_data2_sleep & ~in_data2_current_clk), .RST_N(rst_n), .CLOCK_GATED(in_data2_clk_h));
+        reg signed [7:0] in_data2_reg_h;
+        always @(posedge in_data2_clk_h or negedge rst_n) begin
+            integer i;
+            if      (!rst_n)  in_data2_reg_h <= 8'd0;
+            else if (the_end) in_data2_reg_h <= 8'd0;
+            else if (in_data2_valid && in_data2_current_clk) in_data2_reg_h <= in_data2;
+        end
+        assign in_data2_reg[k] = in_data2_reg_h;
     end
 endgenerate
 
-wire w_Q_clk_h1, w_Q_clk_h2;
-wire w_K_clk_h1, w_K_clk_h2;
-wire w_V_clk_h1, w_V_clk_h2;
 wire w_Q_sleep = cg_en & ~(cnt_clk < 9'd64);
 wire w_K_sleep = cg_en & ~(cnt_clk > 9'd63  && cnt_clk < 9'd128);
 wire w_V_sleep = cg_en & ~(cnt_clk > 9'd127 && cnt_clk < 9'd192);
-GATED_OR GATED_w_Q_h1 (.CLOCK(clk), .SLEEP_CTRL(w_Q_sleep), .RST_N(rst_n), .CLOCK_GATED(w_Q_clk_h1));
-GATED_OR GATED_w_K_h1 (.CLOCK(clk), .SLEEP_CTRL(w_K_sleep), .RST_N(rst_n), .CLOCK_GATED(w_K_clk_h1));
-GATED_OR GATED_w_V_h1 (.CLOCK(clk), .SLEEP_CTRL(w_V_sleep), .RST_N(rst_n), .CLOCK_GATED(w_V_clk_h1));
-GATED_OR GATED_w_Q_h2 (.CLOCK(clk), .SLEEP_CTRL(w_Q_sleep), .RST_N(rst_n), .CLOCK_GATED(w_Q_clk_h2));
-GATED_OR GATED_w_K_h2 (.CLOCK(clk), .SLEEP_CTRL(w_K_sleep), .RST_N(rst_n), .CLOCK_GATED(w_K_clk_h2));
-GATED_OR GATED_w_V_h2 (.CLOCK(clk), .SLEEP_CTRL(w_V_sleep), .RST_N(rst_n), .CLOCK_GATED(w_V_clk_h2));
-
-reg signed [7:0] w_Q_reg_h1 [0:31], w_Q_reg_h2 [32:63];
-reg signed [7:0] w_K_reg_h1 [0:31], w_K_reg_h2 [32:63];
-reg signed [7:0] w_V_reg_h1 [0:31], w_V_reg_h2 [32:63];
 
 generate
-    for (k = 0; k < 32; k = k + 1) begin: recover_w_QKV_reg
-        assign w_Q_reg[k] = w_Q_reg_h1[k];
-        assign w_K_reg[k] = w_K_reg_h1[k];
-        assign w_V_reg[k] = w_V_reg_h1[k];
-        assign w_Q_reg[k+32] = w_Q_reg_h2[k+32];
-        assign w_K_reg[k+32] = w_K_reg_h2[k+32];
-        assign w_V_reg[k+32] = w_V_reg_h2[k+32];
+    for (k = 0; k < 64; k = k + 1) begin: w_QKV_gen
+        wire w_Q_clk_h;
+        wire w_K_clk_h;
+        wire w_V_clk_h;
+        wire w_QKV_current_clk = (cnt_clk[5:0] == k);
+        GATED_OR GATED_w_Q_h (.CLOCK(clk), .SLEEP_CTRL(w_Q_sleep & ~w_QKV_current_clk), .RST_N(rst_n), .CLOCK_GATED(w_Q_clk_h));
+        GATED_OR GATED_w_K_h (.CLOCK(clk), .SLEEP_CTRL(w_K_sleep & ~w_QKV_current_clk), .RST_N(rst_n), .CLOCK_GATED(w_K_clk_h));
+        GATED_OR GATED_w_V_h (.CLOCK(clk), .SLEEP_CTRL(w_V_sleep & ~w_QKV_current_clk), .RST_N(rst_n), .CLOCK_GATED(w_V_clk_h));
+        reg signed [7:0] w_Q_reg_h;
+        reg signed [7:0] w_K_reg_h;
+        reg signed [7:0] w_V_reg_h;
+        always @(posedge w_Q_clk_h or negedge rst_n) begin
+            integer i;
+            if      (!rst_n)                       w_Q_reg_h <= 8'd0;
+            else if (Q_valid && w_QKV_current_clk) w_Q_reg_h <= w_Q;
+        end
+        always @(posedge w_K_clk_h or negedge rst_n) begin
+            integer i;
+            if      (!rst_n)                       w_K_reg_h <= 8'd0;
+            else if (K_valid && w_QKV_current_clk) w_K_reg_h <= w_K;
+        end
+        always @(posedge w_V_clk_h or negedge rst_n) begin
+            integer i;
+            if      (!rst_n)                       w_V_reg_h <= 8'd0;
+            else if (V_valid && w_QKV_current_clk) w_V_reg_h <= w_V;
+        end
+        assign w_Q_reg[k] = w_Q_reg_h;
+        assign w_K_reg[k] = w_K_reg_h;
+        assign w_V_reg[k] = w_V_reg_h;
     end
 endgenerate
-
-// reg signed [7:0] w_Q_reg [0:63];
-always @(posedge w_Q_clk_h1 or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 0; i < 32; i = i + 1) w_Q_reg_h1[i] <= 8'd0;
-    else if (Q_valid && cnt_clk[5:0] < 6'd32) w_Q_reg_h1[cnt_clk[5:0]] <= w_Q;
-end
-always @(posedge w_Q_clk_h2 or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 32; i < 64; i = i + 1) w_Q_reg_h2[i] <= 8'd0;
-    else if (Q_valid && cnt_clk[5:0] > 6'd31) w_Q_reg_h2[cnt_clk[5:0]] <= w_Q;
-end
-
-// reg signed [7:0] w_K_reg [0:63];
-always @(posedge w_K_clk_h1 or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 0; i < 32; i = i + 1) w_K_reg_h1[i] <= 8'd0;
-    else if (K_valid && cnt_clk[5:0] < 6'd32) w_K_reg_h1[cnt_clk[5:0]] <= w_K;
-end
-always @(posedge w_K_clk_h2 or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 32; i < 64; i = i + 1) w_K_reg_h2[i] <= 8'd0;
-    else if (K_valid && cnt_clk[5:0] > 6'd31) w_K_reg_h2[cnt_clk[5:0]] <= w_K;
-end
-
-// reg signed [7:0] w_V_reg [0:63];
-always @(posedge w_V_clk_h1 or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 0; i < 32; i = i + 1) w_V_reg_h1[i] <= 8'd0;
-    else if (V_valid && cnt_clk[5:0] < 6'd32) w_V_reg_h1[cnt_clk[5:0]] <= w_V;
-end
-always @(posedge w_V_clk_h2 or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 32; i < 64; i = i + 1) w_V_reg_h2[i] <= 8'd0;
-    else if (V_valid && cnt_clk[5:0] > 6'd31) w_V_reg_h2[cnt_clk[5:0]] <= w_V;
-end
 
 // -------------- determinent --------------
 
@@ -367,8 +327,8 @@ GATED_OR GATED_det_cnt (.CLOCK(clk), .SLEEP_CTRL(det_cnt_sleep), .RST_N(rst_n), 
 // reg [3:0] det_cnt;    // 0 ~ 11
 always @(posedge det_cnt_clk or negedge rst_n) begin
 // always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n) det_cnt <= 4'd0;
-    else if (is_det) det_cnt <= det_cnt + 4'd1;
+    if      (!rst_n)  det_cnt <= 4'd0;
+    else if (is_det)  det_cnt <= det_cnt + 4'd1;
     else if (the_end) det_cnt <= 4'd0;
 end
 
@@ -944,7 +904,7 @@ DIV_3 #(37, 36) div_3(.a(div_a), .z(div_z));
 
 // max clock gate loading ~ 256 bits, maybe
 
-parameter S_REG_SIZE = 4;
+parameter S_REG_SIZE = 1;
 
 generate
     for (k = 0; k < 64/S_REG_SIZE; k = k + 1) begin: S_reg_cg_gen

@@ -248,80 +248,46 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
-reg signed [7:0] in_data2_reg_h1 [0:31], in_data2_reg_h2 [32:63];
-
-// reg signed [7:0] in_data2_reg [0:63];
-always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)                            for (i = 0; i < 32; i  = i + 1) in_data2_reg_h1[i] <= 8'd0;
-    else if (the_end)                           for (i = 8; i < 32; i  = i + 1) in_data2_reg_h1[i] <= 8'd0;
-    else if (in_data2_valid && cnt_clk < 9'd32) in_data2_reg_h1[cnt_clk] <= in_data2;
-end
-
-always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)                            for (i = 32; i < 64; i  = i + 1) in_data2_reg_h2[i] <= 8'd0;
-    else if (the_end)                           for (i = 32; i < 64; i  = i + 1) in_data2_reg_h2[i] <= 8'd0;
-    else if (in_data2_valid && cnt_clk > 9'd31) in_data2_reg_h2[cnt_clk] <= in_data2;
-end
-
 generate
-    for (k = 0; k < 32; k = k + 1) begin: recover_in_data2_reg
-        assign in_data2_reg[k]    = in_data2_reg_h1[k];
-        assign in_data2_reg[k+32] = in_data2_reg_h2[k+32];
+    for (k = 0; k < 64; k = k + 1) begin: in_data2_gen
+        wire in_data2_current_clk = (cnt_clk == k);
+        reg signed [7:0] in_data2_reg_h;
+        always @(posedge clk or negedge rst_n) begin
+            integer i;
+            if      (!rst_n)  in_data2_reg_h <= 8'd0;
+            else if (the_end) in_data2_reg_h <= 8'd0;
+            else if (in_data2_valid && in_data2_current_clk) in_data2_reg_h <= in_data2;
+        end
+        assign in_data2_reg[k] = in_data2_reg_h;
     end
 endgenerate
 
-reg signed [7:0] w_Q_reg_h1 [0:31], w_Q_reg_h2 [32:63];
-reg signed [7:0] w_K_reg_h1 [0:31], w_K_reg_h2 [32:63];
-reg signed [7:0] w_V_reg_h1 [0:31], w_V_reg_h2 [32:63];
-
 generate
-    for (k = 0; k < 32; k = k + 1) begin: recover_w_QKV_reg
-        assign w_Q_reg[k] = w_Q_reg_h1[k];
-        assign w_K_reg[k] = w_K_reg_h1[k];
-        assign w_V_reg[k] = w_V_reg_h1[k];
-        assign w_Q_reg[k+32] = w_Q_reg_h2[k+32];
-        assign w_K_reg[k+32] = w_K_reg_h2[k+32];
-        assign w_V_reg[k+32] = w_V_reg_h2[k+32];
+    for (k = 0; k < 64; k = k + 1) begin: w_QKV_gen
+        wire w_QKV_current_clk = (cnt_clk[5:0] == k);
+        reg signed [7:0] w_Q_reg_h;
+        reg signed [7:0] w_K_reg_h;
+        reg signed [7:0] w_V_reg_h;
+        always @(posedge clk or negedge rst_n) begin
+            integer i;
+            if      (!rst_n)                       w_Q_reg_h <= 8'd0;
+            else if (Q_valid && w_QKV_current_clk) w_Q_reg_h <= w_Q;
+        end
+        always @(posedge clk or negedge rst_n) begin
+            integer i;
+            if      (!rst_n)                       w_K_reg_h <= 8'd0;
+            else if (K_valid && w_QKV_current_clk) w_K_reg_h <= w_K;
+        end
+        always @(posedge clk or negedge rst_n) begin
+            integer i;
+            if      (!rst_n)                       w_V_reg_h <= 8'd0;
+            else if (V_valid && w_QKV_current_clk) w_V_reg_h <= w_V;
+        end
+        assign w_Q_reg[k] = w_Q_reg_h;
+        assign w_K_reg[k] = w_K_reg_h;
+        assign w_V_reg[k] = w_V_reg_h;
     end
 endgenerate
-
-// reg signed [7:0] w_Q_reg [0:63];
-always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 0; i < 32; i = i + 1) w_Q_reg_h1[i] <= 8'd0;
-    else if (Q_valid && cnt_clk[5:0] < 6'd32) w_Q_reg_h1[cnt_clk[5:0]] <= w_Q;
-end
-always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 32; i < 64; i = i + 1) w_Q_reg_h2[i] <= 8'd0;
-    else if (Q_valid && cnt_clk[5:0] > 6'd31) w_Q_reg_h2[cnt_clk[5:0]] <= w_Q;
-end
-
-// reg signed [7:0] w_K_reg [0:63];
-always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 0; i < 32; i = i + 1) w_K_reg_h1[i] <= 8'd0;
-    else if (K_valid && cnt_clk[5:0] < 6'd32) w_K_reg_h1[cnt_clk[5:0]] <= w_K;
-end
-always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 32; i < 64; i = i + 1) w_K_reg_h2[i] <= 8'd0;
-    else if (K_valid && cnt_clk[5:0] > 6'd31) w_K_reg_h2[cnt_clk[5:0]] <= w_K;
-end
-
-// reg signed [7:0] w_V_reg [0:63];
-always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 0; i < 32; i = i + 1) w_V_reg_h1[i] <= 8'd0;
-    else if (V_valid && cnt_clk[5:0] < 6'd32) w_V_reg_h1[cnt_clk[5:0]] <= w_V;
-end
-always @(posedge clk or negedge rst_n) begin
-    integer i;
-    if      (!rst_n)  for (i = 32; i < 64; i = i + 1) w_V_reg_h2[i] <= 8'd0;
-    else if (V_valid && cnt_clk[5:0] > 6'd31) w_V_reg_h2[cnt_clk[5:0]] <= w_V;
-end
 
 // -------------- determinent --------------
 
@@ -874,7 +840,7 @@ DIV_3 #(37, 36) div_3(.a(div_a), .z(div_z));
 
 
 
-parameter S_REG_SIZE = 4;
+parameter S_REG_SIZE = 1;
 
 generate
     for (k = 0; k < 64/S_REG_SIZE; k = k + 1) begin: S_reg_cg_gen

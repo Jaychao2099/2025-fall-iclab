@@ -367,8 +367,8 @@ GATED_OR GATED_det_cnt (.CLOCK(clk), .SLEEP_CTRL(det_cnt_sleep), .RST_N(rst_n), 
 // reg [3:0] det_cnt;    // 0 ~ 11
 always @(posedge det_cnt_clk or negedge rst_n) begin
 // always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n) det_cnt <= 4'd0;
-    else if (is_det) det_cnt <= det_cnt + 4'd1;
+    if      (!rst_n)  det_cnt <= 4'd0;
+    else if (is_det)  det_cnt <= det_cnt + 4'd1;
     else if (the_end) det_cnt <= 4'd0;
 end
 

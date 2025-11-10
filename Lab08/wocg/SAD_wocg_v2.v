@@ -585,7 +585,7 @@ end
 
 // reg signed [20:0] det_tmp;   // 21-bit
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)     det_tmp <= 25'd0;
+    if      (!rst_n)     det_tmp <= 21'd0;
     else if (is_det_d2) begin
         if (~cnt_clk[0]) det_tmp <= mult_b_z[0] - mult_b_z[1];
         else             det_tmp <= mult_b_z[1] - mult_b_z[0];
@@ -732,9 +732,9 @@ end
 
 // reg signed [37:0] A_tmp;     // 38-bit
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)               A_tmp <= 38'd0;
-    else if (is_QK_d1)             A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
-    else if (the_end) A_tmp <= 38'd0;
+    if      (!rst_n)   A_tmp <= 38'd0;
+    else if (is_QK_d1) A_tmp <= mult_b_z[0] + mult_b_z[1] + mult_b_z[2] + mult_b_z[3] + mult_b_z[4] + mult_b_z[5] + mult_b_z[6] + mult_b_z[7];
+    else if (the_end)  A_tmp <= 38'd0;
 end
 
 // wire signed [36:0] A_pos;     // 37-bit
