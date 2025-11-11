@@ -71,7 +71,7 @@ module PATTERN(
 //---------------------------------------------------------------------
 //   PORT DECLARATION          
 //---------------------------------------------------------------------
-parameter ID_WIDTH=4, DATA_WIDTH=32, ADDR_WIDTH=32, DRAM_NUMBER=2, WRIT_NUMBER=1;
+parameter ID_WIDTH=4, DATA_WIDTH=16, ADDR_WIDTH=32, DRAM_NUMBER=2, WRIT_NUMBER=1;
 
 output reg			  clk,rst_n;
 input				IO_stall;
