@@ -8,9 +8,9 @@
 #======================================================
 #
 #set search_path {./../01_RTL \
-                 ##./../04_MEM/ \
-				 #/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/ \
-                 #/~iclabta01/umc018/Synthesis/ }
+                 ./../04_MEM/ \
+				 /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/ \
+                 /~iclabta01/umc018/Synthesis/ }
                  #/usr/synthesis/libraries/syn/ \
                  #/usr/synthesis/dw/ }
 
@@ -44,7 +44,7 @@ link
 #======================================================
 #  (C) Global Setting
 #======================================================
-#set_wire_load_mode top
+set_wire_load_mode top
 #set_operating_conditions -max WCCOM -min BCCOM
 # set_wire_load_model -name umc18_wl10 -library slow
 
@@ -59,8 +59,8 @@ set_fix_hold                       [get_clocks clk]
 set_clock_uncertainty       0.1    [get_clocks clk]
 # set_clock_latency   -source 0      [get_clocks clk]
 # set_clock_latency           1      [get_clocks clk] 
-#set_input_transition        0.5    [all_inputs] 
-#set_clock_transition        0.1    [all_clocks] 
+set_input_transition        0.5    [all_inputs] 
+set_clock_transition        0.1    [all_clocks] 
 
 # (D-2) Setting in/out Constraints
 set_input_delay   -max  $INPUT_DLY  -clock clk   [all_inputs] ;  # set_up time check 
@@ -140,7 +140,6 @@ write_sdc Netlist/$DESIGN\_SYN.sdc
 #======================================================
 #  (I) Finish and Quit
 #======================================================
-
 report_area
 report_timing 
 exit
