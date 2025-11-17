@@ -137,12 +137,13 @@ wire [6:0] arlen_inst, arlen_data; // AXI length = burst length - 1
 reg [6:0] read_inst_counter, read_data_counter;
 
 // Write control
-reg  awvalid;
+reg awvalid;
 reg [31:0] awaddr;
 reg [6:0] awlen;
-reg  wvalid, wvalid_reg;
+reg wvalid, wvalid_reg;
+reg wready_m_inf_reg;
 reg [15:0] wdata;
-reg  wlast;
+reg wlast;
 
 // output wire
 assign arvalid_m_inf = {arvalid_inst, arvalid_data};
@@ -246,8 +247,11 @@ wire cache_hit_inst, cache_hit_data;
 wire inst_miss, load_miss, store_miss;
 
 reg [6:0] wb_scan_counter, wb_scan_counter_reg;
+reg [6:0]  wb_counter_next;   // pre counter
 wire data_is_dirty;
 reg [15:0] wdata_reg;
+
+reg [15:0] wdata_pipe;        // pipeline data register
 
 //###########################################
 //
@@ -280,9 +284,6 @@ localparam S_WB_DATA_TEN_DELAY  = 5'd21;
 localparam S_WB_DATA_TEN        = 5'd22;
 localparam S_CHECK_TEN          = 5'd23;
 localparam S_UPDATE_PC          = 5'd24;
-// localparam S_WB_REQ_INST_MISS   = 5'd6;
-// localparam S_WB_DATA_INST_MISS  = 5'd7;
-// localparam S_WB_DATA_INST_MISS_DELAY = 5'd23;
 
 // reg [4:0] current_state;
 always @(posedge clk or negedge rst_n) begin
@@ -304,8 +305,8 @@ always @(*) begin
             next_state = S_REFILL_WAIT;
         end
         S_REFILL_WAIT: begin
-            if (inst_read_complete/* && data_read_complete*/) next_state = S_FETCH_REQ;
-            else                                          next_state = S_REFILL_WAIT;
+            if (inst_read_complete) next_state = S_FETCH_REQ;
+            else                    next_state = S_REFILL_WAIT;
         end
         S_FETCH_REQ: begin
             next_state = S_FETCH;
@@ -316,17 +317,20 @@ always @(*) begin
         end
         S_WB_REQ_LOAD_MISS: begin
             if (awready_m_inf) begin
-                if (dirty_state == DS_MANY_DIRTY) next_state = S_WB_DATA_LOAD_MISS_DELAY;
-                else                              next_state = S_WB_DATA_LOAD_MISS;
+                // if (dirty_state == DS_MANY_DIRTY) next_state = S_WB_DATA_LOAD_MISS_DELAY;
+                // else                              next_state = S_WB_DATA_LOAD_MISS;
+                next_state = S_WB_DATA_LOAD_MISS;
             end
             else                                  next_state = S_WB_REQ_LOAD_MISS;
         end
-        S_WB_DATA_LOAD_MISS_DELAY: begin
-            next_state = S_WB_DATA_LOAD_MISS;
-        end
+        // S_WB_DATA_LOAD_MISS_DELAY: begin
+        //     next_state = S_WB_DATA_LOAD_MISS;
+        // end
         S_WB_DATA_LOAD_MISS: begin
-            if (bvalid_m_inf) next_state = S_READ_DATA_REQ; // load miss
-            else              next_state = S_WB_DATA_LOAD_MISS;
+            // if (bvalid_m_inf) next_state = S_READ_DATA_REQ; // load miss
+            // else              next_state = S_WB_DATA_LOAD_MISS;
+            if (wvalid_reg && wready_m_inf_reg && wlast) next_state = S_READ_DATA_REQ;      // load miss
+            else                                         next_state = S_WB_DATA_LOAD_MISS;
         end
         S_READ_DATA_REQ: begin
             if (arready_data) next_state = S_READ_DATA;
@@ -372,17 +376,20 @@ always @(*) begin
         end
         S_WB_REQ_TEN: begin
             if (awready_m_inf) begin
-                if (dirty_state == DS_MANY_DIRTY) next_state = S_WB_DATA_TEN_DELAY;
-                else                              next_state = S_WB_DATA_TEN;
+                // if (dirty_state == DS_MANY_DIRTY) next_state = S_WB_DATA_TEN_DELAY;
+                // else                              next_state = S_WB_DATA_TEN;
+                next_state = S_WB_DATA_TEN;
             end
             else                                  next_state = S_WB_REQ_TEN;
         end
-        S_WB_DATA_TEN_DELAY: begin
-            next_state = S_WB_DATA_TEN;
-        end
+        // S_WB_DATA_TEN_DELAY: begin
+        //     next_state = S_WB_DATA_TEN;
+        // end
         S_WB_DATA_TEN: begin
-            if (bvalid_m_inf) next_state = S_UPDATE_PC;            // 10 inst
-            else              next_state = S_WB_DATA_TEN;
+            // if (bvalid_m_inf) next_state = S_UPDATE_PC;            // 10 inst
+            // else              next_state = S_WB_DATA_TEN;
+            if (wvalid_reg && wready_m_inf_reg && wlast) next_state = S_UPDATE_PC;      // 10 inst
+            else                                         next_state = S_WB_DATA_TEN;
         end
         S_CHECK_TEN: begin
             if (inst_cnt == 4'd9 & data_is_dirty) next_state = S_WB_REQ_TEN;
@@ -731,25 +738,44 @@ always @(*) begin
             if      (opcode == 3'd3 && ~load_miss)  we_data = WE_READ;
             else if (opcode == 3'd2 && ~store_miss) we_data = WE_WRITE;
         end
-        S_WB_DATA_LOAD_MISS,       S_WB_DATA_TEN,
-        S_WB_DATA_LOAD_MISS_DELAY, S_WB_DATA_TEN_DELAY: begin
+        // S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN, S_WB_DATA_LOAD_MISS_DELAY, S_WB_DATA_TEN_DELAY: begin
+        S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN: begin
             if (dirty_state == DS_MANY_DIRTY) we_data = WE_READ;
         end
     endcase
 end
 
+// always @(*) begin
+//     Address_data = 7'd0;
+//     case (current_state)
+//         // wait for write cache
+//         S_INIT_WAIT:   if (rvalid_data) Address_data = init_read_counter_data;
+//         S_MEMORY: begin
+//             if      (opcode == 3'd3 && ~load_miss)  Address_data = index_data; // load hit (read)
+//             else if (opcode == 3'd2 && ~store_miss) Address_data = index_data; // store hit (write)
+//         end
+//         S_WB_DATA_LOAD_MISS,       S_WB_DATA_TEN,
+//         S_WB_DATA_LOAD_MISS_DELAY, S_WB_DATA_TEN_DELAY: begin
+//             if (dirty_state == DS_MANY_DIRTY) Address_data = wb_scan_counter;  // write-back DRAM (read)
+//         end
+//     endcase
+// end
 always @(*) begin
     Address_data = 7'd0;
     case (current_state)
-        // wait for write cache
-        S_INIT_WAIT:   if (rvalid_data) Address_data = init_read_counter_data;
-        S_MEMORY: begin
-            if      (opcode == 3'd3 && ~load_miss)  Address_data = index_data; // load hit (read)
-            else if (opcode == 3'd2 && ~store_miss) Address_data = index_data; // store hit (write)
+        S_INIT_WAIT: begin
+            if (rvalid_data) Address_data = init_read_counter_data;
         end
-        S_WB_DATA_LOAD_MISS,       S_WB_DATA_TEN,
-        S_WB_DATA_LOAD_MISS_DELAY, S_WB_DATA_TEN_DELAY: begin
-            if (dirty_state == DS_MANY_DIRTY) Address_data = wb_scan_counter;  // write-back DRAM (read)
+        S_MEMORY: begin
+            if      (opcode == 3'd3 && ~load_miss)  Address_data = index_data;  // load hit (read)
+            else if (opcode == 3'd2 && ~store_miss) Address_data = index_data;  // store hit (write)
+        end
+        S_WB_REQ_LOAD_MISS, S_WB_REQ_TEN: begin
+            if (dirty_state == DS_MANY_DIRTY) Address_data = 7'd0;
+        end
+        // S_WB_DATA_LOAD_MISS, S_WB_DATA_LOAD_MISS_DELAY, S_WB_DATA_TEN, S_WB_DATA_TEN_DELAY: begin
+        S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN: begin
+            if (dirty_state == DS_MANY_DIRTY) Address_data = wb_counter_next;
         end
     endcase
 end
@@ -850,12 +876,10 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 // reg [6:0] wb_scan_counter;
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) wb_scan_counter_reg <= 7'd0;
-    else        wb_scan_counter_reg <= wb_scan_counter;
-end
-
-reg wready_m_inf_reg;
+// always @(posedge clk or negedge rst_n) begin
+//     if (!rst_n) wb_scan_counter_reg <= 7'd0;
+//     else        wb_scan_counter_reg <= wb_scan_counter;
+// end
 
 // reg wready_m_inf_reg;
 always @(posedge clk) begin
@@ -863,23 +887,46 @@ always @(posedge clk) begin
 end
 
 // reg [6:0] wb_scan_counter;
+// always @(*) begin
+//     wb_scan_counter = wb_scan_counter_reg;
+//     if      ((current_state == S_WB_DATA_LOAD_MISS || current_state == S_WB_DATA_LOAD_MISS_DELAY ||
+//               current_state == S_WB_DATA_TEN       || current_state == S_WB_DATA_TEN_DELAY) &&
+//               ((wvalid       != wvalid_reg) ||
+//                (wready_m_inf != wready_m_inf_reg) ||
+//                (wvalid && wready_m_inf))) wb_scan_counter = wb_scan_counter_reg + 7'd1;
+//     else if (current_state == S_WB_REQ_LOAD_MISS || 
+//              current_state == S_WB_REQ_TEN ) wb_scan_counter = 7'd0;
+// end
+// always @(posedge clk or negedge rst_n) begin
+//     if (!rst_n) wb_scan_counter <= 7'd0;
+//     else begin
+//         case (current_state)
+//             S_WB_REQ_LOAD_MISS, S_WB_REQ_TEN: begin
+//                 wb_scan_counter <= 7'd0;
+//             end
+//             S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN: begin
+//                 if (wvalid_reg && wready_m_inf_reg) wb_scan_counter <= wb_scan_counter + 7'd1;
+//             end
+//         endcase
+//     end
+// end
+
+always @(*) begin
+    if (current_state == S_WB_DATA_LOAD_MISS || current_state == S_WB_DATA_TEN)
+         wb_counter_next = wb_scan_counter + 7'd1;
+    else wb_counter_next = 7'd0;
+end
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) wb_scan_counter_reg <= 7'd0;
+    else        wb_scan_counter_reg <= wb_scan_counter;
+end
 always @(*) begin
     wb_scan_counter = wb_scan_counter_reg;
-    if      ((current_state == S_WB_DATA_LOAD_MISS || current_state == S_WB_DATA_LOAD_MISS_DELAY ||
-              current_state == S_WB_DATA_TEN       || current_state == S_WB_DATA_TEN_DELAY) &&
-              ((wvalid       != wvalid_reg) ||
-               (wready_m_inf != wready_m_inf_reg) ||
-               (wvalid && wready_m_inf))) wb_scan_counter = wb_scan_counter_reg + 7'd1;
-    else if (current_state == S_WB_REQ_LOAD_MISS || 
-             current_state == S_WB_REQ_TEN ) wb_scan_counter = 7'd0;
+    if      (current_state == S_WB_REQ_LOAD_MISS || current_state == S_WB_REQ_TEN)                         wb_scan_counter = 7'd0;
+    else if ((current_state == S_WB_DATA_LOAD_MISS || current_state == S_WB_DATA_TEN) && wready_m_inf_reg) wb_scan_counter = wb_scan_counter_reg + 7'd1;
 end
-// always @(posedge clk or negedge rst_n) begin
-//     if      (!rst_n) wb_scan_counter <= 7'd0;
-//     else if (next_state == S_WB_DATA_INST_MISS || next_state == S_WB_DATA_LOAD_MISS || next_state == S_WB_DATA_TEN) wb_scan_counter <= 7'd0;
-//     else if ((current_state == S_WB_DATA_INST_MISS || current_state == S_WB_DATA_INST_MISS_DELAY ||
-//               current_state == S_WB_DATA_LOAD_MISS || current_state == S_WB_DATA_LOAD_MISS_DELAY ||
-//               current_state == S_WB_DATA_TEN       || current_state == S_WB_DATA_TEN_DELAY) && wvalid && wready_m_inf) wb_scan_counter <= wb_scan_counter + 1;
-// end
+
 
 // ----------- control -----------
 
@@ -985,63 +1032,87 @@ always @(posedge clk) begin
 end
 
 // reg  wvalid;
+// always @(posedge clk or negedge rst_n) begin
+//     if (!rst_n) wvalid <= 1'b0;
+//     else begin
+//         case (current_state)
+//             S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN: wvalid <= 1'b1;
+//             S_WT_DATA:                          wvalid <= 1'b1;
+//             default:                            wvalid <= 1'b0;
+//         endcase
+//     end
+// end
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) wvalid <= 1'b0;
     else begin
         case (current_state)
-            S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN: wvalid <= 1'b1;
-            S_WT_DATA:                                               wvalid <= 1'b1;
-            default:                                                 wvalid <= 1'b0;
+            S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN: begin
+                if (dirty_state == DS_MANY_DIRTY && wb_scan_counter < 7'd127 || dirty_state == DS_ONE_DIRTY) wvalid <= 1'b1;
+                else                                                          wvalid <= 1'b0;
+            end
+            S_WT_DATA: wvalid <= 1'b1;
+            default:   wvalid <= 1'b0;
         endcase
     end
 end
 
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) wdata_pipe <= 16'd0;
+    else if (current_state == S_WB_DATA_LOAD_MISS || current_state == S_WB_DATA_TEN) wdata_pipe <= Dout_data;  // each cycle update pipeline
+end
+
+// always @(posedge clk) begin
+//     wdata_reg <= wdata;
+// end
+
 // reg [15:0] wdata_reg;
-always @(*) begin
-    if((current_state == S_WB_DATA_LOAD_MISS || current_state == S_WB_DATA_LOAD_MISS_DELAY ||
-        current_state == S_WB_DATA_TEN       || current_state == S_WB_DATA_TEN_DELAY) &&
-       ((wvalid       != wvalid_reg)       ||
-        (wready_m_inf != wready_m_inf_reg) ||
-        (wvalid && wready_m_inf)           ||
-        awready_m_inf)) wdata_reg = Dout_data;
-    else wdata_reg = wdata;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) wdata <= 16'b0;
+    else if((current_state == S_WB_DATA_TEN || current_state == S_WB_DATA_TEN_DELAY) &&
+       ((wvalid       != wvalid_reg)        ||
+        (wready_m_inf != wready_m_inf_reg)  ||
+        (wvalid && wready_m_inf)            ||
+        awready_m_inf)
+    ) begin
+        case (dirty_state)
+            DS_ONE_DIRTY:  wdata <= first_dirty_data;
+            DS_MANY_DIRTY: wdata <= wdata_pipe;  // use pipeline data
+        endcase
+    end
+    else if (current_state == S_WT_DATA) wdata <= rt_value;
 end
 
 // reg [15:0] wdata;
+// always @(posedge clk or negedge rst_n) begin
+//     if (!rst_n) wdata <= 16'b0;
+//     else begin
+//         case (current_state)
+//             S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN: begin
+//                 case (dirty_state)
+//                     DS_ONE_DIRTY:  wdata <= first_dirty_data;
+//                     // DS_MANY_DIRTY: wdata <= wdata_reg;            // need 1 delay?
+//                     DS_MANY_DIRTY: wdata <= wdata_pipe;  // use pipeline data
+//                 endcase
+//                 end
+//             S_WT_DATA: wdata <= rt_value;
+//         endcase
+//     end
+// end
+
+// reg wlast;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) wdata <= 16'b0;
+    if (!rst_n) wlast <= 1'b0;
     else begin
         case (current_state)
             S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN: begin
                 case (dirty_state)
-                    DS_ONE_DIRTY:  wdata <= first_dirty_data;
-                    DS_MANY_DIRTY: wdata <= wdata_reg;            // need 1 delay?
+                    DS_ONE_DIRTY:  wlast <= 1'b1;
+                    DS_MANY_DIRTY: wlast <= (wb_scan_counter == 7'd126);
                 endcase
                 end
-            S_WT_DATA: wdata <= rt_value;
-        endcase
-    end
-end
-
-reg wlast_delay;
-
-always @(posedge clk) begin
-    wlast <= wlast_delay;
-end
-
-// reg wlast_d1;
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) wlast_delay <= 1'b0;
-    else begin
-        case (current_state)
-            S_WB_DATA_LOAD_MISS, S_WB_DATA_TEN: begin
-                case (dirty_state)
-                    DS_ONE_DIRTY:  wlast_delay <= 1'b1;
-                    DS_MANY_DIRTY: wlast_delay <= (wb_scan_counter == 7'd127);
-                endcase
-                end
-            S_WT_DATA: wlast_delay <= 1'b1;     // only 1 data
-            default: wlast_delay <= 1'b0;
+            S_WT_DATA: wlast <= 1'b1;     // only 1 data
+            default:   wlast <= 1'b0;
         endcase
     end
 end
