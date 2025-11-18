@@ -22,7 +22,7 @@
 # (A) Global Parameters
 #======================================================
 set DESIGN "CPU"
-set CYCLE 3.4
+set CYCLE 3.44
 set INPUT_DLY [expr 0.5*$CYCLE]
 set OUTPUT_DLY [expr 0.5*$CYCLE]
 

@@ -269,7 +269,8 @@ localparam S_READ_DATA_REQ      = 5'd8;
 localparam S_READ_DATA          = 5'd9;
 localparam S_DECODE             = 5'd10;
 localparam S_EXECUTE            = 5'd11;
-localparam S_MULT_DELAY         = 5'd12;
+localparam S_MULT_D1            = 5'd12;
+localparam S_MULT_D2 = 5'd21;
 localparam S_MEMORY             = 5'd13;
 localparam S_WT_REQ             = 5'd14;
 localparam S_WT_DATA            = 5'd15;
@@ -337,11 +338,14 @@ always @(*) begin
         S_EXECUTE: begin
             case (opcode)
                 0:       next_state = S_WB_REG;                       // +, -
-                1:       next_state = func ? S_WB_REG : S_MULT_DELAY; // < 1 cycle, mult (func == 0) 2 cycle
+                1:       next_state = func ? S_WB_REG : S_MULT_D1; // < 1 cycle, mult (func == 0) 2 cycle
                 default: next_state = S_MEMORY;                       // load, store
             endcase
         end
-        S_MULT_DELAY: begin
+        S_MULT_D1: begin
+            next_state = S_MULT_D2;
+        end
+        S_MULT_D2: begin
             next_state = S_WB_REG;
         end
         S_MEMORY: begin             // hot or miss
@@ -962,13 +966,6 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
-reg wready_m_inf_reg;
-
-// reg wready_m_inf_reg;
-always @(posedge clk) begin
-    wready_m_inf_reg <= wready_m_inf;
-end
-
 reg [15:0] wdata_d1;
 
 // reg [15:0] wdata_d1;
@@ -1044,7 +1041,8 @@ wire signed [15:0] addsub_z;
 wire signed [31:0] mult_z;
 
 DW01_addsub       #(16)     addsub (.A(alu_a), .B(alu_b), .CI(1'b0), .ADD_SUB(addsub_op), .SUM(addsub_z), .CO() );
-DW02_mult_2_stage #(16, 16) mult_2 (.A(alu_a), .B(alu_b), .TC(1'b1), .CLK(clk), .PRODUCT(mult_z) );
+// DW02_mult_2_stage #(16, 16) mult_2 (.A(alu_a), .B(alu_b), .TC(1'b1), .CLK(clk), .PRODUCT(mult_z) );
+DW02_mult_3_stage #(16, 16) mult_3 (.A(alu_a), .B(alu_b), .TC(1'b1), .CLK(clk), .PRODUCT(mult_z) );
 
 // output signed reg [15:0] alu_z
 always @(posedge clk) begin
@@ -1054,6 +1052,10 @@ always @(posedge clk) begin
         default: alu_z <= addsub_z;                 // add, sub
     endcase
 end
+
+//synopsys dc_script_begin
+//set_implementation pparch addsub
+//synopsys dc_script_end
 
 endmodule
 

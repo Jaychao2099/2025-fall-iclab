@@ -1,14 +1,14 @@
 `ifdef RTL
-	`define CYCLE_TIME 3.4
+	`define CYCLE_TIME 3.44
 	`define RTL_GATE
 `elsif GATE
-	`define CYCLE_TIME 3.4
+	`define CYCLE_TIME 3.44
 	`define RTL_GATE
 `elsif CHIP
-    `define CYCLE_TIME 3.4
+    `define CYCLE_TIME 3.44
     `define CHIP_POST 
 `elsif POST
-    `define CYCLE_TIME 3.4
+    `define CYCLE_TIME 3.44
     `define CHIP_POST 
 `endif
 
