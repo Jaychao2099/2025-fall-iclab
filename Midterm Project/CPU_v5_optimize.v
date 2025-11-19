@@ -403,7 +403,8 @@ always @(posedge clk or negedge rst_n) begin
     if (!rst_n) PC <= 12'd0;
     else if (current_state == S_UPDATE_PC) begin
         if      (opcode == 3'd5 && branch_equal) PC <= PC + 12'd1 + imm_extend[11:0];
-        else if (opcode == 3'd4)                 PC <= (j_addr - offset) >> 1;
+        // else if (opcode == 3'd4)                 PC <= (j_addr - offset) >> 1;
+        else if (opcode == 3'd4)                 PC <= {1'b0, j_addr[11:1]};
         else                                     PC <= PC + 12'd1;
     end
     else PC <= PC;
@@ -894,7 +895,8 @@ always @(posedge clk or negedge rst_n) begin
     else begin
         case (current_state)
             S_INIT_REQ:   araddr_inst <= {16'd0, offset}; // Byte Address
-            S_REFILL_REQ: araddr_inst <= {tag_inst, 8'd0} + offset;
+            // S_REFILL_REQ: araddr_inst <= {tag_inst, 8'd0} + offset;
+            S_REFILL_REQ: araddr_inst <= {(tag_inst[4] + 2'b1), tag_inst[3:0], 8'd0};// + offset;
         endcase
     end
 end
@@ -906,8 +908,8 @@ always @(posedge clk or negedge rst_n) begin
     else begin
         case (current_state)
             S_INIT_REQ:      araddr_data <= {16'd0, offset}; // Byte Address
-            S_REFILL_REQ:    araddr_data <= {tag_inst, 8'd0} + offset;      // base on PC
-            S_READ_DATA_REQ: araddr_data <= {tag_data, 8'd0} + offset;      // base on rt
+            S_REFILL_REQ:    araddr_data <= {(tag_inst[4] + 2'b1), tag_inst[3:0], 8'd0};// + offset;      // base on PC
+            S_READ_DATA_REQ: araddr_data <= {(tag_data[4] + 2'b1), tag_data[3:0], 8'd0};// + offset;      // base on rt
         endcase
     end
 end
@@ -930,8 +932,10 @@ always @(posedge clk or negedge rst_n) begin
         case (current_state)
             S_WB_REQ_LOAD_MISS, S_WB_REQ_TEN: begin
                 case (dirty_state)
-                    DS_ONE_DIRTY:  awaddr <= {first_dirty_tag       , first_dirty_index, 1'b0} + offset;
-                    DS_MANY_DIRTY: awaddr <= {current_cache_Tag_data, 7'b0             , 1'b0} + offset;
+                    // DS_ONE_DIRTY:  awaddr <= {first_dirty_tag       , first_dirty_index, 1'b0} + offset;
+                    // DS_MANY_DIRTY: awaddr <= {current_cache_Tag_data, 7'b0             , 1'b0} + offset;
+                    DS_ONE_DIRTY:  awaddr <= {(first_dirty_tag        ^ 5'b10000), first_dirty_index, 1'b0};// + offset;
+                    DS_MANY_DIRTY: awaddr <= {(current_cache_Tag_data ^ 5'b10000), 7'b0             , 1'b0};// + offset;
                 endcase
                 end
             S_WT_REQ: awaddr <= {(ls_addr << 1) + offset};
