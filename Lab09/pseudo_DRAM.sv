@@ -33,9 +33,10 @@ module pseudo_DRAM(input clk, INF.DRAM inf);
 
 parameter DRAM_p_r = "../00_TESTBED/DRAM/dram.dat";
 
-parameter DRAM_R_latency = 1;
-parameter DRAM_W_latency = 1;
-parameter DRAM_B_latency = 1;
+// 1 ~ 100
+parameter DRAM_R_latency = 42;
+parameter DRAM_W_latency = 69;
+parameter DRAM_B_latency = 77;
 
 `protected
 3(FZTVLW<D>=;W9M7-+UGK_f<XS7ObRG9,HfF#6IFaG+>&C&(:GG-)c\D3f#V#HV
