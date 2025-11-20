@@ -66,6 +66,34 @@ typedef union packed{
 // Type your user define type here
 //#################################
 
+typedef enum logic [4:0] { 
+    S_IDLE,
+    S_READ_INPUT,
+    // read 32-bit
+    S_READ_DRAM,
+    // login
+    S_CHECK_CONSECUTIVE,
+    S_UPDATE_DATE_EXP,
+    // level up
+    S_CHECK_EXP_NEED,
+    S_CAL_DALTA,
+    S_UPDATE_ATTR_LEVEL_UP,
+    // attack
+    S_CHECK_HP,
+    S_CAL_HP_TMP,
+    S_CHECK_HP_RESULT,
+    S_UPDATE_ATTR_BATTLE,
+    // use skill
+    S_GET_MP_SUM,
+    S_UPDATE_MP,
+    // check inactive
+    S_CHECK_DATE,
+    // raise signal
+    S_END_ACTION,
+    // write 32-bit
+    S_WRITE_DRAM
+} state_t;
+
 // store input
 typedef struct packed {
     Action act;
@@ -78,7 +106,7 @@ typedef struct packed {
     Attribute m_defense;
     Attribute m_HP;
     // for use skill
-    Attribute MP_consumed [0:3];
+    Attribute [3:0] MP_consumed;
 } This_run_info;
 
 typedef struct packed {

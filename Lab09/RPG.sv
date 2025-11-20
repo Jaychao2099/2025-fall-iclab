@@ -52,44 +52,17 @@ import usertype::*;
 // W_DATA             96  DRAM     AXI Lite signal 
 // B_READY             1  DRAM     AXI Lite signal 
 
-typedef enum logic [4:0] { 
-    S_IDLE,
-    S_READ_INPUT,
-    // read 32-bit
-    S_READ_DRAM,
-    // login
-    S_CHECK_CONSECUTIVE,
-    S_UPDATE_DATE_EXP,
-    // level up
-    S_CHECK_EXP_NEED,
-    S_CAL_DALTA,
-    S_UPDATE_ATTR_LEVEL_UP,
-    // attack
-    S_CHECK_HP,
-    S_CAL_HP_TMP,
-    S_CHECK_HP_RESULT,
-    S_UPDATE_ATTR_BATTLE,
-    // use skill
-    S_GET_MP_SUM,
-    S_UPDATE_MP,
-    // check inactive
-    S_CHECK_DATE,
-    // raise signal
-    S_END_ACTION,
-    // write 32-bit
-    S_WRITE_DRAM
-} state_t;
 
 logic read_input_done;
 
 // ------------------ handle input ------------------
 
-Player_Info current_player;
+// Player_Info current_player;
 
 This_run_info now;
 
 // ------------------ handel output ------------------
-warn_msg warn_date_exp_hp_mp_flag;
+Warn_Msg warn_date_exp_hp_mp_flag;
 logic    warn_sat_flag;
 
 // ------------------ sort ------------------
@@ -115,7 +88,7 @@ always_comb begin
             if (inf.sel_action_valid) next_state = S_READ_INPUT;
             else                      next_state = S_IDLE;
         end
-        S_READ_INPUT: begin
+        S_READ_INPUT: begin     // store input into 'now'
             if (read_input_done) next_state = S_READ_DRAM;
             else                 next_state = S_READ_INPUT;
         end
@@ -185,11 +158,23 @@ always_comb begin
 end
 
 // Player_Info current_player;
-always_ff @( posedge clk ) begin
-    if (current_state == S_READ_DRAM) current_player <= inf.D;
-    else current_player <= current_player;
-end
+// always_ff @( posedge clk ) begin
+//     if (current_state == S_READ_DRAM) current_player <= inf.D;
+//     else current_player <= current_player;
+// end
 
+// This_run_info now;
+always_ff @( posedge clk ) begin
+    case (current_state)
+        S_IDLE: begin
+            if (inf.sel_action_valid) now.act <= inf.D.d_act;
+        end
+        S_READ_INPUT: begin
+            
+        end
+        default: 
+    endcase
+end
 
 // DRAM: 0x10000 ~ 0x10BFF.
 // each player: 96 bits = 12 Bytes
@@ -221,7 +206,20 @@ always_ff @( posedge clk or negedge inf.rst_n ) begin
     else inf.warn_msg <= No_Warn;
 end
 
-
+always_ff @( posedge clk or negedge inf.rst_n ) begin
+    if (!inf.rst_n) begin
+        inf.out_valid <= 0;
+        inf.complete <= 0;
+        inf.AR_VALID <= 0;
+        inf.AR_ADDR <= 0;
+        inf.R_READY <= 0;
+        inf.AW_VALID <= 0;
+        inf.AW_ADDR <= 0;
+        inf.W_VALID <= 0;
+        inf.W_DATA <= 0;
+        inf.B_READY <= 0;
+    end
+end
 
 endmodule
 
