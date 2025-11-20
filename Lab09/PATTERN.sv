@@ -182,8 +182,10 @@ task reset_task;
     // Assuming standard lab setup where pseudo_DRAM is connected to INF.DRAM, PATTERN should not drive AXI.
     // release inf.AR_READY; // Release if forced previously
     
-    #(10) inf.rst_n = 0;
-    #(10) inf.rst_n = 1;
+    #(10)
+    inf.rst_n = 0;
+    #(100)
+    inf.rst_n = 1;
 endtask
 
 task input_task;
