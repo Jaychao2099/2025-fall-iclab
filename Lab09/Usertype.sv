@@ -39,6 +39,7 @@ typedef struct packed {
     Day D;
 } Date;
 
+// in DRAM
 typedef struct packed {
     Attribute Exp;
     Attribute MP;
@@ -49,7 +50,7 @@ typedef struct packed {
     Day D;
 } Player_Info;
 
-
+// input
 typedef union packed{ 
     Action [47:0] d_act;  // 3
     Training_Type [71:0] d_type;  // 2
@@ -64,6 +65,26 @@ typedef union packed{
 //#################################
 // Type your user define type here
 //#################################
+
+// store input
+typedef struct packed {
+    Action act;
+    Player_No player;
+    Training_Type training_type;
+    Mode mode;
+    Date today;
+    // monster
+    Attribute m_attack;
+    Attribute m_defense;
+    Attribute m_HP;
+    // for use skill
+    Attribute MP_consumed [0:3];
+} This_run_info;
+
+typedef struct packed {
+    Attribute element;      // MSB
+    logic [1:0] stable_idx; // LSB
+} sorting_element;
 
 
 //################################################## Don't revise the code below
