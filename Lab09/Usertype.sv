@@ -126,10 +126,10 @@ typedef struct packed {
 } sorting_element_t;
 
 typedef enum logic [3:0] { 
-    rank_0 = 4'b1000;   // smallest
-    rank_1 = 4'b0100;
-    rank_2 = 4'b0010;
-    rank_3 = 4'b0001;   // bigest
+    rank_0 = 4'b1000,   // smallest
+    rank_1 = 4'b0100,
+    rank_2 = 4'b0010,
+    rank_3 = 4'b0001   // bigest
 } Attribute_rank_t;
 
 typedef enum logic [1:0] { 

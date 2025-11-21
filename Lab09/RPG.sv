@@ -651,8 +651,8 @@ always_ff @( posedge clk ) begin
 end
 
 // logic    warn_sat_flag;
-always_ff @( posedge clk or negedge rst_n) begin
-    if (!rst_n) warn_sat_flag <= 1'b0;
+always_ff @( posedge clk or negedge inf.rst_n) begin
+    if (!inf.rst_n) warn_sat_flag <= 1'b0;
     else begin
         case (current_state)
         S_IDLE: warn_sat_flag <= 1'b0;
