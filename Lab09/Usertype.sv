@@ -77,8 +77,9 @@ typedef enum logic [4:0] {
     // level up
     S_CHECK_EXP_NEED,
     S_CAL_DALTA,
+    S_CAL_DALTA_FINAL,
     S_UPDATE_ATTR_LEVEL_UP,
-    // attack
+    // Battle
     S_CHECK_HP,
     S_CAL_HP_TMP,
     S_CHECK_HP_RESULT,
@@ -130,6 +131,12 @@ typedef enum logic [3:0] {
     rank_2 = 4'b0010;
     rank_3 = 4'b0001;   // bigest
 } Attribute_rank_t;
+
+typedef enum logic [1:0] { 
+    win,
+    tie,
+    loss
+} battle_result_t;
 
 //################################################## Don't revise the code below
 endpackage
