@@ -96,24 +96,40 @@ typedef enum logic [4:0] {
 
 // store input
 typedef struct packed {
-    Action act;
-    Player_No player;
+    Action        act;
     Training_Type training_type;
-    Mode mode;
-    Date today;
+    Mode          mode;
+    Date          today;
+    Player_No     player;
     // monster
     Attribute m_attack;
     Attribute m_defense;
     Attribute m_HP;
     // for use skill
     Attribute [3:0] MP_consumed;
-} This_run_info;
+} This_run_info_t;
+
+typedef enum logic [5:0] { 
+    non_valid       = 6'd0,
+    type_valid      = 6'b100000,
+    mode_valid      = 6'b010000,
+    date_valid      = 6'b001000,
+    player_no_valid = 6'b000100,
+    monster_valid   = 6'b000010,
+    MP_valid        = 6'b000001
+} current_valid_t;
 
 typedef struct packed {
     Attribute element;      // MSB
     logic [1:0] stable_idx; // LSB
-} sorting_element;
+} sorting_element_t;
 
+typedef enum logic [3:0] { 
+    rank_0 = 4'b1000;   // smallest
+    rank_1 = 4'b0100;
+    rank_2 = 4'b0010;
+    rank_3 = 4'b0001;   // bigest
+} Attribute_rank_t;
 
 //################################################## Don't revise the code below
 endpackage
