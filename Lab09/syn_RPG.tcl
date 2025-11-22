@@ -8,7 +8,7 @@
 # (A) Global Parameters
 #======================================================
 set DESIGN "RPG"
-set CYCLE 15
+set CYCLE 4.66
 set INPUT_DLY [expr 0.5*$CYCLE]
 set OUTPUT_DLY [expr 0.5*$CYCLE]
 

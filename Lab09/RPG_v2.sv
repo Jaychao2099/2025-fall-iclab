@@ -247,19 +247,25 @@ always_ff @( posedge clk ) begin
 end
 
 // logic [1:0] monster_cnt;    // 0 ~ 2, 3
-always_ff @( posedge clk ) begin
-    case (current_state)
-        S_IDLE:       monster_cnt <= 2'd0;
-        S_READ_INPUT: monster_cnt <= (inf.monster_valid) ? monster_cnt + 2'd1 : monster_cnt;
-    endcase
+always_ff @( posedge clk or negedge inf.rst_n) begin
+    if (!inf.rst_n) monster_cnt <= 2'd0;
+    else begin
+        case (current_state)
+            S_IDLE:       monster_cnt <= 2'd0;
+            S_READ_INPUT: monster_cnt <= (inf.monster_valid) ? monster_cnt + 2'd1 : monster_cnt;
+        endcase
+    end
 end
 
 // logic [2:0] mp_cnt;    // 0 ~ 3, 4
 always_ff @( posedge clk ) begin
-    case (current_state)
-        S_IDLE:       mp_cnt <= 2'd0;
-        S_READ_INPUT: mp_cnt <= (inf.MP_valid) ? mp_cnt + 2'd1 : mp_cnt;
-    endcase
+    // if (!inf.rst_n) mp_cnt <= 2'd0;
+    // else begin
+        case (current_state)
+            S_IDLE:       mp_cnt <= 2'd0;
+            S_READ_INPUT: mp_cnt <= (inf.MP_valid) ? mp_cnt + 2'd1 : mp_cnt;
+        endcase
+    // end
 end
 
 // logic read_input_done;
@@ -267,11 +273,9 @@ always_ff @( posedge clk ) begin
     if (current_state == S_IDLE) read_input_done <= 1'b0;
     else begin
         case (now.act)
-            Login, 
-            Level_Up, 
-            Check_Inactive: if (inf.player_no_valid) read_input_done <= 1'b1;
-            Battle:         if (monster_cnt == 3)    read_input_done <= 1'b1;
-            Use_Skill:      if (mp_cnt == 4)         read_input_done <= 1'b1;
+            Battle:    if (monster_cnt == 3)    read_input_done <= 1'b1;
+            Use_Skill: if (mp_cnt == 4)         read_input_done <= 1'b1;
+            default:   if (inf.player_no_valid) read_input_done <= 1'b1;
         endcase
     end
 end
@@ -669,27 +673,47 @@ assign skill_sum_03 = now.MP_consumed[0] +
 // ------------------ Sort IP ------------------
 
 // Attribute attributes [0:3];
-always_comb begin
-    case (now.act)
-        Level_Up: begin
-            attributes[0] = current_player_info.MP;
-            attributes[1] = current_player_info.HP;
-            attributes[2] = current_player_info.Attack;
-            attributes[3] = current_player_info.Defense;
-        end
-        Use_Skill: begin
-            attributes[0] = now.MP_consumed[0];
-            attributes[1] = now.MP_consumed[1];
-            attributes[2] = now.MP_consumed[2];
-            attributes[3] = now.MP_consumed[3];
-        end
-        default: begin
-            attributes[0] = 16'd0;
-            attributes[1] = 16'd0;
-            attributes[2] = 16'd0;
-            attributes[3] = 16'd0;
-        end
-    endcase
+// always_comb begin
+//     case (now.act)
+//         Level_Up: begin
+//             attributes[0] = current_player_info.MP;
+//             attributes[1] = current_player_info.HP;
+//             attributes[2] = current_player_info.Attack;
+//             attributes[3] = current_player_info.Defense;
+//         end
+//         Use_Skill: begin
+//             attributes[0] = now.MP_consumed[0];
+//             attributes[1] = now.MP_consumed[1];
+//             attributes[2] = now.MP_consumed[2];
+//             attributes[3] = now.MP_consumed[3];
+//         end
+//         default: begin
+//             attributes[0] = 16'd0;
+//             attributes[1] = 16'd0;
+//             attributes[2] = 16'd0;
+//             attributes[3] = 16'd0;
+//         end
+//     endcase
+// end
+always_ff @( posedge clk ) begin
+    if (current_state == S_READ_DRAM_AR && now.act == Use_Skill) begin
+        attributes[0] <= now.MP_consumed[0];
+        attributes[1] <= now.MP_consumed[1];
+        attributes[2] <= now.MP_consumed[2];
+        attributes[3] <= now.MP_consumed[3];
+    end
+    else if (current_state == S_READ_DRAM_R && inf.R_VALID && now.act == Level_Up) begin
+        attributes[0] <= inf.R_DATA[15:0];  // MP
+        attributes[1] <= inf.R_DATA[95:80]; // HP
+        attributes[2] <= inf.R_DATA[63:48]; // Attack
+        attributes[3] <= inf.R_DATA[47:32]; // Defense
+    end
+    // else if (current_state == S_IDLE) begin
+    //     attributes[0] <= 16'd0;
+    //     attributes[1] <= 16'd0;
+    //     attributes[2] <= 16'd0;
+    //     attributes[3] <= 16'd0;
+    // end
 end
 
 // sorting_element_t sorted_attributes [0:3];

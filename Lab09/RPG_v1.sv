@@ -154,8 +154,6 @@ always_comb begin
         end
         // attack
         S_CHECK_HP: begin
-            // if (warn_date_exp_hp_mp_flag == HP_Warn) next_state = S_END_ACTION;
-            // else                                     next_state = S_CAL_HP_TMP;
             next_state = S_CAL_HP_TMP;
         end
         S_CAL_HP_TMP: begin
@@ -201,8 +199,6 @@ always_comb begin
         end
         // raise signal
         S_END_ACTION: begin
-            // if (warn_date_exp_hp_mp_flag != No_Warn) next_state = S_IDLE;
-            // else                                     next_state = S_WRITE_DRAM;
             next_state = S_IDLE;
         end
     endcase
@@ -266,23 +262,14 @@ always_ff @( posedge clk ) begin
     endcase
 end
 
-// logic player_no_valid_reg;
-
-// // logic player_no_valid_reg;
-// always_ff @( posedge clk ) begin
-//     player_no_valid_reg <= inf.player_no_valid;
-// end
-
 // logic read_input_done;
 always_ff @( posedge clk ) begin
     if (current_state == S_IDLE) read_input_done <= 1'b0;
     else begin
         case (now.act)
-            Login, 
-            Level_Up, 
-            Check_Inactive: if (inf.player_no_valid) read_input_done <= 1'b1;
-            Battle:         if (monster_cnt == 3)    read_input_done <= 1'b1;
-            Use_Skill:      if (mp_cnt == 4)         read_input_done <= 1'b1;
+            Battle:    if (monster_cnt == 3)    read_input_done <= 1'b1;
+            Use_Skill: if (mp_cnt == 4)         read_input_done <= 1'b1;
+            default:   if (inf.player_no_valid) read_input_done <= 1'b1;
         endcase
     end
 end
@@ -546,16 +533,16 @@ end
 // ------------------ Level up ------------------
 
 // logic [17:0] attribute_sum;
+assign attribute_sum = current_player_info.MP +
+                       current_player_info.HP +
+                       current_player_info.Attack +
+                       current_player_info.Defense;
 
 // logic [11:0] delta_MP_tmp;
 // logic [11:0] delta_HP_tmp;
 // logic [11:0] delta_Attack_tmp;
 // logic [11:0] delta_Defense_tmp;
 always_comb begin
-    attribute_sum = current_player_info.MP +
-                    current_player_info.HP +
-                    current_player_info.Attack +
-                    current_player_info.Defense;
     delta_MP_tmp      = (16'd65535 - current_player_info.MP) >> 4;
     delta_HP_tmp      = (16'd65535 - current_player_info.HP) >> 4;
     delta_Attack_tmp  = (16'd65535 - current_player_info.Attack) >> 4;
@@ -638,8 +625,8 @@ assign d_to_m = current_player_info.Attack - now.m_defense;
 
 // logic signed [16:0] m_HP_tmp;
 always_ff @( posedge clk ) begin
-    // if (current_state == S_CAL_HP_TMP)
-        m_HP_tmp <= d_to_m[16] ? now.m_HP : now.m_HP - d_to_m;
+    // S_CAL_HP_TMP
+    m_HP_tmp <= d_to_m[16] ? now.m_HP : (now.m_HP - d_to_m);
 end
 
 // battle_result_t battle_result;
