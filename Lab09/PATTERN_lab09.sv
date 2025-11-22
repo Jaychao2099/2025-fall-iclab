@@ -9,8 +9,8 @@ import usertype::*;
 parameter DRAM_p_r = "../00_TESTBED/DRAM/dram.dat";
 integer i, k;
 integer total_latency, latency;
-integer seed = 42069;
-integer pattern_num = 10000;
+integer pattern_num = 100000;
+integer seed = 723749723;
 
 //================================================================
 // wire & registers 
@@ -322,19 +322,19 @@ task calculate_golden;
     Player_Info p;
     int days_curr, days_last, diff;
     bit consecutive;
-    logic [16:0] temp_calc;
+    int temp_calc;
     int exp_needed;
     
     // Vars for Level Up
-    logic [31:0] sum_attrs;
-    logic [15:0] sorted_attr [0:3];
-    logic [15:0] delta_vals [0:3]; // corresponding to MP, HP, Atk, Def
-    logic [15:0] temp_swap;
+    int sum_attrs;
+    int sorted_attr [0:3];
+    int delta_vals [0:3]; // corresponding to MP, HP, Atk, Def
+    int temp_swap;
     // Mapping for sorting: 0:MP, 1:HP, 2:Atk, 3:Def
     int idx_map [0:3];
     int sorted_indices [0:3];
     int m, n;
-    logic [15:0] delta_i, delta_final;
+    int delta_i, delta_final;
     
     // Vars for Battle
     int dmg_to_p, dmg_to_m;
@@ -413,6 +413,7 @@ task calculate_golden;
                         sorted_attr[3] = p.Defense; sorted_indices[3] = 3;
                         
                         // Simple Bubble Sort (Ascending)
+                        // stable sort
                         for(m=0; m<4; m++) begin
                             for(n=0; n<3-m; n++) begin
                                 if(sorted_attr[n] > sorted_attr[n+1]) begin
@@ -434,6 +435,15 @@ task calculate_golden;
                     end
                     // Type C and D depend on individual attribute values
                 endcase
+
+                // // test indices
+                // if (cur_player_no == 168) begin
+                //     $display("Player %d Level Up Type %0d Sorted Attr:", cur_player_no, cur_type);
+                //     for(m=0; m<4; m++) begin
+                //         $display("  Sorted[%0d]: Attr=%0d, Original_Index=%0d", m, sorted_attr[m], sorted_indices[m]);
+                //     end
+                // end
+                // // end test indices
                 
                 // Apply updates to MP, HP, Atk, Def
                 // Need to loop through them or handle B separately.
@@ -485,6 +495,11 @@ task calculate_golden;
                     
                     // Update
                     temp_calc = attr_val + delta_final;
+
+                    // // test delta
+                    // if (cur_player_no == 168)
+                    //     $display("Player %d Level Up: Attr_Index=%0d, Attr_Val=%0d, Delta_i=%0d, Delta_final=%0d, Temp_Calc=%0d", cur_player_no, m, attr_val, delta_i, delta_final, temp_calc);
+                    // // end test delta
                     
                     if (temp_calc > 65535) begin
                         // If overflow, clamp to 65535
@@ -508,7 +523,7 @@ task calculate_golden;
             end
 
             // // test
-            // if (cur_player_no == 12) begin
+            // if (cur_player_no == 168) begin
             //     $display("Player %d Level Up: Type=%0d, Mode=%0d, Exp_Needed=%0d, Player_Exp=%0d", cur_player_no, cur_type, cur_mode, exp_needed, p.Exp);
             //     $display("  Updated Stats: MP=%0d, HP=%0d, Atk=%0d, Def=%0d", g_player_info_updated.MP, g_player_info_updated.HP, g_player_info_updated.Attack, g_player_info_updated.Defense);
             // end
@@ -530,7 +545,7 @@ task calculate_golden;
             hp_temp_m = g_monster_hp - dmg_to_m;
 
             // // test
-            // if (cur_player_no == 12)
+            // if (cur_player_no == 168)
             //     $display("Player %d Battle: P_HP=%d, M_HP=%d, Dmg_P=%d, Dmg_M=%d, HP_temp_P=%d, HP_temp_M=%d", cur_player_no, p.HP, g_monster_hp, dmg_to_p, dmg_to_m, hp_temp_p, hp_temp_m);
             // // end test
             
@@ -590,7 +605,7 @@ task calculate_golden;
             end
             
             // // test display
-            // if (cur_player_no == 12) begin
+            // if (cur_player_no == 168) begin
             //     $display("Player %d having MP = %d", cur_player_no, current_mp_local);
             //     for(m=0; m<4; m++) begin
             //         $display("  Skill %d Cost = %d", m, g_skill_costs[m]);
@@ -629,7 +644,7 @@ task calculate_golden;
             else diff = days_curr + 365 - days_last;
                 
             // // test
-            // if (cur_player_no == 12)
+            // if (cur_player_no == 168)
             //     $display("Player %d Inactive Check: Curr_Days=%d, Last_Days=%d, Diff=%d", cur_player_no, days_curr, days_last, diff);
             // // end test
             
@@ -715,7 +730,7 @@ task check_ans;
     if (g_complete || g_warn_msg == Saturation_Warn) begin
         update_dram(cur_player_no, g_player_info_updated);
     end
-    $display("\033[32mPattern %0d PASS!  \tLatency: %0d,\tPlayer: %d,\tAction: %s\033[0m", i, latency, cur_player_no, cur_action.name());
+    $display("\033[32mPattern %0d PASS!  \tLatency: %d,\tPlayer: %0d,\tAction: %s\033[0m", i, latency, cur_player_no, cur_action.name());
 endtask
 
 //================================================================
