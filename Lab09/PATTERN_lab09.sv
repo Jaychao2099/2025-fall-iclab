@@ -10,6 +10,7 @@ parameter DRAM_p_r = "../00_TESTBED/DRAM/dram.dat";
 integer i, k;
 integer total_latency, latency;
 integer seed = 42069;
+integer pattern_num = 10000;
 
 //================================================================
 // wire & registers 
@@ -117,21 +118,13 @@ function Player_Info get_player_from_dram(Player_No p_no);
     base_addr = 17'h10000 + (p_no * 12);
     
     // MSB to LSB: {HP, Month, Day, Attack, Defense, Exp, MP}
-    // HP (16)
-    p.HP = {golden_DRAM[base_addr], golden_DRAM[base_addr+1]};
-    // Month (8)
-    p.M = golden_DRAM[base_addr+2][3:0]; // 4 bits in struct, byte has 8
-    // Day (8)
-    p.D = golden_DRAM[base_addr+3][4:0];
-    // Attack (16)
-    p.Attack = {golden_DRAM[base_addr+4], golden_DRAM[base_addr+5]};
-    // Defense (16)
-    p.Defense = {golden_DRAM[base_addr+6], golden_DRAM[base_addr+7]};
-    // Exp (16)
-    p.Exp = {golden_DRAM[base_addr+8], golden_DRAM[base_addr+9]};
-    // MP (16)
-    p.MP = {golden_DRAM[base_addr+10], golden_DRAM[base_addr+11]};
-    
+    p.MP        = {golden_DRAM[base_addr+1], golden_DRAM[base_addr]};
+    p.Exp       = {golden_DRAM[base_addr+3], golden_DRAM[base_addr+2]};
+    p.Defense   = {golden_DRAM[base_addr+5], golden_DRAM[base_addr+4]};
+    p.Attack    = {golden_DRAM[base_addr+7], golden_DRAM[base_addr+6]};
+    p.D         = golden_DRAM[base_addr+8][4:0];
+    p.M         = golden_DRAM[base_addr+9][3:0];
+    p.HP        = {golden_DRAM[base_addr+11], golden_DRAM[base_addr+10]};
     return p;
 endfunction
 
@@ -140,13 +133,13 @@ function void update_dram(Player_No p_no, Player_Info p);
     logic [16:0] base_addr;
     base_addr = 17'h10000 + (p_no * 12);
     
-    {golden_DRAM[base_addr], golden_DRAM[base_addr+1]} = p.HP;
-    golden_DRAM[base_addr+2] = {4'b0, p.M};
-    golden_DRAM[base_addr+3] = {3'b0, p.D};
-    {golden_DRAM[base_addr+4], golden_DRAM[base_addr+5]} = p.Attack;
-    {golden_DRAM[base_addr+6], golden_DRAM[base_addr+7]} = p.Defense;
-    {golden_DRAM[base_addr+8], golden_DRAM[base_addr+9]} = p.Exp;
-    {golden_DRAM[base_addr+10], golden_DRAM[base_addr+11]} = p.MP;
+    {golden_DRAM[base_addr+1], golden_DRAM[base_addr]} = p.MP;
+    {golden_DRAM[base_addr+3], golden_DRAM[base_addr+2]} = p.Exp;
+    {golden_DRAM[base_addr+5], golden_DRAM[base_addr+4]} = p.Defense;
+    {golden_DRAM[base_addr+7], golden_DRAM[base_addr+6]} = p.Attack;
+    golden_DRAM[base_addr+8] = {3'b0, p.D};
+    golden_DRAM[base_addr+9] = {4'b0, p.M};
+    {golden_DRAM[base_addr+11], golden_DRAM[base_addr+10]} = p.HP;
 endfunction
 
 // Saturation helper
@@ -175,12 +168,8 @@ task reset_task;
     inf.monster_valid = 0;
     inf.MP_valid = 0;
     inf.D = 'dx;
-    
-    force inf.AR_READY = 0; // Should be driven by pseudo_DRAM usually, but if user interface requires Pattern to drive
-    // Since pseudo_DRAM is used, we typically don't drive these. 
-    // However, to avoid Z if nothing connected, we can leave them Z or 0. 
-    // Assuming standard lab setup where pseudo_DRAM is connected to INF.DRAM, PATTERN should not drive AXI.
-    // release inf.AR_READY; // Release if forced previously
+
+    total_latency = 0;
     
     #(10)
     inf.rst_n = 0;
@@ -406,15 +395,15 @@ task calculate_golden;
             end else begin
                 // Calculate Delta
                 case(cur_type)
-                    Type_A: begin
-                        sum_attrs = p.MP + p.HP + p.Attack + p.Defense;
-                        delta_i = sum_attrs / 8; // int div
+                    // Type_A: begin
+                    //     sum_attrs = p.MP + p.HP + p.Attack + p.Defense;
+                    //     delta_i = sum_attrs / 8; // int div
                         
-                        // Apply to all? "adjust Delta_i... to get final...". 
-                        // Assuming Formula A applies uniform delta base.
-                        // Then adjust per mode.
-                        // Table 2: Delta_final = Delta_i (+/-) floor(Delta_i/4).
-                    end
+                    //     // Apply to all? "adjust Delta_i... to get final...". 
+                    //     // Assuming Formula A applies uniform delta base.
+                    //     // Then adjust per mode.
+                    //     // Table 2: Delta_final = Delta_i (+/-) floor(Delta_i/4).
+                    // end
                     Type_B: begin
                         // Sort MP, HP, Atk, Def
                         // Store values and original indices
@@ -517,6 +506,13 @@ task calculate_golden;
                     end
                 end
             end
+
+            // // test
+            // if (cur_player_no == 12) begin
+            //     $display("Player %d Level Up: Type=%0d, Mode=%0d, Exp_Needed=%0d, Player_Exp=%0d", cur_player_no, cur_type, cur_mode, exp_needed, p.Exp);
+            //     $display("  Updated Stats: MP=%0d, HP=%0d, Atk=%0d, Def=%0d", g_player_info_updated.MP, g_player_info_updated.HP, g_player_info_updated.Attack, g_player_info_updated.Defense);
+            // end
+            // // end test
         end
         
         Battle: begin
@@ -532,6 +528,11 @@ task calculate_golden;
             // Temp HP
             hp_temp_p = p.HP - dmg_to_p; // Can be negative
             hp_temp_m = g_monster_hp - dmg_to_m;
+
+            // // test
+            // if (cur_player_no == 12)
+            //     $display("Player %d Battle: P_HP=%d, M_HP=%d, Dmg_P=%d, Dmg_M=%d, HP_temp_P=%d, HP_temp_M=%d", cur_player_no, p.HP, g_monster_hp, dmg_to_p, dmg_to_m, hp_temp_p, hp_temp_m);
+            // // end test
             
             if (p.HP == 0) begin
                 g_warn_msg = HP_Warn;
@@ -576,18 +577,33 @@ task calculate_golden;
         Use_Skill: begin
             current_mp_local = p.MP;
             skill_count = 0;
+
+            // sort g_skill_costs ascending
+            for(m=0; m<4; m++) begin
+                for(n=0; n<3-m; n++) begin
+                    if(g_skill_costs[n] > g_skill_costs[n+1]) begin
+                        temp_swap = g_skill_costs[n];
+                        g_skill_costs[n] = g_skill_costs[n+1];
+                        g_skill_costs[n+1] = temp_swap;
+                    end
+                end
+            end
             
+            // // test display
+            // if (cur_player_no == 12) begin
+            //     $display("Player %d having MP = %d", cur_player_no, current_mp_local);
+            //     for(m=0; m<4; m++) begin
+            //         $display("  Skill %d Cost = %d", m, g_skill_costs[m]);
+            //     end
+            // end
+            // // end test display
+
             // Calculate max skills used
             for(m=0; m<4; m++) begin
                 if (current_mp_local >= g_skill_costs[m]) begin
                     current_mp_local = current_mp_local - g_skill_costs[m];
                     skill_count++;
                 end else begin
-                    // Can't use this skill, stop?
-                    // "calculate the maximum number of skills that can be used with the player's available MP"
-                    // implies greedy or sequential. 
-                    // "The list of the MP consumed".
-                    // Usually sequential.
                     break;
                 end
             end
@@ -602,20 +618,25 @@ task calculate_golden;
         end
         
         Check_Inactive: begin
-             days_curr = count_days(cur_date.M, cur_date.D);
-             days_last = count_days(p.M, p.D);
-             
-             // Logic for diff:
-             // If curr >= last, diff = curr - last
-             // If curr < last, diff = curr + 365 - last (Year wrap)
-             
-             if (days_curr >= days_last) diff = days_curr - days_last;
-             else diff = days_curr + 365 - days_last;
-             
-             if (diff > 90) begin
-                 g_warn_msg = Date_Warn;
-                 g_complete = 0;
-             end
+            days_curr = count_days(cur_date.M, cur_date.D);
+            days_last = count_days(p.M, p.D);
+            
+            // Logic for diff:
+            // If curr >= last, diff = curr - last
+            // If curr < last, diff = curr + 365 - last (Year wrap)
+
+            if (days_curr >= days_last) diff = days_curr - days_last;
+            else diff = days_curr + 365 - days_last;
+                
+            // // test
+            // if (cur_player_no == 12)
+            //     $display("Player %d Inactive Check: Curr_Days=%d, Last_Days=%d, Diff=%d", cur_player_no, days_curr, days_last, diff);
+            // // end test
+            
+            if (diff > 90) begin
+                g_warn_msg = Date_Warn;
+                g_complete = 0;
+            end
         end
     endcase
     
@@ -639,6 +660,7 @@ task wait_out_valid;
         end
         @(negedge clk);
     end
+    total_latency = total_latency + latency;
 endtask
 
 task check_ans;
@@ -649,19 +671,51 @@ task check_ans;
     
     if (inf.warn_msg !== g_warn_msg || inf.complete !== g_complete) begin
         $display("--------------------------------------------------------------------------------");
-        $display("                                   FAIL                                         ");
+        $display("\033[31m                                   FAIL                                         \033[0m");
         $display("  Action: %s, Player: %d", cur_action.name(), cur_player_no);
         if (cur_action == Login) $display("  Login Date: %d/%d", cur_date.M, cur_date.D);
-        $display("  Expected Warn: %d, Actual Warn: %d", g_warn_msg, inf.warn_msg);
-        $display("  Expected Complete: %d, Actual Complete: %d", g_complete, inf.complete);
+        $display("  Golden Warn: %d, Actual Warn: %d", g_warn_msg, inf.warn_msg);
+        $display("  Golden Complete: %d, Actual Complete: %d", g_complete, inf.complete);
         $display("--------------------------------------------------------------------------------");
         $finish;
     end
+
+    // // check DRAM update if complete
+    // if (g_complete) begin
+    //     Player_Info dram_p;
+    //     dram_p = get_player_from_dram(cur_player_no);
+        
+    //     if (dram_p.MP !== g_player_info_updated.MP ||
+    //         dram_p.Exp !== g_player_info_updated.Exp ||
+    //         dram_p.Defense !== g_player_info_updated.Defense ||
+    //         dram_p.Attack !== g_player_info_updated.Attack ||
+    //         dram_p.D !== g_player_info_updated.D ||
+    //         dram_p.M !== g_player_info_updated.M ||
+    //         dram_p.HP !== g_player_info_updated.HP) begin
+    //         $display("--------------------------------------------------------------------------------");
+    //         $display("\033[31m                                   FAIL                                         \033[0m");
+    //         $display("  Action: %s, Player: %d", cur_action.name(), cur_player_no);
+    //         $display("  Golden DRAM Update: MP=%0d, Exp=%0d, Def=%0d, Atk=%0d, D=%0d, M=%0d, HP=%0d",
+    //                  g_player_info_updated.MP, g_player_info_updated.Exp,
+    //                  g_player_info_updated.Defense, g_player_info_updated.Attack,
+    //                  g_player_info_updated.D, g_player_info_updated.M,
+    //                  g_player_info_updated.HP);
+    //         $display("  Actual DRAM Update: MP=%0d, Exp=%0d, Def=%0d, Atk=%0d, D=%0d, M=%0d, HP=%0d",
+    //                  dram_p.MP, dram_p.Exp,
+    //                  dram_p.Defense, dram_p.Attack,
+    //                  dram_p.D, dram_p.M,
+    //                  dram_p.HP);
+    //         $display("  DRAM Update Incorrect!");
+    //         $display("--------------------------------------------------------------------------------");
+    //         $finish;
+    //     end
+    // end
     
     // If complete, update DRAM
-    if (g_complete) begin
+    if (g_complete || g_warn_msg == Saturation_Warn) begin
         update_dram(cur_player_no, g_player_info_updated);
     end
+    $display("\033[32mPattern %0d PASS!  \tLatency: %0d,\tPlayer: %d,\tAction: %s\033[0m", i, latency, cur_player_no, cur_action.name());
 endtask
 
 //================================================================
@@ -675,7 +729,7 @@ initial begin
     ra.set_seed(seed);
     reset_task;
     
-    for(i=0; i<2000; i++) begin // Run 2000 patterns or as needed
+    for(i=0; i<pattern_num; i++) begin // Run 2000 patterns or as needed
         input_task;
         calculate_golden;
         wait_out_valid;
@@ -686,6 +740,7 @@ initial begin
     $display("--------------------------------------------------------------------------------");
     $display("                                 Congratulations                                ");
     $display("                        All Patterns Passed Successfully                        ");
+    $display("                    Total execution latency = %0d cycles                ", total_latency);
     $display("--------------------------------------------------------------------------------");
     $finish;
 end

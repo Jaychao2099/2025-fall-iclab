@@ -11,44 +11,6 @@
 module RPG(input clk, INF.RPG_inf inf);
 import usertype::*;
 
-// input
-// sel_action_valid    1  pattern  High when input means select the action. 
-// type_valid          1  pattern  High when input means type of training. 
-// mode_valid          1  pattern  High when input means the mode. 
-// date_valid          1  pattern  High when input means today’s date. 
-// player_no_valid     1  pattern  High when input means the number of  player. 
-// monster_valid       1  pattern  High  when  input  means  the  attributes  of  the monster. (Will pull HIGH 3 times for monster’s attack, monster’s defense, and monster’s HP)
-// MP_valid            1  pattern  High  when  input  means  the  list  of  the  MP consumed by the skill (Will pull HIGH 4 times for 4 skills) 
-// D[143:0]          144  pattern  Represents the contents of the current input. 
-//                                     = {141’bX, Action              } (inf.D.d_act [0])       // 3-bit
-//                                     = {142’bX, Training_Type       } (inf.D.d_type[0])       // 2-bit
-//                                     = {142’bX, Mode                } (inf.D.d_mode[0])       // 2-bit
-//                                     = {135’bX, Month[3:0], Day[4:0]} (inf.D.d_date[0])       // 4-bit, 5-bit
-//                                     = {136’bX, Player No.          } (inf.D.d_player_no[0])  // 8-bit
-//                                     = {128’bX, Moster_attributes   } (inf.D.d_attribute[0])  // 16-bit
-//                                     = {128’bX, Comsumed_MP         } (inf.D.d_attribute[0])  // 16-bit
-// AR_READY            1  DRAM     AXI Lite signal 
-// R_VALID             1  DRAM     AXI Lite signal 
-// R_DATA             96  DRAM     AXI Lite signal 
-// R_RESP              2  DRAM     AXI Lite signal 
-// AW_READY            1  DRAM     AXI Lite signal 
-// W_READY             1  DRAM     AXI Lite signal 
-// B_VALID             1  DRAM     AXI Lite signal 
-// B_RESP              2  DRAM     AXI Lite signal 
-
-// // output
-// out_valid           1  pattern  Should set to high when your output is ready. out_valid will be high for only one cycle. 
-// warn_msg            3  pattern  warn_msg will be 3’b000 (No warn) if operation is  complete,  else  it  needs  to  be  corresponding value. 
-// complete            1  pattern  1’b1: operation complete, 1’b0: some warning occurred 
-// AR_VALID            1  DRAM     AXI Lite signal 
-// AR_ADDR            17  DRAM     AXI Lite signal 
-// R_READY             1  DRAM     AXI Lite signal 
-// AW_VALID            1  DRAM     AXI Lite signal 
-// AW_ADDR            17  DRAM     AXI Lite signal 
-// W_VALID             1  DRAM     AXI Lite signal 
-// W_DATA             96  DRAM     AXI Lite signal 
-// B_READY             1  DRAM     AXI Lite signal 
-
 // Finished: 
 //      FSM
 //      sorting module
@@ -57,10 +19,13 @@ import usertype::*;
 //      battle
 //      use skill
 //      check inactive
+//      read DRAM
+//      write DRAM
+//      fix aw_valid, r_valid
+//      change FSM, compplete goto the last state, deal with DRAM write delay
 
 // TODO:
-//      read DRAM
-
+//      ensure all tmp get calculated and assigned to player
 
 //==============================================//
 //              logic declaration               //
@@ -77,9 +42,12 @@ logic [2:0] mp_cnt;
 logic read_input_done;
 
 // ------------------ AXI ------------------
+Player_Info current_player_info;        // for calculation, need to write back DRAM
+
+logic [16:0] now_addr;
 
 // ------------------ update player ------------------
-logic signed [18:0] Exp_tmp, MP_tmp, HP_tmp, Attack_tmp, Defense_tmp;
+logic signed [17:0] Exp_tmp, MP_tmp, HP_tmp, Attack_tmp, Defense_tmp;
 
 logic Exp_tmp_sat, MP_tmp_sat, HP_tmp_sat, Attack_tmp_sat, Defense_tmp_sat;
 
@@ -89,8 +57,17 @@ logic [8:0] today_days_cnt, last_days_cnt;
 // ------------------ Level up ------------------
 Attribute delta_MP, delta_HP, delta_Attack, delta_Defense;
 
+logic [17:0] attribute_sum;
+
+logic [11:0] delta_MP_tmp;
+logic [11:0] delta_HP_tmp;
+logic [11:0] delta_Attack_tmp;
+logic [11:0] delta_Defense_tmp;
+
+Attribute_rank_t rank_MP, rank_HP, rank_Attack, rank_Defense;
+
 // ------------------ Battle ------------------
-logic [16:0] d_to_p, p_to_d;
+logic signed [16:0] d_to_p, d_to_m;
 logic signed [16:0] m_HP_tmp;
 battle_result_t battle_result;
 
@@ -107,8 +84,7 @@ logic [17:0] skill_sum_03;
 
 // ------------------ Sort IP ------------------
 Attribute attributes [0:3];
-// Attribute sorted_attributes [0:3];
-sorting_element_t sorted_attributes [0:3];
+sorting_element_t sorted_attributes [0:3], sorted_attributes_reg [0:3];
 
 // ------------------ handel output ------------------
 Warn_Msg warn_date_exp_hp_mp_flag;
@@ -128,17 +104,21 @@ end
 
 // state_t next_state;
 always_comb begin
+    next_state = current_state;
     case (current_state)
         S_IDLE: begin
             if (inf.sel_action_valid) next_state = S_READ_INPUT;
             else                      next_state = S_IDLE;
         end
         S_READ_INPUT: begin     // store input into 'now'
-            if (read_input_done) next_state = S_READ_DRAM;
+            if (read_input_done) next_state = S_READ_DRAM_AR;
             else                 next_state = S_READ_INPUT;
         end
-        // read 32-bit
-        S_READ_DRAM: begin  // TODO: maybe more state?
+        S_READ_DRAM_AR: begin
+            if (inf.AR_VALID && inf.AR_READY) next_state = S_READ_DRAM_R;
+            else                              next_state = S_READ_DRAM_AR;
+        end
+        S_READ_DRAM_R: begin
             if (inf.R_VALID) begin
                 case (now.act)
                     Login:            next_state = S_CHECK_CONSECUTIVE;
@@ -149,63 +129,81 @@ always_comb begin
                     default: next_state = S_IDLE;   // no used
                 endcase
             end
-            else next_state = S_READ_DRAM;
+            else next_state = S_READ_DRAM_R;
         end
         // login
         S_CHECK_CONSECUTIVE: begin
             next_state = S_UPDATE_DATE_EXP;
         end
         S_UPDATE_DATE_EXP: begin
-            next_state = S_END_ACTION;
+            next_state = S_WRITE_DRAM_AW;
         end
         // level up
         S_CHECK_EXP_NEED: begin
-            if (warn_date_exp_hp_mp_flag == Exp_Warn) next_state = S_END_ACTION;
-            else                                      next_state = S_CAL_DALTA;
+            next_state = S_CAL_DALTA;
         end
         S_CAL_DALTA: begin
-            next_state = S_CAL_DALTA_FINAL;
+            if (warn_date_exp_hp_mp_flag == Exp_Warn) next_state = S_END_ACTION;
+            else                                      next_state = S_CAL_DALTA_FINAL;
         end
         S_CAL_DALTA_FINAL: begin
             next_state = S_UPDATE_ATTR_LEVEL_UP;
         end
         S_UPDATE_ATTR_LEVEL_UP: begin
-            next_state = S_END_ACTION;
+            next_state = S_WRITE_DRAM_AW;
         end
         // attack
         S_CHECK_HP: begin
-            if (warn_date_exp_hp_mp_flag == HP_Warn) next_state = S_END_ACTION;
-            else                                     next_state = S_CAL_HP_TMP;
+            // if (warn_date_exp_hp_mp_flag == HP_Warn) next_state = S_END_ACTION;
+            // else                                     next_state = S_CAL_HP_TMP;
+            next_state = S_CAL_HP_TMP;
         end
         S_CAL_HP_TMP: begin
-            next_state = S_CHECK_HP_RESULT;
+            if (warn_date_exp_hp_mp_flag == HP_Warn) next_state = S_END_ACTION;
+            else                                     next_state = S_CHECK_HP_RESULT;
         end
         S_CHECK_HP_RESULT: begin
             next_state = S_UPDATE_ATTR_BATTLE;
         end
         S_UPDATE_ATTR_BATTLE: begin
-            next_state = S_END_ACTION;
+            next_state = S_WRITE_DRAM_AW;
         end
         // use skill
         S_GET_MP_SUM: begin
-            if (warn_date_exp_hp_mp_flag == MP_Warn) next_state = S_END_ACTION;
-            else                                     next_state = S_UPDATE_MP;
+            // if ((sorted_attributes_reg[0].element > current_player_info.MP)) next_state = S_END_ACTION;
+            // else                                                             next_state = S_UPDATE_MP;
+            next_state = S_UPDATE_MP;
         end
         S_UPDATE_MP: begin
-            next_state = S_END_ACTION;
+            if (warn_date_exp_hp_mp_flag == MP_Warn) next_state = S_END_ACTION;
+            else                                     next_state = S_WRITE_DRAM_AW;
         end
         // check inactive
         S_CHECK_DATE: begin
-            next_state = S_END_ACTION;
+            next_state = S_CHECK_DATE_WARN;
+        end
+        S_CHECK_DATE_WARN: begin
+            if (warn_date_exp_hp_mp_flag == Date_Warn) next_state = S_END_ACTION;
+            else                                       next_state = S_WRITE_DRAM_AW;
+        end
+        // write 32-bit
+        S_WRITE_DRAM_AW: begin
+            if (inf.AW_VALID && inf.AW_READY) next_state = S_WRITE_DRAM_W;
+            else                              next_state = S_WRITE_DRAM_AW;
+        end
+        S_WRITE_DRAM_W: begin
+            if (inf.W_VALID && inf.W_READY) next_state = S_WRITE_DRAM_B;
+            else                            next_state = S_WRITE_DRAM_W;
+        end
+        S_WRITE_DRAM_B: begin
+            if (inf.B_VALID && inf.B_READY) next_state = S_END_ACTION;
+            else                            next_state = S_WRITE_DRAM_B;
         end
         // raise signal
         S_END_ACTION: begin
-            next_state = S_WRITE_DRAM;
-        end
-        // write 32-bit
-        S_WRITE_DRAM: begin  // TODO: maybe more state?
-            if (inf.W_READY) next_state = S_IDLE;
-            else             next_state = S_WRITE_DRAM;
+            // if (warn_date_exp_hp_mp_flag != No_Warn) next_state = S_IDLE;
+            // else                                     next_state = S_WRITE_DRAM;
+            next_state = S_IDLE;
         end
     endcase
 end
@@ -268,50 +266,130 @@ always_ff @( posedge clk ) begin
     endcase
 end
 
+// logic player_no_valid_reg;
+
+// // logic player_no_valid_reg;
+// always_ff @( posedge clk ) begin
+//     player_no_valid_reg <= inf.player_no_valid;
+// end
+
 // logic read_input_done;
-always_comb begin
-    read_input_done = 1'b0;
-    case (now.act)
-        Login, 
-        Level_Up, 
-        Check_Inactive: if (inf.player_no_valid) read_input_done = 1'b1;
-        Battle:         if (monster_cnt == 3)    read_input_done = 1'b1;
-        Use_Skill:      if (mp_cnt == 4)         read_input_done = 1'b1;
-    endcase
+always_ff @( posedge clk ) begin
+    if (current_state == S_IDLE) read_input_done <= 1'b0;
+    else begin
+        case (now.act)
+            Login, 
+            Level_Up, 
+            Check_Inactive: if (inf.player_no_valid) read_input_done <= 1'b1;
+            Battle:         if (monster_cnt == 3)    read_input_done <= 1'b1;
+            Use_Skill:      if (mp_cnt == 4)         read_input_done <= 1'b1;
+        endcase
+    end
 end
+// always_ff @( posedge clk ) begin
+//     case (now.act)
+//         Battle:    if (monster_cnt == 3)    read_input_done = 1'b1;
+//         Use_Skill: if (mp_cnt == 4)         read_input_done = 1'b1;
+//         default:   if (inf.player_no_valid) read_input_done = 1'b1;
+//     endcase
+// end
 
 // ------------------ AXI ------------------
-// TODO:
 // DRAM: 0x10000 ~ 0x10BFF.
 // each player: 96 bits = 12 Bytes
 // number "ID" player address = 0x10000 | (ID * 12 == (ID << 3) + (ID << 2))
 
-Player_Info current_player_info;        // for calculation, need to write back DRAM
+// logic [16:0] now_addr = {5'b10000, ({1'b0, now.player, 1'b0} + {2'b0, now.player}), 2'b0}
+// logic [16:0] now_addr;
+always_ff @( posedge clk ) begin
+    if (current_state == S_READ_INPUT) now_addr <= {5'b10000, ({1'b0, now.player, 1'b0} + {2'b0, now.player}), 2'b0};
+end
 
+// ------------------ AXI Read ------------------
 
 always_ff @( posedge clk or negedge inf.rst_n ) begin
-    if (!inf.rst_n) begin
-        inf.AR_VALID <= 0;
-        inf.AR_ADDR <= 0;
-        inf.R_READY <= 0;
-        inf.AW_VALID <= 0;
-        inf.AW_ADDR <= 0;
-        inf.W_VALID <= 0;
-        inf.W_DATA <= 0;
-        inf.B_READY <= 0;
-    end
+    if      (!inf.rst_n)                      inf.AR_VALID <= 1'b0;
+    else if (inf.AR_READY)                    inf.AR_VALID <= 1'b0;  // can ignore??
+    else if (current_state == S_READ_DRAM_AR) inf.AR_VALID <= 1'b1;
+    else                                      inf.AR_VALID <= 1'b0;
 end
+
+// logic [16:0] AR_ADDR;
+always_ff @( posedge clk or negedge inf.rst_n ) begin
+    if      (!inf.rst_n)                      inf.AR_ADDR <= 17'd0;
+    // else if (inf.AR_READY)                    inf.AR_ADDR <= 17'd0;  // can ignore??
+    else if (current_state == S_READ_DRAM_AR) inf.AR_ADDR <= now_addr;
+    else                                      inf.AR_ADDR <= 17'd0;
+end
+
+always_ff @( posedge clk or negedge inf.rst_n ) begin
+    if      (!inf.rst_n)                     inf.R_READY <= 1'b0;
+    else if (inf.R_VALID)                    inf.R_READY <= 1'b0;  // can ignore??
+    else if (current_state == S_READ_DRAM_R) inf.R_READY <= 1'b1;
+    else                                     inf.R_READY <= 1'b0;
+end
+
+// ------------------ AXI Write ------------------
+
+always_ff @( posedge clk or negedge inf.rst_n ) begin
+    if      (!inf.rst_n)                       inf.AW_VALID <= 1'b0;
+    else if (inf.AW_READY)                     inf.AW_VALID <= 1'b0;
+    else if (current_state == S_WRITE_DRAM_AW) inf.AW_VALID <= 1'b1;
+    else                                       inf.AW_VALID <= 1'b0;
+end
+
+// logic [16:0] AW_ADDR;
+always_ff @( posedge clk or negedge inf.rst_n ) begin
+    if      (!inf.rst_n)                       inf.AW_ADDR <= 17'd0;
+    // else if (inf.AW_READY)                     inf.AW_ADDR <= 17'd0;
+    else if (current_state == S_WRITE_DRAM_AW) inf.AW_ADDR <= now_addr;
+    else                                       inf.AW_ADDR <= 17'd0;
+end
+
+always_ff @( posedge clk or negedge inf.rst_n ) begin
+    if      (!inf.rst_n)                      inf.W_VALID <= 1'b0;
+    else if (inf.W_READY)                     inf.W_VALID <= 1'b0;
+    else if (current_state == S_WRITE_DRAM_W) inf.W_VALID <= 1'b1;
+    else                                      inf.W_VALID <= 1'b0;
+end
+
+// logic [95:0] W_DATA;
+always_ff @( posedge clk or negedge inf.rst_n ) begin
+    if (!inf.rst_n) inf.W_DATA <= 96'd0;
+    else if (inf.W_READY) inf.W_DATA <= 96'd0;
+    else if (current_state == S_WRITE_DRAM_W) begin
+        inf.W_DATA <= {current_player_info.HP,
+                        4'd0, current_player_info.M,
+                        3'd0, current_player_info.D,
+                        current_player_info.Attack,
+                        current_player_info.Defense,
+                        current_player_info.Exp,
+                        current_player_info.MP};
+    end
+    else inf.W_DATA <= 96'd0;
+end
+
+// always_ff @( posedge clk or negedge inf.rst_n ) begin
+//     if      (!inf.rst_n)                      inf.B_READY <= 1'b0;
+//     else if (inf.B_VALID)                     inf.B_READY <= 1'b0;
+//     else if (current_state == S_WRITE_DRAM_B) inf.B_READY <= 1'b1;
+//     else                                      inf.B_READY <= 1'b0;
+// end
+assign inf.B_READY = 1'b1;
 
 // ------------------ update player ------------------
 
-// logic signed [18:0] Exp_tmp, MP_tmp, HP_tmp, Attack_tmp, Defense_tmp;
+Date date_tmp;
+
+// logic signed [17:0] Exp_tmp, MP_tmp, HP_tmp, Attack_tmp, Defense_tmp;
 always_ff @( posedge clk ) begin
     case (current_state)
         S_CHECK_CONSECUTIVE: begin
+            date_tmp <= now.today;
             if (today_days_cnt == last_days_cnt + 1 ||
                 today_days_cnt == 1 && last_days_cnt == 365) begin
                 Exp_tmp <= current_player_info.Exp + 18'd512;
-                MP_tmp  <= current_player_info.MP  + 18'd2048;
+                MP_tmp  <= current_player_info.MP  + 18'd1024;
             end
             else begin
                 Exp_tmp <= current_player_info.Exp;
@@ -332,7 +410,7 @@ always_ff @( posedge clk ) begin
                     Attack_tmp  <= current_player_info.Attack  + delta_Attack;
                     Defense_tmp <= current_player_info.Defense + delta_Defense;
                 end
-                Hard: begin
+                default: begin
                     MP_tmp      <= current_player_info.MP      + (delta_MP      + (delta_MP >> 2));
                     HP_tmp      <= current_player_info.HP      + (delta_HP      + (delta_HP >> 2));
                     Attack_tmp  <= current_player_info.Attack  + (delta_Attack  + (delta_Attack >> 2));
@@ -346,19 +424,24 @@ always_ff @( posedge clk ) begin
         S_CHECK_HP_RESULT: begin
             case (battle_result)
                 win: begin
-                    Exp_tmp <= current_player_info.Exp + 17'd2048;
-                    MP_tmp  <= current_player_info.MP + 17'd2048;
-                    // HP_tmp  <= HP_tmp;
+                    Exp_tmp     <= current_player_info.Exp + 17'd2048;
+                    MP_tmp      <= current_player_info.MP  + 17'd2048;
+                    Attack_tmp  <= current_player_info.Attack;
+                    Defense_tmp <= current_player_info.Defense;
                 end
                 loss: begin
                     Exp_tmp     <= current_player_info.Exp     - 17'd2048;
+                    MP_tmp      <= current_player_info.MP;
                     HP_tmp      <= 17'd0;
                     Attack_tmp  <= current_player_info.Attack  - 17'd2048;
                     Defense_tmp <= current_player_info.Defense - 17'd2048;
                 end
-                // default: begin
-                //     HP_tmp  <= HP_tmp;
-                // end
+                default: begin
+                    Exp_tmp     <= current_player_info.Exp;
+                    MP_tmp      <= current_player_info.MP;
+                    Attack_tmp  <= current_player_info.Attack;
+                    Defense_tmp <= current_player_info.Defense;
+                end
             endcase
         end
         S_GET_MP_SUM: begin
@@ -366,6 +449,7 @@ always_ff @( posedge clk ) begin
             else if (skill_sum_02 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_02;
             else if (skill_sum_01 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_01;
             else if (skill_sum_00 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_00;
+            else                                             MP_tmp <= current_player_info.MP;
         end
     endcase
 end
@@ -386,7 +470,20 @@ assign Defense_tmp_sat_sub = Defense_tmp[17];
 
 always_ff @( posedge clk ) begin
     case (current_state)
+        S_READ_DRAM_R: begin
+            if (inf.R_VALID) begin
+                current_player_info.MP      <= inf.R_DATA[15:0];
+                current_player_info.Exp     <= inf.R_DATA[31:16];
+                current_player_info.Defense <= inf.R_DATA[47:32];
+                current_player_info.Attack  <= inf.R_DATA[63:48];
+                current_player_info.D       <= inf.R_DATA[68:64];   // 5-bit
+                current_player_info.M       <= inf.R_DATA[75:72];   // 4-bit
+                current_player_info.HP      <= inf.R_DATA[95:80];
+            end
+        end
         S_UPDATE_DATE_EXP: begin
+            current_player_info.M   <= date_tmp.M;
+            current_player_info.D   <= date_tmp.D;
             current_player_info.Exp <= Exp_tmp_sat ? 16'd65535 : Exp_tmp;
             current_player_info.MP  <= MP_tmp_sat  ? 16'd65535 : MP_tmp;
         end
@@ -448,98 +545,101 @@ end
 
 // ------------------ Level up ------------------
 
-logic [17:0] attribute_sum = current_player_info.MP +
-                             current_player_info.HP +
-                             current_player_info.Attack +
-                             current_player_info.Defense;
+// logic [17:0] attribute_sum;
 
-logic [11:0] delta_MP_tmp      = (16'd65535 - current_player_info.MP) >> 4;
-logic [11:0] delta_HP_tmp      = (16'd65535 - current_player_info.HP) >> 4;
-logic [11:0] delta_Attack_tmp  = (16'd65535 - current_player_info.Attack) >> 4;
-logic [11:0] delta_Defense_tmp = (16'd65535 - current_player_info.Defense) >> 4;
+// logic [11:0] delta_MP_tmp;
+// logic [11:0] delta_HP_tmp;
+// logic [11:0] delta_Attack_tmp;
+// logic [11:0] delta_Defense_tmp;
+always_comb begin
+    attribute_sum = current_player_info.MP +
+                    current_player_info.HP +
+                    current_player_info.Attack +
+                    current_player_info.Defense;
+    delta_MP_tmp      = (16'd65535 - current_player_info.MP) >> 4;
+    delta_HP_tmp      = (16'd65535 - current_player_info.HP) >> 4;
+    delta_Attack_tmp  = (16'd65535 - current_player_info.Attack) >> 4;
+    delta_Defense_tmp = (16'd65535 - current_player_info.Defense) >> 4;
+end
 
-Attribute_rank_t rank_MP = {(sorted_attributes_reg[3].stable_idx == 2'd0), 
-                            (sorted_attributes_reg[2].stable_idx == 2'd0), 
-                            (sorted_attributes_reg[1].stable_idx == 2'd0), 
-                            (sorted_attributes_reg[0].stable_idx == 2'd0)};
+// Attribute_rank_t rank_MP, rank_HP, rank_Attack, rank_Defense;
 
-Attribute_rank_t rank_HP = {(sorted_attributes_reg[3].stable_idx == 2'd1), 
-                            (sorted_attributes_reg[2].stable_idx == 2'd1), 
-                            (sorted_attributes_reg[1].stable_idx == 2'd1), 
-                            (sorted_attributes_reg[0].stable_idx == 2'd1)};
+assign rank_MP = {(sorted_attributes_reg[3].stable_idx == 2'd0), 
+                  (sorted_attributes_reg[2].stable_idx == 2'd0), 
+                  (sorted_attributes_reg[1].stable_idx == 2'd0), 
+                  (sorted_attributes_reg[0].stable_idx == 2'd0)};
 
-Attribute_rank_t rank_Attack = {(sorted_attributes_reg[3].stable_idx == 2'd2), 
-                                (sorted_attributes_reg[2].stable_idx == 2'd2), 
-                                (sorted_attributes_reg[1].stable_idx == 2'd2), 
-                                (sorted_attributes_reg[0].stable_idx == 2'd2)};
+assign rank_HP = {(sorted_attributes_reg[3].stable_idx == 2'd1), 
+                  (sorted_attributes_reg[2].stable_idx == 2'd1), 
+                  (sorted_attributes_reg[1].stable_idx == 2'd1), 
+                  (sorted_attributes_reg[0].stable_idx == 2'd1)};
 
-Attribute_rank_t rank_Defense = {(sorted_attributes_reg[3].stable_idx == 2'd3), 
-                                 (sorted_attributes_reg[2].stable_idx == 2'd3), 
-                                 (sorted_attributes_reg[1].stable_idx == 2'd3), 
-                                 (sorted_attributes_reg[0].stable_idx == 2'd3)};
+assign rank_Attack = {(sorted_attributes_reg[3].stable_idx == 2'd2), 
+                      (sorted_attributes_reg[2].stable_idx == 2'd2), 
+                      (sorted_attributes_reg[1].stable_idx == 2'd2), 
+                      (sorted_attributes_reg[0].stable_idx == 2'd2)};
+
+assign rank_Defense = {(sorted_attributes_reg[3].stable_idx == 2'd3), 
+                       (sorted_attributes_reg[2].stable_idx == 2'd3), 
+                       (sorted_attributes_reg[1].stable_idx == 2'd3), 
+                       (sorted_attributes_reg[0].stable_idx == 2'd3)};
 
 // Attribute delta_MP, delta_HP, delta_Attack, delta_Defense;
 always_ff @( posedge clk ) begin
-    // if (current_state == S_CAL_DALTA) begin
-        case (now.training_type)
-            Type_A: begin
-                delta_MP      <= {1'b0, attribute_sum[17:3]};
-                delta_HP      <= {1'b0, attribute_sum[17:3]};
-                delta_Attack  <= {1'b0, attribute_sum[17:3]};
-                delta_Defense <= {1'b0, attribute_sum[17:3]};
-            end
-            Type_B: begin
-                case (rank_MP)
-                    rank_0: delta_MP <= sorted_attributes_reg[2].element - current_player_info.MP;
-                    rank_1: delta_MP <= sorted_attributes_reg[3].element - current_player_info.MP;
-                    rank_2,
-                    rank_3: delta_MP <= current_player_info.MP;
-                endcase
-                case (rank_HP)
-                    rank_0: delta_HP <= sorted_attributes_reg[2].element - current_player_info.HP;
-                    rank_1: delta_HP <= sorted_attributes_reg[3].element - current_player_info.HP;
-                    rank_2,
-                    rank_3: delta_HP <= current_player_info.HP;
-                endcase
-                case (rank_Attack)
-                    rank_0: delta_Attack <= sorted_attributes_reg[2].element - current_player_info.Attack;
-                    rank_1: delta_Attack <= sorted_attributes_reg[3].element - current_player_info.Attack;
-                    rank_2,
-                    rank_3: delta_Attack <= current_player_info.Attack;
-                endcase
-                case (rank_Defense)
-                    rank_0: delta_Defense <= sorted_attributes_reg[2].element - current_player_info.Defense;
-                    rank_1: delta_Defense <= sorted_attributes_reg[3].element - current_player_info.Defense;
-                    rank_2,
-                    rank_3: delta_Defense <= current_player_info.Defense;
-                endcase
-            end
-            Type_C: begin
-                delta_MP      <= (16383 > current_player_info.MP)      ? (16'd16383 - current_player_info.MP)      : 0;
-                delta_HP      <= (16383 > current_player_info.HP)      ? (16'd16383 - current_player_info.HP)      : 0;
-                delta_Attack  <= (16383 > current_player_info.Attack)  ? (16'd16383 - current_player_info.Attack)  : 0;
-                delta_Defense <= (16383 > current_player_info.Defense) ? (16'd16383 - current_player_info.Defense) : 0;
-            end
-            Type_D: begin
-                delta_MP      <= (delta_MP_tmp[11])      ? (16'd5047) : (16'd3000 + delta_MP_tmp);
-                delta_HP      <= (delta_HP_tmp[11])      ? (16'd5047) : (16'd3000 + delta_HP_tmp);
-                delta_Attack  <= (delta_Attack_tmp[11])  ? (16'd5047) : (16'd3000 + delta_Attack_tmp);
-                delta_Defense <= (delta_Defense_tmp[11]) ? (16'd5047) : (16'd3000 + delta_Defense_tmp);
-            end
-        endcase
-    // end
+    case (now.training_type)
+        Type_A: begin
+            delta_MP      <= {1'b0, attribute_sum[17:3]};
+            delta_HP      <= {1'b0, attribute_sum[17:3]};
+            delta_Attack  <= {1'b0, attribute_sum[17:3]};
+            delta_Defense <= {1'b0, attribute_sum[17:3]};
+        end
+        Type_B: begin
+            case (rank_MP)
+                rank_0:  delta_MP <= sorted_attributes_reg[2].element - current_player_info.MP;
+                rank_1:  delta_MP <= sorted_attributes_reg[3].element - current_player_info.MP;
+                default: delta_MP <= 16'd0;
+            endcase
+            case (rank_HP)
+                rank_0:  delta_HP <= sorted_attributes_reg[2].element - current_player_info.HP;
+                rank_1:  delta_HP <= sorted_attributes_reg[3].element - current_player_info.HP;
+                default: delta_HP <= 16'd0;
+            endcase
+            case (rank_Attack)
+                rank_0:  delta_Attack <= sorted_attributes_reg[2].element - current_player_info.Attack;
+                rank_1:  delta_Attack <= sorted_attributes_reg[3].element - current_player_info.Attack;
+                default: delta_Attack <= 16'd0;
+            endcase
+            case (rank_Defense)
+                rank_0:  delta_Defense <= sorted_attributes_reg[2].element - current_player_info.Defense;
+                rank_1:  delta_Defense <= sorted_attributes_reg[3].element - current_player_info.Defense;
+                default: delta_Defense <= 16'd0;
+            endcase
+        end
+        Type_C: begin
+            delta_MP      <= (16383 > current_player_info.MP)      ? (16'd16383 - current_player_info.MP)      : 0;
+            delta_HP      <= (16383 > current_player_info.HP)      ? (16'd16383 - current_player_info.HP)      : 0;
+            delta_Attack  <= (16383 > current_player_info.Attack)  ? (16'd16383 - current_player_info.Attack)  : 0;
+            delta_Defense <= (16383 > current_player_info.Defense) ? (16'd16383 - current_player_info.Defense) : 0;
+        end
+        default: begin
+            delta_MP      <= (delta_MP_tmp[11])      ? (16'd5047) : (16'd3000 + delta_MP_tmp);
+            delta_HP      <= (delta_HP_tmp[11])      ? (16'd5047) : (16'd3000 + delta_HP_tmp);
+            delta_Attack  <= (delta_Attack_tmp[11])  ? (16'd5047) : (16'd3000 + delta_Attack_tmp);
+            delta_Defense <= (delta_Defense_tmp[11]) ? (16'd5047) : (16'd3000 + delta_Defense_tmp);
+        end
+    endcase
 end
 
 // ------------------ Battle ------------------
 
-// logic [16:0] d_to_p, p_to_d;
+// logic signed [16:0] d_to_p, d_to_m;
 assign d_to_p = now.m_attack - current_player_info.Defense;
-assign p_to_d = current_player_info.Attack - now.m_defense;
+assign d_to_m = current_player_info.Attack - now.m_defense;
 
 // logic signed [16:0] m_HP_tmp;
 always_ff @( posedge clk ) begin
     // if (current_state == S_CAL_HP_TMP)
-        m_HP_tmp <= p_to_d[16] ? now.m_HP : now.m_HP - p_to_d;
+        m_HP_tmp <= d_to_m[16] ? now.m_HP : now.m_HP - d_to_m;
 end
 
 // battle_result_t battle_result;
@@ -608,12 +708,9 @@ end
 // for level-up training-type B, use skill greedy select MP
 SORT s1 (.attributes(attributes), .sorted_attributes(sorted_attributes));
 
-sorting_element_t sorted_attributes_reg [0:3];
-
 // sorting_element_t sorted_attributes_reg [0:3];
 always_ff @( posedge clk ) begin
-    // if (current_state == S_CHECK_EXP_NEED || current_state == S_READ_DRAM && now.act == Use_Skill) 
-        sorted_attributes_reg <= sorted_attributes;
+    sorted_attributes_reg <= sorted_attributes;
 end
 
 // ------------------ handle output ------------------
@@ -627,9 +724,12 @@ always_ff @( posedge clk ) begin
         // ------------------ Level up ------------------
         S_CHECK_EXP_NEED: begin
             case (now.mode)
-                Easy:    warn_date_exp_hp_mp_flag <= (current_player_info.Exp < 4095)  ? Exp_Warn : No_Warn;
-                Normal:  warn_date_exp_hp_mp_flag <= (current_player_info.Exp < 16383) ? Exp_Warn : No_Warn;
-                default: warn_date_exp_hp_mp_flag <= (current_player_info.Exp < 32767) ? Exp_Warn : No_Warn;
+                // Easy:    warn_date_exp_hp_mp_flag <= (current_player_info.Exp < 4095)  ? Exp_Warn : No_Warn;
+                // Normal:  warn_date_exp_hp_mp_flag <= (current_player_info.Exp < 16383) ? Exp_Warn : No_Warn;
+                // default: warn_date_exp_hp_mp_flag <= (current_player_info.Exp < 32767) ? Exp_Warn : No_Warn;
+                Easy:    warn_date_exp_hp_mp_flag <= ((|current_player_info.Exp[15:12]) | (&current_player_info.Exp[11:0])) ? No_Warn : Exp_Warn;//0000111111111111
+                Normal:  warn_date_exp_hp_mp_flag <= ((|current_player_info.Exp[15:14]) | (&current_player_info.Exp[13:0])) ? No_Warn : Exp_Warn;//0011111111111111
+                default: warn_date_exp_hp_mp_flag <= (( current_player_info.Exp[15])    | (&current_player_info.Exp[14:0])) ? No_Warn : Exp_Warn;//0111111111111111
             endcase
         end
         // ------------------ Battle ------------------
@@ -638,12 +738,13 @@ always_ff @( posedge clk ) begin
         end
         // ------------------ Use skills ------------------
         S_GET_MP_SUM: begin
-            warn_date_exp_hp_mp_flag <= (sorted_attributes_reg[0].element > current_player_info.Exp) ? MP_Warn : No_Warn;
+            warn_date_exp_hp_mp_flag <= (sorted_attributes_reg[0].element > current_player_info.MP) ? MP_Warn : No_Warn;
         end
         // ------------------ Check inactive ------------------
         S_CHECK_DATE: begin
             if (today_days_cnt       - last_days_cnt > 90 && today_days_cnt >= last_days_cnt ||
-                today_days_cnt + 365 - last_days_cnt > 90 && today_days_cnt <  last_days_cnt) begin
+                // today_days_cnt + 365 - last_days_cnt > 90 && today_days_cnt <  last_days_cnt) begin
+                today_days_cnt + 275 > last_days_cnt && today_days_cnt <  last_days_cnt) begin
                 warn_date_exp_hp_mp_flag <= Date_Warn;
             end
         end
@@ -662,7 +763,7 @@ always_ff @( posedge clk or negedge inf.rst_n) begin
         end
         // ------------------ Level up ------------------
         S_UPDATE_ATTR_LEVEL_UP: begin
-            if (Exp_tmp_sat || MP_tmp_sat || HP_tmp_sat || Attack_tmp_sat || Defense_tmp_sat) warn_sat_flag <= 1'b1;
+            if (MP_tmp_sat || HP_tmp_sat || Attack_tmp_sat || Defense_tmp_sat) warn_sat_flag <= 1'b1;
         end
         // ------------------ Battle ------------------
         S_UPDATE_ATTR_BATTLE: begin

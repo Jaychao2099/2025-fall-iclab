@@ -70,7 +70,8 @@ typedef enum logic [4:0] {
     S_IDLE,
     S_READ_INPUT,
     // read 32-bit
-    S_READ_DRAM,
+    S_READ_DRAM_AR,
+    S_READ_DRAM_R,
     // login
     S_CHECK_CONSECUTIVE,
     S_UPDATE_DATE_EXP,
@@ -89,10 +90,13 @@ typedef enum logic [4:0] {
     S_UPDATE_MP,
     // check inactive
     S_CHECK_DATE,
+    S_CHECK_DATE_WARN,
     // raise signal
     S_END_ACTION,
     // write 32-bit
-    S_WRITE_DRAM
+    S_WRITE_DRAM_AW,
+    S_WRITE_DRAM_W,
+    S_WRITE_DRAM_B
 } state_t;
 
 // store input
@@ -126,10 +130,10 @@ typedef struct packed {
 } sorting_element_t;
 
 typedef enum logic [3:0] { 
-    rank_0 = 4'b1000,   // smallest
-    rank_1 = 4'b0100,
-    rank_2 = 4'b0010,
-    rank_3 = 4'b0001   // bigest
+    rank_0 = 4'b0001,   // smallest
+    rank_1 = 4'b0010,
+    rank_2 = 4'b0100,
+    rank_3 = 4'b1000   // bigest
 } Attribute_rank_t;
 
 typedef enum logic [1:0] { 

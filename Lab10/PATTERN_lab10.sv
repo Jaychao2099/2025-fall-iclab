@@ -99,25 +99,25 @@ endfunction
 function Player_Info get_player(Player_No p_no);
     logic [16:0] base = 17'h10000 + (p_no * 12);
     Player_Info p;
-    p.HP = {golden_DRAM[base], golden_DRAM[base+1]};
-    p.M = golden_DRAM[base+2][3:0];
-    p.D = golden_DRAM[base+3][4:0];
-    p.Attack = {golden_DRAM[base+4], golden_DRAM[base+5]};
-    p.Defense = {golden_DRAM[base+6], golden_DRAM[base+7]};
-    p.Exp = {golden_DRAM[base+8], golden_DRAM[base+9]};
-    p.MP = {golden_DRAM[base+10], golden_DRAM[base+11]};
+    p.MP        = {golden_DRAM[base+1], golden_DRAM[base]};
+    p.Exp       = {golden_DRAM[base+3], golden_DRAM[base+2]};
+    p.Defense   = {golden_DRAM[base+5], golden_DRAM[base+4]};
+    p.Attack    = {golden_DRAM[base+7], golden_DRAM[base+6]};
+    p.D         = golden_DRAM[base+8][4:0];
+    p.M         = golden_DRAM[base+9][3:0];
+    p.HP        = {golden_DRAM[base+11], golden_DRAM[base+10]};
     return p;
 endfunction
 
 function void update_dram(Player_No p_no, Player_Info p);
     logic [16:0] base = 17'h10000 + (p_no * 12);
-    {golden_DRAM[base], golden_DRAM[base+1]} = p.HP;
-    golden_DRAM[base+2] = {4'b0, p.M};
-    golden_DRAM[base+3] = {3'b0, p.D};
-    {golden_DRAM[base+4], golden_DRAM[base+5]} = p.Attack;
-    {golden_DRAM[base+6], golden_DRAM[base+7]} = p.Defense;
-    {golden_DRAM[base+8], golden_DRAM[base+9]} = p.Exp;
-    {golden_DRAM[base+10], golden_DRAM[base+11]} = p.MP;
+    {golden_DRAM[base+1], golden_DRAM[base]} = p.MP;
+    {golden_DRAM[base+3], golden_DRAM[base+2]} = p.Exp;
+    {golden_DRAM[base+5], golden_DRAM[base+4]} = p.Defense;
+    {golden_DRAM[base+7], golden_DRAM[base+6]} = p.Attack;
+    golden_DRAM[base+8] = {3'b0, p.D};
+    golden_DRAM[base+9] = {4'b0, p.M};
+    {golden_DRAM[base+11], golden_DRAM[base+10]} = p.HP;
 endfunction
 
 function logic [15:0] sat_add(logic [16:0] val);
@@ -370,6 +370,16 @@ task verify_and_count(Action act, Player_No p_id, Month mm, Day dd, Training_Typ
         Use_Skill: begin
             mp_cur = p.MP;
             cnt = 0;
+            // sort 
+            for(m=0; m<4; m++) begin
+                for(n=0; n<3-m; n++) begin
+                    if(costs[n] > costs[n+1]) begin
+                        temp_swap = costs[n];
+                        costs[n] = costs[n+1];
+                        costs[n+1] = temp_swap;
+                    end
+                end
+            end
             for(int i=0; i<4; i++) begin
                 cov_mp_bin[costs[i]/2048]++; // Coverage MP
                 if(mp_cur >= costs[i]) begin

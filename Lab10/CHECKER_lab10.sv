@@ -2,6 +2,9 @@
 module Checker(input clk, INF.CHECKER inf);
 import usertype::*;
 
+//================================================================
+// Coverage Variables & Logic
+//================================================================
 
 // class Type_and_mode;
 //     Training_Type f_type;
@@ -10,9 +13,6 @@ import usertype::*;
 
 // Type_and_mode fm_info = new();
 
-//================================================================
-// Coverage Variables & Logic
-//================================================================
 Training_Type latched_type;
 
 always_ff @(posedge clk iff inf.rst_n) begin
