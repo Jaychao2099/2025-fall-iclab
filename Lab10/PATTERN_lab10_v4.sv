@@ -54,7 +54,8 @@ class random_act;
     }
 
     constraint date_valid {
-        mon inside {[1:12]};
+        // mon inside {[1:12]};
+        mon dist {[1:3] :/ 1, [4:12] :/ 24};
         d inside {[1:31]};
         (mon == 2) -> d <= 28;
         (mon inside {4, 6, 9, 11}) -> d <= 30;
@@ -69,9 +70,7 @@ class random_act;
     // Skill costs distribution to hit coverage
     constraint skill_dist {
         foreach(s_cost[i]) {
-            s_cost[i] dist {
-                [0:100] :/ 1, [100:60000] :/ 2, [60000:65535] :/ 1
-            };
+            s_cost[i] dist {[0:10] :/ 1, [10:65500] :/ 1, [65500:65535] :/ 1};
         }
     }
     
@@ -513,7 +512,7 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
     if(g_complete || g_warn_msg == Saturation_Warn) begin
         update_dram(p_id, g_player_info_updated);
     end
-    // $display("\033[32mPattern %0d PASS!  \tLatency: %d,\tPlayer: %0d,\tAction: %s\033[0m", pat_count, lat, p_id, act.name());
+    $display("\033[32mPattern %0d PASS!  \tLatency: %d,\tPlayer: %0d,\tAction: %s\033[0m", pat_count, lat, p_id, act.name());
 endtask
 
 function bit check_all_coverage();

@@ -54,7 +54,8 @@ class random_act;
     }
 
     constraint date_valid {
-        mon inside {[1:12]};
+        // mon inside {[1:12]};
+        mon dist {[1:3] :/ 1, [4:12] :/ 24};
         d inside {[1:31]};
         (mon == 2) -> d <= 28;
         (mon inside {4, 6, 9, 11}) -> d <= 30;
@@ -69,9 +70,7 @@ class random_act;
     // Skill costs distribution to hit coverage
     constraint skill_dist {
         foreach(s_cost[i]) {
-            s_cost[i] dist {
-                [0:100] :/ 1, [100:60000] :/ 2, [60000:65535] :/ 1
-            };
+            s_cost[i] dist {[0:10] :/ 1, [10:65500] :/ 1, [65500:65535] :/ 1};
         }
     }
     
@@ -149,10 +148,13 @@ task run_pattern;
     logic [15:0] costs[4];
     Player_Info p_temp;
     
+    // Candidate list for transitions
+    Action candidates[$];
+    int cand_size;
+    bit need_cross = 0;
     int missing_type = -1, missing_mode = -1;
-    int missing_trans_act = -1;
     
-    // 1. Randomize
+    // 1. Base Randomization
     void'(ra.randomize());
     act = ra.act_id;
     p_id = ra.player_id;
@@ -167,58 +169,92 @@ task run_pattern;
     
     p_temp = get_player(p_id);
 
-    // 2. Smart Override for Coverage Acceleration
-    
-    // Priority A: Cross Coverage (User Request)
-    // Check if any cross bin is not full
+    // 2. Check Needs
+    // Check Cross Coverage Needs
     for(int t=0; t<4; t++) begin
         for(int m=0; m<3; m++) begin
             if(cov_cross[t][m] < 200) begin
+                need_cross = 1;
                 missing_type = t;
                 missing_mode = m;
                 break;
             end
         end
-        if(missing_type != -1) break;
+        if(need_cross) break;
     end
-    
-    if(missing_type != -1 && $urandom_range(0,100) < 60) begin // 60% chance to target cross
-        act = Level_Up;
-        tt = Training_Type'(missing_type);
-        md = Mode'(missing_mode);
-    end
-    
-    // Priority B: Transition Coverage
-    else if (!first_op) begin
-        // Check if current pre_action -> any action is missing
+
+    // 3. Intelligent Action Selection (Priority: Transition > Cross > Warning)
+    if (!first_op) begin
+        // Find missing transitions from pre_action
         for(int a=0; a<5; a++) begin
             if(cov_trans[pre_action][a] < 200) begin
-                missing_trans_act = a;
-                break;
+                candidates.push_back(Action'(a));
             end
         end
-        if(missing_trans_act != -1 && $urandom_range(0,100) < 50) begin
-            act = Action'(missing_trans_act);
+        cand_size = candidates.size();
+        
+        if (cand_size > 0) begin
+            // Case A: We have specific transitions to fill
+            int lvl_idx = -1;
+            
+            // Check if Level_Up is a candidate
+            foreach(candidates[i]) begin
+                if(candidates[i] == Level_Up) lvl_idx = i;
+            end
+            
+            // If we need Cross Coverage AND Level_Up is a valid missing transition -> Pick it!
+            if(need_cross && lvl_idx != -1 && $urandom_range(0,100) < 70) begin
+                act = Level_Up;
+            end else begin
+                // Otherwise, pick randomly from the missing transitions to balance them
+                act = candidates[$urandom_range(0, cand_size-1)];
+            end
+        end 
+        else begin
+            // Case B: All transitions from current node are full (>200)
+            // Now we are free to chase Cross Coverage or Warnings
+            if(need_cross) begin
+                act = Level_Up;
+            end
+            else if (cov_warn[1] < 20) act = Check_Inactive;
+            else if (cov_warn[3] < 20 && p_temp.HP == 0) act = Battle;
+            else if (cov_warn[4] < 20) act = Use_Skill;
+            else if (cov_warn[2] < 20) act = Level_Up;
+            else begin
+                // Everything mostly full, just verify randomness
+                // act is already random from step 1
+            end
         end
     end
 
-    // Priority C: Warning Coverage
-    // Date_Warn
-    if (act == Check_Inactive && cov_warn[1] < 20) begin
-        // Try force large gap
-        if(p_temp.M <= 8) mm = p_temp.M + 4; else mm = 1; 
-        if(mm==2) dd = 28; else if(mm inside{4,6,9,11}) dd = 30; else dd = 31;
+    // 4. Parameter Refinement based on chosen 'act'
+    if (act == Level_Up) begin
+        // If we picked Level_Up, ensure we target missing Cross bins
+        if (missing_type != -1) begin
+            tt = Training_Type'(missing_type);
+            md = Mode'(missing_mode);
+        end
+        
+        // Trigger Exp_Warn if needed
+        if (cov_warn[2] < 20 && p_temp.Exp < 4000 && $urandom_range(0,100)<30) begin
+            md = Hard; // Force fail
+        end
     end
-    // HP_Warn
-    else if (act == Battle && cov_warn[3] < 20 && p_temp.HP == 0) begin
-        // keep random
+    else if (act == Check_Inactive) begin
+        // Trigger Date_Warn
+        if (cov_warn[1] < 20) begin
+            if(p_temp.M <= 8) mm = p_temp.M + 4; else mm = 1; 
+            if(mm==2) dd = 28; else if(mm inside{4,6,9,11}) dd = 30; else dd = 31;
+        end
     end
-    // MP_Warn
-    else if (act == Use_Skill && cov_warn[4] < 20) begin
-        foreach(costs[k]) costs[k] = 65530;
+    else if (act == Use_Skill) begin
+        // Trigger MP_Warn
+        if (cov_warn[4] < 20) begin
+            foreach(costs[k]) costs[k] = 65530;
+        end
     end
     
-    // 3. Drive & Verify
+    // 5. Drive & Verify
     drive_input(act, p_id, mm, dd, tt, md, m_hp, m_atk, m_def, costs);
     calculate_golden_and_verify(act, p_id, mm, dd, tt, md, m_hp, m_atk, m_def, costs);
     
@@ -513,7 +549,7 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
     if(g_complete || g_warn_msg == Saturation_Warn) begin
         update_dram(p_id, g_player_info_updated);
     end
-    // $display("\033[32mPattern %0d PASS!  \tLatency: %d,\tPlayer: %0d,\tAction: %s\033[0m", pat_count, lat, p_id, act.name());
+    $display("\033[32mPattern %0d PASS!  \tLatency: %d,\tPlayer: %0d,\tAction: %s\033[0m", pat_count, lat, p_id, act.name());
 endtask
 
 function bit check_all_coverage();

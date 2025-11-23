@@ -7,13 +7,13 @@
 
 `ifdef RTL
   `include "RPG.sv"
-  `define CYCLE_TIME 4.66
+  `define CYCLE_TIME 4.44
 `endif
 
 `ifdef GATE
   `include "RPG_SYN.v"
   `include "RPG_Wrapper.sv"
-  `define CYCLE_TIME 4.66
+  `define CYCLE_TIME 4.44
 `endif
 
 module TESTBED;
