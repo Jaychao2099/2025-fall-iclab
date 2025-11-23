@@ -362,13 +362,14 @@ always_ff @( posedge clk or negedge inf.rst_n ) begin
     else inf.W_DATA <= 96'd0;
 end
 
-// always_ff @( posedge clk or negedge inf.rst_n ) begin
-//     if      (!inf.rst_n)                      inf.B_READY <= 1'b0;
-//     else if (inf.B_VALID)                     inf.B_READY <= 1'b0;
-//     else if (current_state == S_WRITE_DRAM_B) inf.B_READY <= 1'b1;
-//     else                                      inf.B_READY <= 1'b0;
-// end
-assign inf.B_READY = 1'b1;
+always_ff @( posedge clk or negedge inf.rst_n ) begin
+    if      (!inf.rst_n)                      inf.B_READY <= 1'b0;
+    // else if (inf.B_VALID)                     inf.B_READY <= 1'b0;
+    // else if (current_state == S_WRITE_DRAM_B) inf.B_READY <= 1'b1;
+    // else                                      inf.B_READY <= 1'b0;
+    else                                      inf.B_READY <= 1'b1;
+end
+// assign inf.B_READY = inf.rst_n;
 
 // ------------------ update player ------------------
 

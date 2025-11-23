@@ -678,12 +678,7 @@ task wait_out_valid;
     total_latency = total_latency + latency;
 endtask
 
-task check_ans;
-    // When out_valid is high (at negedge we are safe to sample or posedge?)
-    // The testbench architecture samples at negedge usually for verification if design drives at posedge?
-    // Spec says: "Your design should trigger at positive edge clock... pattern receive... at negative edge."
-    // So we sampled inputs at negedge in `wait_out_valid` loop.
-    
+task check_ans;    
     if (inf.warn_msg !== g_warn_msg || inf.complete !== g_complete) begin
         $display("--------------------------------------------------------------------------------");
         $display("\033[31m                                   FAIL                                         \033[0m");
@@ -694,37 +689,6 @@ task check_ans;
         $display("--------------------------------------------------------------------------------");
         $finish;
     end
-
-    // // check DRAM update if complete
-    // if (g_complete) begin
-    //     Player_Info dram_p;
-    //     dram_p = get_player_from_dram(cur_player_no);
-        
-    //     if (dram_p.MP !== g_player_info_updated.MP ||
-    //         dram_p.Exp !== g_player_info_updated.Exp ||
-    //         dram_p.Defense !== g_player_info_updated.Defense ||
-    //         dram_p.Attack !== g_player_info_updated.Attack ||
-    //         dram_p.D !== g_player_info_updated.D ||
-    //         dram_p.M !== g_player_info_updated.M ||
-    //         dram_p.HP !== g_player_info_updated.HP) begin
-    //         $display("--------------------------------------------------------------------------------");
-    //         $display("\033[31m                                   FAIL                                         \033[0m");
-    //         $display("  Action: %s, Player: %d", cur_action.name(), cur_player_no);
-    //         $display("  Golden DRAM Update: MP=%0d, Exp=%0d, Def=%0d, Atk=%0d, D=%0d, M=%0d, HP=%0d",
-    //                  g_player_info_updated.MP, g_player_info_updated.Exp,
-    //                  g_player_info_updated.Defense, g_player_info_updated.Attack,
-    //                  g_player_info_updated.D, g_player_info_updated.M,
-    //                  g_player_info_updated.HP);
-    //         $display("  Actual DRAM Update: MP=%0d, Exp=%0d, Def=%0d, Atk=%0d, D=%0d, M=%0d, HP=%0d",
-    //                  dram_p.MP, dram_p.Exp,
-    //                  dram_p.Defense, dram_p.Attack,
-    //                  dram_p.D, dram_p.M,
-    //                  dram_p.HP);
-    //         $display("  DRAM Update Incorrect!");
-    //         $display("--------------------------------------------------------------------------------");
-    //         $finish;
-    //     end
-    // end
     
     // If complete, update DRAM
     if (g_complete || g_warn_msg == Saturation_Warn) begin
@@ -732,6 +696,90 @@ task check_ans;
     end
     $display("\033[32mPattern %0d PASS!  \tLatency: %d,\tPlayer: %0d,\tAction: %s\033[0m", i, latency, cur_player_no, cur_action.name());
 endtask
+
+//================================================================
+// Protocol Checkers (Run in background)
+//================================================================
+
+// Every output signal should be zero after rst_n
+// out_valid, warn_msg, complete,
+// AR_VALID, AR_ADDR, R_READY, AW_VALID, AW_ADDR, W_VALID, W_DATA, B_READY
+initial begin
+    forever @(negedge clk) begin
+        if (inf.rst_n === 1'b0) begin
+            if (inf.out_valid !== 1'b0 || inf.warn_msg !== No_Warn || inf.complete !== 1'b0 ||
+                inf.AR_VALID !== 1'b0 || inf.AR_ADDR !== 1'b0 || 
+                inf.R_READY !== 1'b0 || 
+                inf.AW_VALID !== 1'b0 || inf.AW_ADDR !== 1'b0 || 
+                inf.W_VALID !== 1'b0 || inf.W_DATA !== 1'b0 || 
+                inf.B_READY !== 1'b0) begin
+                $display("--------------------------------------------------------------------------------");
+                $display("\033[31m                                   FAIL                                         \033[0m");
+                $display("                Output signals should be zero during reset                      ");
+                $display("--------------------------------------------------------------------------------");
+                $finish;
+            end
+        end
+    end
+end
+
+//  The 7 valid input signals will not overlap with each other
+initial begin
+    forever @(negedge clk) begin
+        if (inf.rst_n === 1'b1) begin
+            int valid_count;
+            valid_count = 0;
+            
+            if (inf.sel_action_valid) valid_count++;
+            if (inf.type_valid)       valid_count++;
+            if (inf.mode_valid)       valid_count++;
+            if (inf.date_valid)       valid_count++;
+            if (inf.player_no_valid)  valid_count++;
+            if (inf.monster_valid)    valid_count++;
+            if (inf.MP_valid)         valid_count++;
+            if (valid_count > 1) begin
+                $display("--------------------------------------------------------------------------------");
+                $display("\033[31m                                   FAIL                                         \033[0m");
+                $display("                Multiple input valid signals are high simultaneously           ");
+                $display("--------------------------------------------------------------------------------");
+                $finish;
+            end
+        end
+    end
+end
+
+//  Out_valid cannot overlap with the 7 input valid signals
+initial begin
+    forever @(negedge clk) begin
+        if (inf.rst_n === 1'b1 && inf.out_valid === 1'b1) begin
+            if (inf.sel_action_valid || inf.type_valid || inf.mode_valid || 
+                inf.date_valid || inf.player_no_valid || inf.monster_valid || inf.MP_valid) begin
+                $display("--------------------------------------------------------------------------------");
+                $display("\033[31m                                   FAIL                                         \033[0m");
+                $display("                out_valid is high while input valid signals are high            ");
+                $display("--------------------------------------------------------------------------------");
+                $finish;
+            end
+        end
+    end
+end
+
+//  Out_valid should be high for exactly one cycle
+initial begin
+    forever @(negedge clk) begin
+        if (inf.rst_n === 1'b1 && inf.out_valid === 1'b1) begin
+            @(negedge clk);
+            if (inf.out_valid === 1'b1) begin
+                $display("--------------------------------------------------------------------------------");
+                $display("\033[31m                                   FAIL                                         \033[0m");
+                $display("                        out_valid is high for more than one cycle               ");
+                $display("--------------------------------------------------------------------------------");
+                $finish;
+            end
+        end
+    end
+end
+
 
 //================================================================
 // initial

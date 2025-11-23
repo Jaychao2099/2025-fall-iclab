@@ -110,20 +110,20 @@ property p_rst_check;
                                 inf.AR_VALID===0 && inf.AW_VALID===0 && inf.W_VALID===0 && 
                                 inf.R_READY===0 && inf.B_READY===0);
 endproperty
-assert property (p_rst_check) else begin $fatal("Assertion 1 is violated"); end
+assert property (p_rst_check) else begin $display("Assertion 1 is violated"); $fatal; end
 
 // 2. Latency should be less than 1000 cycles for each operation.
 // Start: sel_action_valid, End: out_valid
 property p_latency;
     @(posedge clk) inf.sel_action_valid |-> ##[1:1000] inf.out_valid;
 endproperty
-assert property (p_latency) else begin $fatal("Assertion 2 is violated"); end
+assert property (p_latency) else begin $display("Assertion 2 is violated"); $fatal; end
 
 // 3. If action is completed (complete=1), Warn_Msg should be 3'b0 (No_Warn).
 property p_complete_warn;
     @(negedge clk) (inf.out_valid && inf.complete) |-> (inf.warn_msg == No_Warn);
 endproperty
-assert property (p_complete_warn) else begin $fatal("Assertion 3 is violated"); end
+assert property (p_complete_warn) else begin $display("Assertion 3 is violated"); $fatal; end
 
 // 4. Next input valid will be valid 1-4 cycles after previous input valid fall.
 // Define "any input valid"
@@ -139,26 +139,26 @@ property p_input_gap;
         ($past($fell(any_input_valid), 1) || $past($fell(any_input_valid), 2) || 
          $past($fell(any_input_valid), 3) || $past($fell(any_input_valid), 4));
 endproperty
-assert property (p_input_gap) else begin $fatal("Assertion 4 is violated"); end
+assert property (p_input_gap) else begin $display("Assertion 4 is violated"); $fatal; end
 
 // 5. All input valid signals won't overlap with each other.
 property p_no_overlap;
     @(posedge clk) $onehot0({inf.sel_action_valid, inf.type_valid, inf.mode_valid, inf.date_valid, 
                              inf.player_no_valid, inf.monster_valid, inf.MP_valid});
 endproperty
-assert property (p_no_overlap) else begin $fatal("Assertion 5 is violated"); end
+assert property (p_no_overlap) else begin $display("Assertion 5 is violated"); $fatal; end
 
 // 6. Out_valid can only be high for exactly one cycle.
 property p_out_one_cycle;
     @(posedge clk) inf.out_valid |=> !inf.out_valid;
 endproperty
-assert property (p_out_one_cycle) else begin $fatal("Assertion 6 is violated"); end
+assert property (p_out_one_cycle) else begin $display("Assertion 6 is violated"); $fatal; end
 
 // 7. Next operation will be valid 1-4 cycles after out_valid fall.
 property p_next_op;
     @(posedge clk) $fell(inf.out_valid) |-> ##[1:4] inf.sel_action_valid;
 endproperty
-assert property (p_next_op) else begin $fatal("Assertion 7 is violated"); end
+assert property (p_next_op) else begin $display("Assertion 7 is violated"); $fatal; end
 
 // 8. The input date from pattern should adhere to the real calendar.
 logic [3:0] in_month;
@@ -168,18 +168,17 @@ assign in_month = inf.D[8:5];
 assign in_day   = inf.D[4:0];
 
 property p_date_check;
-    @(posedge clk) inf.date_valid |-> 
-    (in_month >= 1 && in_month <= 12) && (in_day >= 1) &&
-    ( (in_month == 2) |-> (in_day <= 28) ) &&
-    ( (in_month == 4 || in_month == 6 || in_month == 9 || in_month == 11) |-> (in_day <= 30) ) &&
-    ( (in_month == 1 || in_month == 3 || in_month == 5 || in_month == 7 || in_month == 8 || in_month == 10 || in_month == 12) |-> (in_day <= 31) );
+    @(posedge clk) inf.date_valid |-> (
+        (in_month >= 1 && in_month <= 12) && (in_day >= 1 && in_day <= 31) &&
+        ( (in_month == 2) ? (in_day <= 28) : (in_month == 4 || in_month == 6 || in_month == 9 || in_month == 11) ? (in_day <= 30) : 1'b1)
+    );
 endproperty
-assert property (p_date_check) else begin $fatal("Assertion 8 is violated"); end
+assert property (p_date_check) else begin $display("Assertion 8 is violated"); $fatal; end
 
 // 9. The AR_VALID signal should not overlap with the AW_VALID signal.
 property p_axi_overlap;
     @(posedge clk) not (inf.AR_VALID && inf.AW_VALID);
 endproperty
-assert property (p_axi_overlap) else begin $fatal("Assertion 9 is violated"); end
+assert property (p_axi_overlap) else begin $display("Assertion 9 is violated"); $fatal; end
 
 endmodule

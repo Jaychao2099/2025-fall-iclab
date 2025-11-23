@@ -1,25 +1,11 @@
 `include "Usertype.sv"
+
 module Checker(input clk, INF.CHECKER inf);
 import usertype::*;
 
 //================================================================
 // Coverage Variables & Logic
 //================================================================
-
-// class Type_and_mode;
-//     Training_Type f_type;
-//     Mode f_mode;
-// endclass
-
-// Type_and_mode fm_info = new();
-
-Training_Type type_reg;
-
-always_ff @(posedge clk iff inf.rst_n) begin
-    if (inf.type_valid) begin
-        type_reg <= inf.D.d_type[0];
-    end
-end
 
 // Spec 1: Each case of Training_Type should be select at least 200 times.
 covergroup cg_type @(posedge clk iff inf.type_valid);
@@ -39,8 +25,15 @@ covergroup cg_mode @(posedge clk iff inf.mode_valid);
     }
 endgroup
 
+Training_Type type_reg;
+
+always_ff @(posedge clk iff inf.rst_n) begin
+    if (inf.type_valid) begin
+        type_reg <= inf.D.d_type[0];
+    end
+end
+
 // Spec 3: Cross bin for SPEC1 and SPEC2 (Type x Mode), 200 times.
-// Sample when Mode comes, use latched Type.
 covergroup cg_cross @(posedge clk iff inf.mode_valid);
     option.per_instance = 1;
     option.at_least = 200;
@@ -71,7 +64,6 @@ endgroup
 covergroup cg_mp @(posedge clk iff inf.MP_valid);
     option.per_instance = 1;
     option.auto_bin_max = 32;
-    // d_attribute[0] holds the MP cost (16 bits)
     cp_mp: coverpoint inf.D.d_attribute[0] { 
         option.at_least = 1;
     }
@@ -104,80 +96,78 @@ cg_warn warn_inst = new();
 // Assertions
 //================================================================
 
-// 1. All outputs signals should be zero after reset.
+// 1. All outputs signals (including RPG.sv) should be zero after reset.
 property p_rst_check;
-    @(negedge inf.rst_n) 1 |=> @(posedge clk) (inf.out_valid===0 && inf.warn_msg===0 && inf.complete===0 && 
-                                inf.AR_VALID===0 && inf.AW_VALID===0 && inf.W_VALID===0 && 
-                                inf.R_READY===0 && inf.B_READY===0);
+    @(posedge clk) (inf.rst_n === 0) |-> (inf.out_valid===0 && inf.warn_msg===0 && inf.complete===0 && 
+                                          inf.AR_VALID===0 && inf.AR_ADDR===0 && 
+                                          inf.R_READY===0 &&
+                                          inf.AW_VALID===0 && inf.AW_ADDR===0 && 
+                                          inf.W_VALID===0 && inf.W_DATA===0 &&
+                                          inf.B_READY===0);
 endproperty
 assert property (p_rst_check) else begin $display("Assertion 1 is violated"); $fatal; end
 
 // 2. Latency should be less than 1000 cycles for each operation.
-// Start: sel_action_valid, End: out_valid
 property p_latency;
-    @(posedge clk) inf.sel_action_valid |-> ##[1:1000] inf.out_valid;
+    @(posedge clk) disable iff (!inf.rst_n) inf.sel_action_valid |-> ##[1:1000] inf.out_valid;
 endproperty
 assert property (p_latency) else begin $display("Assertion 2 is violated"); $fatal; end
 
-// 3. If action is completed (complete=1), Warn_Msg should be 3'b0 (No_Warn).
+// 3. If action is completed (complete=1), Warn_Msg should be 3’b0 (No_Warn).
 property p_complete_warn;
-    @(negedge clk) (inf.out_valid && inf.complete) |-> (inf.warn_msg == No_Warn);
+    @(negedge clk) disable iff (!inf.rst_n) (inf.out_valid && inf.complete) |-> (inf.warn_msg == No_Warn);
 endproperty
 assert property (p_complete_warn) else begin $display("Assertion 3 is violated"); $fatal; end
 
 // 4. Next input valid will be valid 1-4 cycles after previous input valid fall.
-// Define "any input valid"
 logic any_input_valid;
 assign any_input_valid = inf.sel_action_valid || inf.type_valid || inf.mode_valid || inf.date_valid || 
                          inf.player_no_valid || inf.monster_valid || inf.MP_valid;
 
-// Logic: If any valid rises, it must be that (any valid fell 1 to 4 cycles ago).
-// And guard: only if it's NOT the first input (sel_action_valid). sel_action_valid follows out_valid (Assert 7).
-// This assertion covers inputs WITHIN an operation.
 property p_input_gap;
-    @(posedge clk) ($rose(any_input_valid) && !inf.sel_action_valid) |-> 
+    @(posedge clk) disable iff (!inf.rst_n) 
+    ($rose(any_input_valid) && !inf.sel_action_valid) |-> 
         ($past($fell(any_input_valid), 1) || $past($fell(any_input_valid), 2) || 
          $past($fell(any_input_valid), 3) || $past($fell(any_input_valid), 4));
 endproperty
 assert property (p_input_gap) else begin $display("Assertion 4 is violated"); $fatal; end
 
-// 5. All input valid signals won't overlap with each other.
+// 5. All input valid signals won’t overlap with each other.
 property p_no_overlap;
-    @(posedge clk) $onehot0({inf.sel_action_valid, inf.type_valid, inf.mode_valid, inf.date_valid, 
-                             inf.player_no_valid, inf.monster_valid, inf.MP_valid});
+    @(posedge clk) disable iff (!inf.rst_n) 
+    $onehot0({inf.sel_action_valid, inf.type_valid, inf.mode_valid, inf.date_valid, 
+              inf.player_no_valid, inf.monster_valid, inf.MP_valid});
 endproperty
 assert property (p_no_overlap) else begin $display("Assertion 5 is violated"); $fatal; end
 
 // 6. Out_valid can only be high for exactly one cycle.
 property p_out_one_cycle;
-    @(posedge clk) inf.out_valid |=> !inf.out_valid;
+    @(posedge clk) disable iff (!inf.rst_n) inf.out_valid |=> !inf.out_valid;
 endproperty
 assert property (p_out_one_cycle) else begin $display("Assertion 6 is violated"); $fatal; end
 
 // 7. Next operation will be valid 1-4 cycles after out_valid fall.
 property p_next_op;
-    @(posedge clk) $fell(inf.out_valid) |-> ##[1:4] inf.sel_action_valid;
+    @(posedge clk) disable iff (!inf.rst_n) $fell(inf.out_valid) |-> ##[0:3] inf.sel_action_valid;
 endproperty
 assert property (p_next_op) else begin $display("Assertion 7 is violated"); $fatal; end
 
 // 8. The input date from pattern should adhere to the real calendar.
 logic [3:0] in_month;
 logic [4:0] in_day;
-// d_date[0] is bits [8:0]. Packed struct {Month M; Day D;}. M is [8:5], D is [4:0].
 assign in_month = inf.D[8:5];
 assign in_day   = inf.D[4:0];
 
 property p_date_check;
-    @(posedge clk) inf.date_valid |-> (
-        (in_month >= 1 && in_month <= 12) && (in_day >= 1 && in_day <= 31) &&
-        ( (in_month == 2) ? (in_day <= 28) : (in_month == 4 || in_month == 6 || in_month == 9 || in_month == 11) ? (in_day <= 30) : 1'b1)
-    );
+    @(posedge clk) disable iff (!inf.rst_n) inf.date_valid |-> 
+    (in_month >= 1 && in_month <= 12) && (in_day >= 1 && in_day <= 31) &&
+    ( (in_month == 2) ? (in_day <= 28) : (in_month == 4 || in_month == 6 || in_month == 9 || in_month == 11) ? (in_day <= 30) : 1'b1);
 endproperty
 assert property (p_date_check) else begin $display("Assertion 8 is violated"); $fatal; end
 
 // 9. The AR_VALID signal should not overlap with the AW_VALID signal.
 property p_axi_overlap;
-    @(posedge clk) not (inf.AR_VALID && inf.AW_VALID);
+    @(posedge clk) disable iff (!inf.rst_n) not (inf.AR_VALID && inf.AW_VALID);
 endproperty
 assert property (p_axi_overlap) else begin $display("Assertion 9 is violated"); $fatal; end
 

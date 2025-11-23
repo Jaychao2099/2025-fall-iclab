@@ -7,11 +7,12 @@ import usertype::*;
 // Parameters & Variables
 //================================================================
 parameter DRAM_p_r = "../00_TESTBED/DRAM/dram.dat";
+// parameter MAX_CYCLE=20000;
 parameter MAX_CYCLE=20000;
 integer i;
 integer total_latency = 0;
 integer pat_count = 0;
-integer seed = 987;
+integer seed = 42069;
 
 // Internal Golden Memory
 logic [7:0] golden_DRAM [((65536+12*256)-1):(65536+0)];
@@ -104,7 +105,6 @@ endfunction
 function Player_Info get_player(Player_No p_no);
     logic [16:0] base = 17'h10000 + (p_no * 12);
     Player_Info p;
-    // Map based on provided standard code
     p.MP        = {golden_DRAM[base+1], golden_DRAM[base]};
     p.Exp       = {golden_DRAM[base+3], golden_DRAM[base+2]};
     p.Defense   = {golden_DRAM[base+5], golden_DRAM[base+4]};
@@ -152,7 +152,7 @@ task run_pattern;
     Player_Info p_temp;
     
     // 1. Randomize basic
-    ra.randomize();
+    void'(ra.randomize());
     act = ra.act_id;
     p_id = ra.player_id;
     mm = ra.mon;
@@ -326,11 +326,11 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
             if (consecutive) begin
                 temp_calc = p.Exp + 512;
                 g_player_info_updated.Exp = sat_add(temp_calc);
-                if (temp_calc > 65535) g_warn_msg = Saturation_Warn;
+                if (temp_calc > 65535) begin g_warn_msg = Saturation_Warn; g_complete = 0; end
                 
                 temp_calc = p.MP + 1024;
                 g_player_info_updated.MP = sat_add(temp_calc);
-                if (temp_calc > 65535) g_warn_msg = Saturation_Warn;
+                if (temp_calc > 65535) begin g_warn_msg = Saturation_Warn; g_complete = 0; end
             end
         end
         Level_Up: begin
@@ -396,6 +396,7 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
                         if(m==2) g_player_info_updated.Attack = 65535;
                         if(m==3) g_player_info_updated.Defense = 65535;
                         g_warn_msg = Saturation_Warn;
+                        g_complete = 0;
                     end else begin
                         if(m==0) g_player_info_updated.MP = temp_calc;
                         if(m==1) g_player_info_updated.HP = temp_calc;
@@ -416,16 +417,16 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
                 
                 if (hp_temp_p > 0 && hp_temp_m <= 0) begin // Win
                     temp_calc = p.Exp + 2048; g_player_info_updated.Exp = sat_add(temp_calc);
-                    if (temp_calc > 65535) g_warn_msg = Saturation_Warn;
+                    if (temp_calc > 65535) begin g_warn_msg = Saturation_Warn; g_complete = 0; end
                     temp_calc = p.MP + 2048; g_player_info_updated.MP = sat_add(temp_calc);
-                    if (temp_calc > 65535) g_warn_msg = Saturation_Warn;
+                    if (temp_calc > 65535) begin g_warn_msg = Saturation_Warn; g_complete = 0; end
                     g_player_info_updated.HP = hp_temp_p;
                 end else if (hp_temp_p <= 0) begin // Loss
                     g_player_info_updated.Exp = sat_sub(p.Exp - 2048);
                     g_player_info_updated.HP = 0;
                     g_player_info_updated.Attack = sat_sub(p.Attack - 2048);
                     g_player_info_updated.Defense = sat_sub(p.Defense - 2048);
-                    if ((p.Exp < 2048) || (p.Attack < 2048) || (p.Defense < 2048)) g_warn_msg = Saturation_Warn;
+                    if ((p.Exp < 2048) || (p.Attack < 2048) || (p.Defense < 2048)) begin g_warn_msg = Saturation_Warn; g_complete = 0; end
                 end else begin // Tie
                     g_player_info_updated.HP = hp_temp_p;
                 end
@@ -442,8 +443,8 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
                     end
                 end
             end
-            for(m=0; m<4; m++)
-                cov_mp_bin[costs[m]/2048]++;
+            
+            for(m=0; m<4; m++) cov_mp_bin[costs[m]/2048]++;
 
             current_mp_local = p.MP;
             skill_count = 0;
@@ -492,10 +493,12 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
     
     // Verify Signals
     if(inf.warn_msg !== g_warn_msg || inf.complete !== g_complete) begin
-        $display("Wrong Answer");
-        $display("Act: %s, Player: %d", act.name(), p_id);
-        $display("Exp Warn: %d, Act Warn: %d", g_warn_msg, inf.warn_msg);
-        $display("Exp Comp: %d, Act Comp: %d", g_complete, inf.complete);
+        $display("----------------------------------------");
+        $display("  Wrong Answer");
+        $display("  Act: %s, Player: %d", act.name(), p_id);
+        $display("  Golden Warn: %d, Your Warn: %d", g_warn_msg, inf.warn_msg);
+        $display("  Golden Comp: %d, Your Comp: %d", g_complete, inf.complete);
+        $display("----------------------------------------");
         $finish;
     end
     
@@ -503,6 +506,7 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
     if(g_complete || g_warn_msg == Saturation_Warn) begin
         update_dram(p_id, g_player_info_updated);
     end
+    // $display("\033[32mPattern %0d PASS!  \tLatency: %d,\tPlayer: %0d,\tAction: %s\033[0m", pat_count, lat, p_id, act.name());
 endtask
 
 function bit check_all_coverage();
@@ -531,16 +535,20 @@ initial begin
     inf.sel_action_valid = 0; inf.type_valid = 0; inf.mode_valid = 0; inf.date_valid = 0;
     inf.player_no_valid = 0; inf.monster_valid = 0; inf.MP_valid = 0; inf.D = 'dx;
     #(10) inf.rst_n = 0;
-    #(100) inf.rst_n = 1;
+    #(10) inf.rst_n = 1;
     
     while(!check_all_coverage() && pat_count < MAX_CYCLE) begin
         run_pattern();
         @(negedge clk);
     end
     
+    // Disable Assertion 7 just before finish to avoid "Next Op" failure
+    $assertoff(0, TESTBED.check_inst.p_next_op);
+    @(negedge clk);
+    
     if(check_all_coverage()) begin
         $display("Congratulations");
-        //$display("Total Latency: %d", total_latency);
+        $display("Total Latency: %d", total_latency);
     end else begin
         // If coverage not hit, do not print Wrong Answer, just finish (or print coverage fail info)
         $display("Coverage not achieved.");

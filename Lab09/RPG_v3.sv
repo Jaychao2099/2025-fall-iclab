@@ -23,9 +23,10 @@ import usertype::*;
 //      write DRAM
 //      fix aw_valid, r_valid
 //      change FSM, compplete goto the last state, deal with DRAM write delay
+//      ensure all tmp get calculated and assigned to player
 
 // TODO:
-//      ensure all tmp get calculated and assigned to player
+//      sorting more state
 
 //==============================================//
 //              logic declaration               //
@@ -79,12 +80,15 @@ logic [16:0] skill_sum_01;
 logic [17:0] skill_sum_02;
 logic [17:0] skill_sum_03;
 
+logic [18:0] MP_tmp_tmp [0:3];
+logic [3:0] MP_tmp_tmp_sign;
+
 // ------------------ Check inactive ------------------
 // logic [8:0] today_days_cnt, last_days_cnt;
 
 // ------------------ Sort IP ------------------
 Attribute attributes [0:3];
-sorting_element_t sorted_attributes [0:3], sorted_attributes_reg [0:3];
+sorting_element_t sorted_attributes [0:3];//, sorted_attributes_reg [0:3];
 
 // ------------------ handel output ------------------
 Warn_Msg warn_date_exp_hp_mp_flag;
@@ -168,7 +172,7 @@ always_comb begin
         end
         // use skill
         S_GET_MP_SUM: begin
-            // if ((sorted_attributes_reg[0].element > current_player_info.MP)) next_state = S_END_ACTION;
+            // if ((sorted_attributes[0].element > current_player_info.MP)) next_state = S_END_ACTION;
             // else                                                             next_state = S_UPDATE_MP;
             next_state = S_UPDATE_MP;
         end
@@ -439,14 +443,33 @@ always_ff @( posedge clk ) begin
             endcase
         end
         S_GET_MP_SUM: begin
-            if      (skill_sum_03 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_03;
-            else if (skill_sum_02 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_02;
-            else if (skill_sum_01 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_01;
-            else if (skill_sum_00 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_00;
-            else                                             MP_tmp <= current_player_info.MP;
+            // if      (skill_sum_03 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_03;
+            // else if (skill_sum_02 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_02;
+            // else if (skill_sum_01 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_01;
+            // else if (skill_sum_00 <= current_player_info.MP) MP_tmp <= current_player_info.MP - skill_sum_00;
+            // else                                             MP_tmp <= current_player_info.MP;
+            case (MP_tmp_tmp_sign)
+                4'b0000: MP_tmp <= MP_tmp_tmp[3];   // all posipive
+                4'b1000: MP_tmp <= MP_tmp_tmp[2];
+                4'b1100: MP_tmp <= MP_tmp_tmp[1];
+                4'b1110: MP_tmp <= MP_tmp_tmp[0];
+                default: MP_tmp <= current_player_info.MP;  // all negative
+            endcase
         end
     endcase
 end
+
+// logic [3:0] MP_tmp_tmp_sign;
+assign MP_tmp_tmp_sign = {MP_tmp_tmp[3][18], MP_tmp_tmp[2][18], MP_tmp_tmp[1][18], MP_tmp_tmp[0][18]};
+
+// logic [18:0] MP_tmp_tmp [0:3];
+always_comb begin
+    MP_tmp_tmp[3] = {3'd0, current_player_info.MP} - {1'b0, skill_sum_03};// 17
+    MP_tmp_tmp[2] = {3'd0, current_player_info.MP} - {1'b0, skill_sum_02};// 17
+    MP_tmp_tmp[1] = {3'd0, current_player_info.MP} - {1'b0, skill_sum_01};// 16
+    MP_tmp_tmp[0] = {3'd0, current_player_info.MP} - {2'd0, skill_sum_00};// 15
+end
+
 
 // > 65535
 // logic Exp_tmp_sat, MP_tmp_sat, HP_tmp_sat, Attack_tmp_sat, Defense_tmp_sat;
@@ -558,25 +581,25 @@ end
 
 // Attribute_rank_t rank_MP, rank_HP, rank_Attack, rank_Defense;
 
-assign rank_MP = {(sorted_attributes_reg[3].stable_idx == 2'd0), 
-                  (sorted_attributes_reg[2].stable_idx == 2'd0), 
-                  (sorted_attributes_reg[1].stable_idx == 2'd0), 
-                  (sorted_attributes_reg[0].stable_idx == 2'd0)};
+assign rank_MP = {(sorted_attributes[3].stable_idx == 2'd0), 
+                  (sorted_attributes[2].stable_idx == 2'd0), 
+                  (sorted_attributes[1].stable_idx == 2'd0), 
+                  (sorted_attributes[0].stable_idx == 2'd0)};
 
-assign rank_HP = {(sorted_attributes_reg[3].stable_idx == 2'd1), 
-                  (sorted_attributes_reg[2].stable_idx == 2'd1), 
-                  (sorted_attributes_reg[1].stable_idx == 2'd1), 
-                  (sorted_attributes_reg[0].stable_idx == 2'd1)};
+assign rank_HP = {(sorted_attributes[3].stable_idx == 2'd1), 
+                  (sorted_attributes[2].stable_idx == 2'd1), 
+                  (sorted_attributes[1].stable_idx == 2'd1), 
+                  (sorted_attributes[0].stable_idx == 2'd1)};
 
-assign rank_Attack = {(sorted_attributes_reg[3].stable_idx == 2'd2), 
-                      (sorted_attributes_reg[2].stable_idx == 2'd2), 
-                      (sorted_attributes_reg[1].stable_idx == 2'd2), 
-                      (sorted_attributes_reg[0].stable_idx == 2'd2)};
+assign rank_Attack = {(sorted_attributes[3].stable_idx == 2'd2), 
+                      (sorted_attributes[2].stable_idx == 2'd2), 
+                      (sorted_attributes[1].stable_idx == 2'd2), 
+                      (sorted_attributes[0].stable_idx == 2'd2)};
 
-assign rank_Defense = {(sorted_attributes_reg[3].stable_idx == 2'd3), 
-                       (sorted_attributes_reg[2].stable_idx == 2'd3), 
-                       (sorted_attributes_reg[1].stable_idx == 2'd3), 
-                       (sorted_attributes_reg[0].stable_idx == 2'd3)};
+assign rank_Defense = {(sorted_attributes[3].stable_idx == 2'd3), 
+                       (sorted_attributes[2].stable_idx == 2'd3), 
+                       (sorted_attributes[1].stable_idx == 2'd3), 
+                       (sorted_attributes[0].stable_idx == 2'd3)};
 
 // Attribute delta_MP, delta_HP, delta_Attack, delta_Defense;
 always_ff @( posedge clk ) begin
@@ -589,23 +612,23 @@ always_ff @( posedge clk ) begin
         end
         Type_B: begin
             case (rank_MP)
-                rank_0:  delta_MP <= sorted_attributes_reg[2].element - current_player_info.MP;
-                rank_1:  delta_MP <= sorted_attributes_reg[3].element - current_player_info.MP;
+                rank_0:  delta_MP <= sorted_attributes[2].element - current_player_info.MP;
+                rank_1:  delta_MP <= sorted_attributes[3].element - current_player_info.MP;
                 default: delta_MP <= 16'd0;
             endcase
             case (rank_HP)
-                rank_0:  delta_HP <= sorted_attributes_reg[2].element - current_player_info.HP;
-                rank_1:  delta_HP <= sorted_attributes_reg[3].element - current_player_info.HP;
+                rank_0:  delta_HP <= sorted_attributes[2].element - current_player_info.HP;
+                rank_1:  delta_HP <= sorted_attributes[3].element - current_player_info.HP;
                 default: delta_HP <= 16'd0;
             endcase
             case (rank_Attack)
-                rank_0:  delta_Attack <= sorted_attributes_reg[2].element - current_player_info.Attack;
-                rank_1:  delta_Attack <= sorted_attributes_reg[3].element - current_player_info.Attack;
+                rank_0:  delta_Attack <= sorted_attributes[2].element - current_player_info.Attack;
+                rank_1:  delta_Attack <= sorted_attributes[3].element - current_player_info.Attack;
                 default: delta_Attack <= 16'd0;
             endcase
             case (rank_Defense)
-                rank_0:  delta_Defense <= sorted_attributes_reg[2].element - current_player_info.Defense;
-                rank_1:  delta_Defense <= sorted_attributes_reg[3].element - current_player_info.Defense;
+                rank_0:  delta_Defense <= sorted_attributes[2].element - current_player_info.Defense;
+                rank_1:  delta_Defense <= sorted_attributes[3].element - current_player_info.Defense;
                 default: delta_Defense <= 16'd0;
             endcase
         end
@@ -652,14 +675,14 @@ end
 // logic [16:0] skill_sum_01;
 // logic [17:0] skill_sum_02;
 // logic [17:0] skill_sum_03;
-assign skill_sum_00 = sorted_attributes_reg[0].element;
+assign skill_sum_00 = sorted_attributes[0].element;
 
-assign skill_sum_01 = sorted_attributes_reg[0].element +
-                      sorted_attributes_reg[1].element;
+assign skill_sum_01 = sorted_attributes[0].element +
+                      sorted_attributes[1].element;
 
-assign skill_sum_02 = sorted_attributes_reg[0].element +
-                      sorted_attributes_reg[1].element +
-                      sorted_attributes_reg[2].element;
+assign skill_sum_02 = sorted_attributes[0].element +
+                      sorted_attributes[1].element +
+                      sorted_attributes[2].element;
 
 assign skill_sum_03 = now.MP_consumed[0] +
                       now.MP_consumed[1] +
@@ -697,13 +720,13 @@ assign skill_sum_03 = now.MP_consumed[0] +
 //     endcase
 // end
 always_ff @( posedge clk ) begin
-    if (current_state == S_READ_DRAM_AR && now.act == Use_Skill) begin
+    if (/*current_state == S_READ_DRAM_AR && */now.act == Use_Skill) begin
         attributes[0] <= now.MP_consumed[0];
         attributes[1] <= now.MP_consumed[1];
         attributes[2] <= now.MP_consumed[2];
         attributes[3] <= now.MP_consumed[3];
     end
-    else if (current_state == S_READ_DRAM_R && inf.R_VALID && now.act == Level_Up) begin
+    else if (/*current_state == S_READ_DRAM_R && */inf.R_VALID && now.act == Level_Up) begin
         attributes[0] <= inf.R_DATA[15:0];  // MP
         attributes[1] <= inf.R_DATA[95:80]; // HP
         attributes[2] <= inf.R_DATA[63:48]; // Attack
@@ -720,12 +743,12 @@ end
 // sorting_element_t sorted_attributes [0:3];
 
 // for level-up training-type B, use skill greedy select MP
-SORT s1 (.attributes(attributes), .sorted_attributes(sorted_attributes));
+SORT s1 (.clk(clk), .attributes(attributes), .sorted_attributes(sorted_attributes));
 
-// sorting_element_t sorted_attributes_reg [0:3];
-always_ff @( posedge clk ) begin
-    sorted_attributes_reg <= sorted_attributes;
-end
+// // sorting_element_t sorted_attributes_reg [0:3];
+// always_ff @( posedge clk ) begin
+//     sorted_attributes_reg <= sorted_attributes;
+// end
 
 // ------------------ handle output ------------------
 
@@ -752,7 +775,7 @@ always_ff @( posedge clk ) begin
         end
         // ------------------ Use skills ------------------
         S_GET_MP_SUM: begin
-            warn_date_exp_hp_mp_flag <= (sorted_attributes_reg[0].element > current_player_info.MP) ? MP_Warn : No_Warn;
+            warn_date_exp_hp_mp_flag <= (sorted_attributes[0].element > current_player_info.MP) ? MP_Warn : No_Warn;
         end
         // ------------------ Check inactive ------------------
         S_CHECK_DATE: begin
@@ -815,22 +838,25 @@ end
 endmodule
 
 module SORT (
+    clk,
     attributes,
     sorted_attributes
 );
 import usertype::*;
 
+input clk;
 input  Attribute attributes [0:3];
-// output Attribute sorted_attributes [0:3];
 output sorting_element_t sorted_attributes [0:3];
 
 // [(0,2),(1,3)]
 // [(0,1),(2,3)]
 // [(1,2)]
+sorting_element_t inputs [0:3];
 sorting_element_t layer0 [0:3];
 sorting_element_t layer1 [0:3];
 
-sorting_element_t inputs [0:3];
+sorting_element_t layer1_reg [0:3]; 
+
 always_comb begin
     inputs[0] = {attributes[0], 2'd0};    // MP
     inputs[1] = {attributes[1], 2'd1};    // HP
@@ -878,21 +904,27 @@ always_comb begin
         layer1[2] = layer0[2];
         layer1[3] = layer0[3];
     end
+end
 
+always_ff @(posedge clk) begin
+    layer1_reg <= layer1;
+end
+
+always_comb begin
     // Layer 2: [(1,2)]
     // (0)
-    sorted_attributes[0] = layer1[0];
+    sorted_attributes[0] = layer1_reg[0];
     // (1,2)
-    if (layer1[1] > layer1[2]) begin
-        sorted_attributes[1] = layer1[2];
-        sorted_attributes[2] = layer1[1];
+    if (layer1_reg[1] > layer1_reg[2]) begin
+        sorted_attributes[1] = layer1_reg[2];
+        sorted_attributes[2] = layer1_reg[1];
     end
     else begin
-        sorted_attributes[1] = layer1[1];
-        sorted_attributes[2] = layer1[2];
+        sorted_attributes[1] = layer1_reg[1];
+        sorted_attributes[2] = layer1_reg[2];
     end
     // (3)
-    sorted_attributes[3] = layer1[3];
+    sorted_attributes[3] = layer1_reg[3];
 end
 
 endmodule

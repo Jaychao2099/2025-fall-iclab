@@ -3,6 +3,7 @@
 
 program automatic PATTERN(input clk, INF.PATTERN inf);
 import usertype::*;
+
 //================================================================
 // Parameters & Variables
 //================================================================
@@ -48,7 +49,6 @@ class random_act;
     rand logic [15:0] m_hp, m_atk, m_def;
     rand logic [15:0] s_cost [0:3];
     
-    // Constraints
     constraint range {
         act_id inside {Login, Level_Up, Battle, Use_Skill, Check_Inactive};
     }
@@ -105,7 +105,6 @@ endfunction
 function Player_Info get_player(Player_No p_no);
     logic [16:0] base = 17'h10000 + (p_no * 12);
     Player_Info p;
-    // Map based on provided standard code
     p.MP        = {golden_DRAM[base+1], golden_DRAM[base]};
     p.Exp       = {golden_DRAM[base+3], golden_DRAM[base+2]};
     p.Defense   = {golden_DRAM[base+5], golden_DRAM[base+4]};
@@ -149,10 +148,9 @@ task run_pattern;
     Mode md;
     logic [15:0] m_hp, m_atk, m_def;
     logic [15:0] costs[4];
-    
     Player_Info p_temp;
     
-    // 1. Randomize basic
+    // 1. Randomize
     void'(ra.randomize());
     act = ra.act_id;
     p_id = ra.player_id;
@@ -171,12 +169,9 @@ task run_pattern;
     // Trigger Date_Warn (Need > 90 days gap)
     if (cov_warn[1] < 20 && $urandom_range(0, 100) < 30) begin
         act = Check_Inactive;
-        // Force date to be far
-        // Simplified: just pick a random date, probabilistically it hits.
-        // Or specific:
-        if(p_temp.M <= 8) mm = p_temp.M + 4; // Ensure gap
-        else mm = 1; // Wrap around gap
-        // re-validate day
+        // Create large gap
+        if(p_temp.M <= 8) mm = p_temp.M + 4; 
+        else mm = 1; 
         if(mm==2) dd = 28; else if(mm inside{4,6,9,11}) dd = 30; else dd = 31;
     end
     
@@ -187,20 +182,19 @@ task run_pattern;
     
     // Trigger Saturation (Try to overflow)
     else if (cov_warn[5] < 20 && $urandom_range(0, 100) < 20) begin
-        act = Login; // Login gives Exp/MP, good for saturation if already high
-        // Or Level Up with Type D (can be large)
+        act = Login; 
     end
 
     // Trigger MP_Warn (Skill cost > MP)
     else if (cov_warn[4] < 20 && act == Use_Skill && $urandom_range(0,100) < 40) begin
         // Set all costs very high
-        foreach(costs[k]) costs[k] = 65000;
+        foreach(costs[k]) costs[k] = 65534;
     end
 
     // Trigger Exp_Warn
     else if (cov_warn[2] < 20 && p_temp.Exp < 4000 && $urandom_range(0,100) < 30) begin
         act = Level_Up;
-        // Low exp likely triggers warning especially for Hard/Normal
+        // Low exp likely triggers warning
         md = Hard;
     end
     
@@ -280,7 +274,6 @@ task drive_input(Action act, Player_No p_id, Month mm, Day dd, Training_Type tt,
     endcase
 endtask
 
-// Integrated Golden Logic from your correct standard version
 task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, Training_Type tt, Mode md, logic [15:0] m_hp, logic [15:0] m_atk, logic [15:0] m_def, logic [15:0] costs[4]);
     
     // Vars
@@ -444,8 +437,8 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
                     end
                 end
             end
-            for(m=0; m<4; m++)
-                cov_mp_bin[costs[m]/2048]++;
+            
+            for(m=0; m<4; m++) cov_mp_bin[costs[m]/2048]++;
 
             current_mp_local = p.MP;
             skill_count = 0;
@@ -485,7 +478,7 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
     while(inf.out_valid !== 1) begin
         lat++;
         if(lat > 1000) begin
-            $display("Wrong Answer"); // Latency fail treated as functionality fail here for pattern
+            $display("Wrong Answer"); 
             $finish;
         end
         @(negedge clk);
@@ -496,9 +489,9 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
     if(inf.warn_msg !== g_warn_msg || inf.complete !== g_complete) begin
         $display("----------------------------------------");
         $display("  Wrong Answer");
-        $display("  Act: %s, Player: %d", act.name(), p_id);
-        $display("  Golden Warn: %d, Your Warn: %d", g_warn_msg, inf.warn_msg);
-        $display("  Golden Comp: %d, Your Comp: %d", g_complete, inf.complete);
+        // $display("  Act: %s, Player: %d", act.name(), p_id);
+        // $display("  Golden Warn: %d, Your Warn: %d", g_warn_msg, inf.warn_msg);
+        // $display("  Golden Comp: %d, Your Comp: %d", g_complete, inf.complete);
         $display("----------------------------------------");
         $finish;
     end
@@ -536,7 +529,7 @@ initial begin
     inf.sel_action_valid = 0; inf.type_valid = 0; inf.mode_valid = 0; inf.date_valid = 0;
     inf.player_no_valid = 0; inf.monster_valid = 0; inf.MP_valid = 0; inf.D = 'dx;
     #(10) inf.rst_n = 0;
-    #(10) inf.rst_n = 1;
+    #(100) inf.rst_n = 1;
     
     while(!check_all_coverage() && pat_count < MAX_CYCLE) begin
         run_pattern();
@@ -548,10 +541,11 @@ initial begin
     @(negedge clk);
     
     if(check_all_coverage()) begin
+        $display("----------------------------------------");
         $display("Congratulations");
-        $display("Total Latency: %d", total_latency);
+        // $display("Total Latency: %d", total_latency);
+        $display("----------------------------------------");
     end else begin
-        // If coverage not hit, do not print Wrong Answer, just finish (or print coverage fail info)
         $display("Coverage not achieved.");
     end
     $finish;

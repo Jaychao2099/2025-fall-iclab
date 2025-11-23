@@ -49,7 +49,6 @@ class random_act;
     rand logic [15:0] m_hp, m_atk, m_def;
     rand logic [15:0] s_cost [0:3];
     
-    // Constraints
     constraint range {
         act_id inside {Login, Level_Up, Battle, Use_Skill, Check_Inactive};
     }
@@ -140,7 +139,6 @@ endfunction
 //================================================================
 
 task run_pattern;
-    // Randomized inputs
     Action act;
     Player_No p_id;
     Month mm;
@@ -149,10 +147,12 @@ task run_pattern;
     Mode md;
     logic [15:0] m_hp, m_atk, m_def;
     logic [15:0] costs[4];
-    
     Player_Info p_temp;
     
-    // 1. Randomize basic
+    int missing_type = -1, missing_mode = -1;
+    int missing_trans_act = -1;
+    
+    // 1. Randomize
     void'(ra.randomize());
     act = ra.act_id;
     p_id = ra.player_id;
@@ -167,40 +167,58 @@ task run_pattern;
     
     p_temp = get_player(p_id);
 
-    // 2. Smart Override to hit Warnings/Coverage faster
-    // Trigger Date_Warn (Need > 90 days gap)
-    if (cov_warn[1] < 20 && $urandom_range(0, 100) < 30) begin
-        act = Check_Inactive;
-        // Create large gap
-        if(p_temp.M <= 8) mm = p_temp.M + 4; 
-        else mm = 1; 
+    // 2. Smart Override for Coverage Acceleration
+    
+    // Priority A: Cross Coverage (User Request)
+    // Check if any cross bin is not full
+    for(int t=0; t<4; t++) begin
+        for(int m=0; m<3; m++) begin
+            if(cov_cross[t][m] < 200) begin
+                missing_type = t;
+                missing_mode = m;
+                break;
+            end
+        end
+        if(missing_type != -1) break;
+    end
+    
+    if(missing_type != -1 && $urandom_range(0,100) < 60) begin // 60% chance to target cross
+        act = Level_Up;
+        tt = Training_Type'(missing_type);
+        md = Mode'(missing_mode);
+    end
+    
+    // Priority B: Transition Coverage
+    else if (!first_op) begin
+        // Check if current pre_action -> any action is missing
+        for(int a=0; a<5; a++) begin
+            if(cov_trans[pre_action][a] < 200) begin
+                missing_trans_act = a;
+                break;
+            end
+        end
+        if(missing_trans_act != -1 && $urandom_range(0,100) < 50) begin
+            act = Action'(missing_trans_act);
+        end
+    end
+
+    // Priority C: Warning Coverage
+    // Date_Warn
+    if (act == Check_Inactive && cov_warn[1] < 20) begin
+        // Try force large gap
+        if(p_temp.M <= 8) mm = p_temp.M + 4; else mm = 1; 
         if(mm==2) dd = 28; else if(mm inside{4,6,9,11}) dd = 30; else dd = 31;
     end
-    
-    // Trigger HP_Warn (Need HP = 0)
-    else if (cov_warn[3] < 20 && p_temp.HP == 0 && $urandom_range(0, 100) < 50) begin
-        act = Battle; // HP=0 battle triggers warning
+    // HP_Warn
+    else if (act == Battle && cov_warn[3] < 20 && p_temp.HP == 0) begin
+        // keep random
+    end
+    // MP_Warn
+    else if (act == Use_Skill && cov_warn[4] < 20) begin
+        foreach(costs[k]) costs[k] = 65530;
     end
     
-    // Trigger Saturation (Try to overflow)
-    else if (cov_warn[5] < 20 && $urandom_range(0, 100) < 20) begin
-        act = Login; 
-    end
-
-    // Trigger MP_Warn (Skill cost > MP)
-    else if (cov_warn[4] < 20 && act == Use_Skill && $urandom_range(0,100) < 40) begin
-        // Set all costs very high
-        foreach(costs[k]) costs[k] = 65534;
-    end
-
-    // Trigger Exp_Warn
-    else if (cov_warn[2] < 20 && p_temp.Exp < 4000 && $urandom_range(0,100) < 30) begin
-        act = Level_Up;
-        // Low exp likely triggers warning
-        md = Hard;
-    end
-    
-    // Drive & Verify
+    // 3. Drive & Verify
     drive_input(act, p_id, mm, dd, tt, md, m_hp, m_atk, m_def, costs);
     calculate_golden_and_verify(act, p_id, mm, dd, tt, md, m_hp, m_atk, m_def, costs);
     
@@ -277,29 +295,23 @@ task drive_input(Action act, Player_No p_id, Month mm, Day dd, Training_Type tt,
 endtask
 
 task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, Training_Type tt, Mode md, logic [15:0] m_hp, logic [15:0] m_atk, logic [15:0] m_def, logic [15:0] costs[4]);
-    
-    // Vars
     Player_Info p;
     int days_curr, days_last, diff;
     bit consecutive;
     int temp_calc;
     int exp_needed;
-    
     int sum_attrs;
     int sorted_attr [0:3];
     int sorted_indices [0:3];
     int temp_swap;
     int m, n;
     int delta_i, delta_final;
-    
     int dmg_to_p, dmg_to_m;
     int hp_temp_p, hp_temp_m;
-    
     int current_mp_local;
     int skill_count;
     int lat = 0;
     
-    // Get Player
     p = get_player(p_id);
     g_player_info = p;
     g_player_info_updated = p;
@@ -343,7 +355,6 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
             if (p.Exp < exp_needed) begin
                 g_warn_msg = Exp_Warn; g_complete = 0;
             end else begin
-                // Pre-calc Type B Sort
                 if(tt == Type_B) begin
                     sorted_attr[0] = p.MP; sorted_indices[0] = 0;
                     sorted_attr[1] = p.HP; sorted_indices[1] = 1;
@@ -485,16 +496,16 @@ task calculate_golden_and_verify(Action act, Player_No p_id, Month mm, Day dd, T
         end
         @(negedge clk);
     end
-    total_latency += lat;
+    // total_latency += lat;
     
     // Verify Signals
     if(inf.warn_msg !== g_warn_msg || inf.complete !== g_complete) begin
-        $display("----------------------------------------");
+        // $display("----------------------------------------");
         $display("  Wrong Answer");
         // $display("  Act: %s, Player: %d", act.name(), p_id);
         // $display("  Golden Warn: %d, Your Warn: %d", g_warn_msg, inf.warn_msg);
         // $display("  Golden Comp: %d, Your Comp: %d", g_complete, inf.complete);
-        $display("----------------------------------------");
+        // $display("----------------------------------------");
         $finish;
     end
     
@@ -531,22 +542,22 @@ initial begin
     inf.sel_action_valid = 0; inf.type_valid = 0; inf.mode_valid = 0; inf.date_valid = 0;
     inf.player_no_valid = 0; inf.monster_valid = 0; inf.MP_valid = 0; inf.D = 'dx;
     #(10) inf.rst_n = 0;
-    #(10) inf.rst_n = 1;
+    #(100) inf.rst_n = 1;
     
     while(!check_all_coverage() && pat_count < MAX_CYCLE) begin
         run_pattern();
         @(negedge clk);
     end
     
-    // Disable Assertion 7 just before finish to avoid "Next Op" failure
+    // Disable assertions that might trigger on end-of-sim
     $assertoff(0, TESTBED.check_inst.p_next_op);
     @(negedge clk);
     
     if(check_all_coverage()) begin
-        $display("----------------------------------------");
+        // $display("----------------------------------------");
         $display("Congratulations");
         // $display("Total Latency: %d", total_latency);
-        $display("----------------------------------------");
+        // $display("----------------------------------------");
     end else begin
         $display("Coverage not achieved.");
     end
