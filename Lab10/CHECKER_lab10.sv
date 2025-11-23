@@ -13,11 +13,11 @@ import usertype::*;
 
 // Type_and_mode fm_info = new();
 
-Training_Type latched_type;
+Training_Type type_reg;
 
 always_ff @(posedge clk iff inf.rst_n) begin
     if (inf.type_valid) begin
-        latched_type <= inf.D.d_type[0];
+        type_reg <= inf.D.d_type[0];
     end
 end
 
@@ -44,7 +44,7 @@ endgroup
 covergroup cg_cross @(posedge clk iff inf.mode_valid);
     option.per_instance = 1;
     option.at_least = 200;
-    cp_t: coverpoint latched_type;
+    cp_t: coverpoint type_reg;
     cp_m: coverpoint inf.D.d_mode[0];
     cross cp_t, cp_m;
 endgroup

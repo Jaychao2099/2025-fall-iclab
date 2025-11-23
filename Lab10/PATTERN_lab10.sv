@@ -97,8 +97,11 @@ function int count_days(Month m, Day d);
 endfunction
 
 function Player_Info get_player(Player_No p_no);
-    logic [16:0] base = 17'h10000 + (p_no * 12);
     Player_Info p;
+    logic [16:0] base;
+    base = 17'h10000 + (p_no * 12);
+    
+    // MSB to LSB: {HP, Month, Day, Attack, Defense, Exp, MP}
     p.MP        = {golden_DRAM[base+1], golden_DRAM[base]};
     p.Exp       = {golden_DRAM[base+3], golden_DRAM[base+2]};
     p.Defense   = {golden_DRAM[base+5], golden_DRAM[base+4]};
@@ -110,7 +113,9 @@ function Player_Info get_player(Player_No p_no);
 endfunction
 
 function void update_dram(Player_No p_no, Player_Info p);
-    logic [16:0] base = 17'h10000 + (p_no * 12);
+    logic [16:0] base;
+    base = 17'h10000 + (p_no * 12);
+    
     {golden_DRAM[base+1], golden_DRAM[base]} = p.MP;
     {golden_DRAM[base+3], golden_DRAM[base+2]} = p.Exp;
     {golden_DRAM[base+5], golden_DRAM[base+4]} = p.Defense;
@@ -206,9 +211,7 @@ task drive_input(Action act, Player_No p_id, Month mm, Day dd, Training_Type tt,
     inf.D = 'dx;
     
     // Transition Coverage Count
-    if(!first_op) begin
-        cov_trans[pre_action][act]++;
-    end
+    if(!first_op) cov_trans[pre_action][act]++;
     pre_action = act;
     first_op = 0;
 
@@ -253,9 +256,7 @@ task drive_input(Action act, Player_No p_id, Month mm, Day dd, Training_Type tt,
             for(int k=0; k<4; k++) begin
                 inf.MP_valid = 1; inf.D = {128'd0, costs[k]}; @(negedge clk);
                 inf.MP_valid = 0; inf.D = 'dx;
-                if(k<3) begin
-                    delay = $urandom_range(1, 4); repeat(delay) @(negedge clk);
-                end
+                if(k<3) begin delay = $urandom_range(1, 4); repeat(delay) @(negedge clk); end
             end
         end
         Check_Inactive: begin
