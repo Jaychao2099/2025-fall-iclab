@@ -126,9 +126,9 @@ assign any_input_valid = inf.sel_action_valid || inf.type_valid || inf.mode_vali
 
 property p_input_gap;
     @(posedge clk) disable iff (!inf.rst_n) 
-    ($rose(any_input_valid) && !inf.sel_action_valid) |-> 
-        ($past($fell(any_input_valid), 1) || $past($fell(any_input_valid), 2) || 
-         $past($fell(any_input_valid), 3) || $past($fell(any_input_valid), 4));
+    (any_input_valid && !inf.sel_action_valid) |-> 
+        ($past(any_input_valid, 1) || $past(any_input_valid, 2) || 
+         $past(any_input_valid, 3) || $past(any_input_valid, 4));
 endproperty
 assert property (p_input_gap) else begin $display("Assertion 4 is violated"); $fatal; end
 

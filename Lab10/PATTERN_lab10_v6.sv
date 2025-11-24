@@ -277,54 +277,54 @@ task drive_input(Action act, Player_No p_id, Month mm, Day dd, Training_Type tt,
     pre_action = act;
     first_op = 0;
 
-    delay = $urandom_range(1, 4);
+    delay = $urandom_range(0, 3);
     repeat(delay) @(negedge clk);
 
     case(act)
         Login: begin
             inf.date_valid = 1; inf.D = {135'd0, mm, dd}; @(negedge clk);
             inf.date_valid = 0; inf.D = 'dx;
-            delay = $urandom_range(1, 4); repeat(delay) @(negedge clk);
+            delay = $urandom_range(0, 3); repeat(delay) @(negedge clk);
             inf.player_no_valid = 1; inf.D = {136'd0, p_id}; @(negedge clk);
             inf.player_no_valid = 0; inf.D = 'dx;
         end
         Level_Up: begin
             inf.type_valid = 1; inf.D = {142'd0, tt}; @(negedge clk);
             inf.type_valid = 0; inf.D = 'dx;
-            delay = $urandom_range(1, 4); repeat(delay) @(negedge clk);
+            delay = $urandom_range(0, 3); repeat(delay) @(negedge clk);
             inf.mode_valid = 1; inf.D = {142'd0, md}; @(negedge clk);
             inf.mode_valid = 0; inf.D = 'dx;
-            delay = $urandom_range(1, 4); repeat(delay) @(negedge clk);
+            delay = $urandom_range(0, 3); repeat(delay) @(negedge clk);
             inf.player_no_valid = 1; inf.D = {136'd0, p_id}; @(negedge clk);
             inf.player_no_valid = 0; inf.D = 'dx;
         end
         Battle: begin
             inf.player_no_valid = 1; inf.D = {136'd0, p_id}; @(negedge clk);
             inf.player_no_valid = 0; inf.D = 'dx;
-            delay = $urandom_range(1, 4); repeat(delay) @(negedge clk);
+            delay = $urandom_range(0, 3); repeat(delay) @(negedge clk);
             inf.monster_valid = 1; inf.D = {128'd0, atk}; @(negedge clk);
             inf.monster_valid = 0; inf.D = 'dx;
-            delay = $urandom_range(1, 4); repeat(delay) @(negedge clk);
+            delay = $urandom_range(0, 3); repeat(delay) @(negedge clk);
             inf.monster_valid = 1; inf.D = {128'd0, def}; @(negedge clk);
             inf.monster_valid = 0; inf.D = 'dx;
-            delay = $urandom_range(1, 4); repeat(delay) @(negedge clk);
+            delay = $urandom_range(0, 3); repeat(delay) @(negedge clk);
             inf.monster_valid = 1; inf.D = {128'd0, hp}; @(negedge clk);
             inf.monster_valid = 0; inf.D = 'dx;
         end
         Use_Skill: begin
             inf.player_no_valid = 1; inf.D = {136'd0, p_id}; @(negedge clk);
             inf.player_no_valid = 0; inf.D = 'dx;
-            delay = $urandom_range(1, 4); repeat(delay) @(negedge clk);
+            delay = $urandom_range(0, 3); repeat(delay) @(negedge clk);
             for(int k=0; k<4; k++) begin
                 inf.MP_valid = 1; inf.D = {128'd0, costs[k]}; @(negedge clk);
                 inf.MP_valid = 0; inf.D = 'dx;
-                if(k<3) begin delay = $urandom_range(1, 4); repeat(delay) @(negedge clk); end
+                if(k<3) begin delay = $urandom_range(0, 3); repeat(delay) @(negedge clk); end
             end
         end
         Check_Inactive: begin
             inf.date_valid = 1; inf.D = {135'd0, mm, dd}; @(negedge clk);
             inf.date_valid = 0; inf.D = 'dx;
-            delay = $urandom_range(1, 4); repeat(delay) @(negedge clk);
+            delay = $urandom_range(0, 3); repeat(delay) @(negedge clk);
             inf.player_no_valid = 1; inf.D = {136'd0, p_id}; @(negedge clk);
             inf.player_no_valid = 0; inf.D = 'dx;
         end
