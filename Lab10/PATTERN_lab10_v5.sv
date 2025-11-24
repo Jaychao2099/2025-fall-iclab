@@ -54,8 +54,8 @@ class random_act;
     }
 
     constraint date_valid {
-        // mon inside {[1:12]};
-        mon dist {[1:3] :/ 1, [4:12] :/ 24};
+        mon inside {[1:12]};
+        // mon dist {[1:3] :/ 1, [4:12] :/ 24};
         d inside {[1:31]};
         (mon == 2) -> d <= 28;
         (mon inside {4, 6, 9, 11}) -> d <= 30;
@@ -70,6 +70,7 @@ class random_act;
     // Skill costs distribution to hit coverage
     constraint skill_dist {
         foreach(s_cost[i]) {
+            // s_cost[i] inside {[0:65535]};
             s_cost[i] dist {[0:10] :/ 1, [10:65500] :/ 1, [65500:65535] :/ 1};
         }
     }
@@ -220,10 +221,10 @@ task run_pattern;
             else if (cov_warn[3] < 20 && p_temp.HP == 0) act = Battle;
             else if (cov_warn[4] < 20) act = Use_Skill;
             else if (cov_warn[2] < 20) act = Level_Up;
-            else begin
-                // Everything mostly full, just verify randomness
-                // act is already random from step 1
-            end
+            // else begin
+            //     // Everything mostly full, just verify randomness
+            //     // act is already random from step 1
+            // end
         end
     end
 
@@ -585,9 +586,9 @@ initial begin
         @(negedge clk);
     end
     
-    // Disable assertions that might trigger on end-of-sim
-    $assertoff(0, TESTBED.check_inst.p_next_op);
-    @(negedge clk);
+    // // Disable assertions that might trigger on end-of-sim
+    // $assertoff(0, TESTBED.check_inst.p_next_op);
+    // @(negedge clk);
     
     if(check_all_coverage()) begin
         // $display("----------------------------------------");
