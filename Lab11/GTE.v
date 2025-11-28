@@ -48,10 +48,11 @@ output reg         busy;
 parameter MEM_WRITE = 1'b0;
 parameter MEM_READ  = 1'b1;
 
-parameter S_IDLE        = 2'd0;
-parameter S_INIT_SRAM   = 2'd1;
-parameter S_READ        = 2'd2;
-parameter S_CAL_WRITE   = 2'd3;
+parameter S_IDLE        = 3'd0;
+parameter S_INIT_SRAM   = 3'd1;
+parameter S_READ        = 3'd2;
+parameter S_CAL_WRITE   = 3'd3;
+parameter S_CHECK_SRAM  = 3'd4;
 
 parameter MX    = 4'd0;
 parameter MY    = 4'd1;
@@ -78,12 +79,15 @@ parameter MO8   = 4'd15;
 // -----------------------------------------------------
 // FSM
 // -----------------------------------------------------
-reg [1:0] current_state, next_state;
+reg [2:0] current_state, next_state;
+
+reg [1:0] r_byte;
+reg [1:0] w_byte;
 
 // -----------------------------------------------------
 // init SRAM
 // -----------------------------------------------------
-reg [14:0] init_cnt;
+reg [14:0] init_cnt, init_cnt_d1;
 
 wire [2:0] init_mem_num;
 wire [3:0] init_mem_idx;
@@ -146,13 +150,13 @@ wire [31:0] mem6_dout, mem7_dout;
 // FSM
 // -----------------------------------------------------
 
-// reg [1:0] current_state;
+// reg [2:0] current_state;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) current_state <= S_IDLE;
     else current_state <= next_state;
 end
 
-// reg [1:0] current_state, next_state;
+// reg [2:0] current_state, next_state;
 always @(*) begin
     case (current_state)
         S_IDLE: begin
@@ -176,15 +180,15 @@ always @(*) begin
         S_CAL_WRITE: begin
             if (w_byte == 2'd1 && out_cnt == 8'd255 ||
                 w_byte == 2'd2 && out_cnt == 8'd254 ||
-                w_byte == 2'd3 && out_cnt == 8'd252) next_state = S_IDLE;
+                w_byte == 2'd3 && out_cnt == 8'd252) next_state = S_CHECK_SRAM;
             else next_state = S_CAL_WRITE;
+        end
+        S_CHECK_SRAM: begin
+            next_state = S_IDLE;
         end
         default: next_state = current_state;        // no used
     endcase
 end
-
-reg [1:0] r_byte;
-reg [1:0] w_byte;
 
 // reg [1:0] r_byte;
 always @(*) begin
@@ -200,6 +204,13 @@ always @(*) begin
     else                                w_byte = 2'd1;
 end
 
+// output reg         busy;
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)                        busy <= 1'b1;
+    else if (current_state == S_CHECK_SRAM) busy <= 1'b0;
+    else                                    busy <= 1'b1;
+end
+
 // -----------------------------------------------------
 // init SRAM
 // -----------------------------------------------------
@@ -212,13 +223,16 @@ always @(posedge clk or negedge rst_n) begin
     else if (in_valid_data) init_cnt <= init_cnt + 15'd1;
 end
 
+always @(posedge clk) begin
+    init_cnt_d1 <= init_cnt;
+end
+
 // wire [2:0] init_mem_num;
 // wire [3:0] init_mem_idx;
 // wire [7:0] init_mem_offset;
 assign init_mem_num    = init_cnt[14:12];   // for which mem "init write" write enable
 assign init_mem_idx    = init_cnt[11:8];
 assign init_mem_offset = init_cnt[7:0];
-
 
 // reg [7:0] in_data_reg [0:3];
 always @(posedge clk) begin
@@ -305,6 +319,10 @@ end
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                       out_cnt <= 8'd0;
     else if (current_state == S_CAL_WRITE) out_cnt <= out_cnt + w_byte;
+end
+
+always @(posedge clk) begin
+    out_cnt_d1 <= out_cnt;
 end
 
 wire [7:0] out_cnt_1 = out_cnt + 8'd1;
@@ -489,6 +507,8 @@ end
 // MEM input
 // -----------------------------------------------------
 
+wire [1:0] current_cnt = (current_state == S_INIT_SRAM) ? init_cnt_d1 : out_cnt_d1;  // _d1 ???????
+
 // reg        mem0_web, mem1_web, mem2_web, mem3_web;
 // reg        mem4_web, mem5_web;
 // reg        mem6_web, mem7_web;
@@ -507,10 +527,10 @@ always @(*) begin
             1: mem1_web = MEM_WRITE;
             2: mem2_web = MEM_WRITE;
             3: mem3_web = MEM_WRITE;
-            4: mem4_web = MEM_WRITE;
-            5: mem5_web = MEM_WRITE;
-            6: mem6_web = MEM_WRITE;
-            7: mem7_web = MEM_WRITE;
+            4: if (current_cnt[0]) mem4_web = MEM_WRITE;
+            5: if (current_cnt[0]) mem5_web = MEM_WRITE;
+            6: if (current_cnt[1] & current_cnt[1]) mem6_web = MEM_WRITE;
+            7: if (current_cnt[1] & current_cnt[1]) mem7_web = MEM_WRITE;
         endcase
     end
 end
