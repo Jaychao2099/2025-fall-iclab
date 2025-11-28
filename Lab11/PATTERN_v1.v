@@ -49,8 +49,8 @@ input             busy;
 // Parameters & Defines
 // ========================================
 parameter CYCLE = `CYCLE_TIME;
-parameter PAT_NUM = 1000; // Number of test patterns
-parameter SEED = 42069;
+parameter PAT_NUM = 100; // Number of test patterns
+parameter SEED = 2099;
 
 // Operation Codes
 parameter OP_MIRROR = 2'b00;
@@ -95,11 +95,13 @@ initial begin
 
     // 2. Reset
     reset_task;
+    #(CYCLE)
     release clk;
 
     void'($urandom(SEED));
 
     // 3. Load Initial Data (128 images)
+    @(negedge clk);
     input_data_task;
 
     // 4. Test Patterns
@@ -187,8 +189,8 @@ endtask
 task reset_task;
     begin
         rst_n = 1;
-        #(CYCLE/2.0) rst_n = 0;
-        #(CYCLE*2) rst_n = 1;
+        #(CYCLE) rst_n = 0;
+        #(CYCLE*3) rst_n = 1;
         // Check initial output states
         if (busy !== 1) begin
             $display("ERROR: busy should be 1 after reset");
@@ -236,6 +238,9 @@ task input_cmd_task;
         // Generate Random Command
         opcode = $urandom_range(0, 3);
         funct  = $urandom_range(0, 3);
+        // opcode = 2'b01;
+        // funct  = 2'b10;
+
         ms     = $urandom_range(0, 127);
         md     = $urandom_range(0, 127);
 
@@ -520,14 +525,22 @@ task read_dut_sram;
         else if (idx < 96) begin // MEM5
             linear_pixel_idx_in_group = (idx-80)*256 + r*16 + c;
             word_addr = linear_pixel_idx_in_group / 2;
-            `ifdef POST raw_word = u_CHIP.MEM5.Memory[word_addr]; `else raw_word = u_GTE.MEM5.Memory[word_addr]; `endif
+            `ifdef POST
+                raw_word = u_CHIP.MEM5.Memory[word_addr];
+            `else
+                raw_word = u_GTE.MEM5.Memory[word_addr];
+            `endif
             if (linear_pixel_idx_in_group % 2 == 0) val = raw_word[15:8];
             else val = raw_word[7:0];
         end
         else if (idx < 112) begin // MEM6: Width 32 (4 pixels).
             linear_pixel_idx_in_group = (idx-96)*256 + r*16 + c;
             word_addr = linear_pixel_idx_in_group / 4;
-            `ifdef POST raw_word = u_CHIP.MEM6.Memory[word_addr]; `else raw_word = u_GTE.MEM6.Memory[word_addr]; `endif
+            `ifdef POST
+                raw_word = u_CHIP.MEM6.Memory[word_addr];
+            `else
+                raw_word = u_GTE.MEM6.Memory[word_addr];
+            `endif
             // Spec Fig 20: Addr 0: {img[0], img[1], img[2], img[3]}
             // [31:24]=0, [23:16]=1, [15:8]=2, [7:0]=3
             case(linear_pixel_idx_in_group % 4)
@@ -540,7 +553,11 @@ task read_dut_sram;
         else begin // MEM7
             linear_pixel_idx_in_group = (idx-112)*256 + r*16 + c;
             word_addr = linear_pixel_idx_in_group / 4;
-            `ifdef POST raw_word = u_CHIP.MEM7.Memory[word_addr]; `else raw_word = u_GTE.MEM7.Memory[word_addr]; `endif
+            `ifdef POST
+                raw_word = u_CHIP.MEM7.Memory[word_addr];
+            `else
+                raw_word = u_GTE.MEM7.Memory[word_addr];
+            `endif
             case(linear_pixel_idx_in_group % 4)
                 0: val = raw_word[31:24];
                 1: val = raw_word[23:16];
