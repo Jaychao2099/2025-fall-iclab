@@ -83,8 +83,8 @@ reg [2:0] current_state, next_state;
 
 reg [7:0] old_ms;
 
-reg [1:0] r_byte;
-reg [1:0] w_byte;
+reg [2:0] r_byte;
+reg [2:0] w_byte;
 
 // -----------------------------------------------------
 // init SRAM
@@ -194,18 +194,18 @@ always @(posedge clk or negedge rst_n) begin
     else if (current_state == S_CHECK_SRAM) old_ms <= {1'b0, ms};
 end
 
-// reg [1:0] r_byte;
+// reg [2:0] r_byte;
 always @(*) begin
-    if      (ms >= 7'd64 && ms < 7'd96) r_byte = 2'd2;
-    else if (ms >= 7'd96)               r_byte = 2'd3;
-    else                                r_byte = 2'd1;
+    if      (ms >= 7'd64 && ms < 7'd96) r_byte = 3'd2;
+    else if (ms >= 7'd96)               r_byte = 3'd4;
+    else                                r_byte = 3'd1;
 end
 
-// reg [1:0] r_byte;
+// reg [2:0] r_byte;
 always @(*) begin
-    if      (md >= 7'd64 && md < 7'd96) w_byte = 2'd2;
-    else if (md >= 7'd96)               w_byte = 2'd3;
-    else                                w_byte = 2'd1;
+    if      (md >= 7'd64 && md < 7'd96) w_byte = 3'd2;
+    else if (md >= 7'd96)               w_byte = 3'd4;
+    else                                w_byte = 3'd1;
 end
 
 // output reg         busy;
@@ -284,14 +284,14 @@ always @(posedge clk or negedge rst_n) begin
     else if (current_state == S_READ) read_cnt <= read_cnt + r_byte;
 end
 
-// reg [7:0] read_cnt_d1_0;      // 0~255
+// reg [8:0] read_cnt_d1_0;      // 0~255
 always @(posedge clk) begin
     read_cnt_d1_0 <= read_cnt;
 end
 
-wire [7:0] read_cnt_d1_1 = read_cnt_d1_0 + 8'd1;
-wire [7:0] read_cnt_d1_2 = read_cnt_d1_0 + 8'd2;
-wire [7:0] read_cnt_d1_3 = read_cnt_d1_0 + 8'd3;
+wire [7:0] read_cnt_d1_1 = read_cnt_d1_0[7:0] + 8'd1;
+wire [7:0] read_cnt_d1_2 = read_cnt_d1_0[7:0] + 8'd2;
+wire [7:0] read_cnt_d1_3 = read_cnt_d1_0[7:0] + 8'd3;
 
 // reg [7:0] img_buffer [0:255]
 always @(posedge clk) begin
@@ -329,7 +329,7 @@ end
 // calulation / output
 // -----------------------------------------------------
 
-// reg [7:0] out_cnt;      // 0~255
+// reg [8:0] out_cnt;      // 0~255
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                       out_cnt <= 9'd0;
     else if (out_cnt == 9'd256)            out_cnt <= 9'd0;
@@ -340,9 +340,9 @@ always @(posedge clk) begin
     out_cnt_d1 <= out_cnt;
 end
 
-wire [7:0] out_cnt_1 = out_cnt + 9'd1;
-wire [7:0] out_cnt_2 = out_cnt + 9'd2;
-wire [7:0] out_cnt_3 = out_cnt + 9'd3;
+wire [7:0] out_cnt_1 = out_cnt[7:0] + 8'd1;
+wire [7:0] out_cnt_2 = out_cnt[7:0] + 8'd2;
+wire [7:0] out_cnt_3 = out_cnt[7:0] + 8'd3;
 
 function [7:0] get_zz4_idx;
     input [7:0] out_idx;
@@ -398,8 +398,10 @@ endfunction
 // y = i/16
 // matrix(a, b) = buffer[(a)+(b)*16]
 
-wire [3:0] out_cnt_0_x = out_cnt[3:0];
-wire [3:0] out_cnt_0_y = out_cnt[7:4];
+wire [3:0] out_cnt_0_x;
+wire [3:0] out_cnt_0_y;
+assign out_cnt_0_x = out_cnt[3:0];
+assign out_cnt_0_y = out_cnt[7:4];
 
 wire [3:0] out_cnt_1_x = out_cnt_1[3:0];
 wire [3:0] out_cnt_1_y = out_cnt_1[7:4];
@@ -423,7 +425,6 @@ wire [3:0] US_tmp_3 = 5'd26 - {1'b0, out_cnt_3_y};
 // reg [7:0] src_idx [0:3];
 always @(*) begin
     integer i;
-    for (i = 0; i < 4; i = i + 1) src_idx[i] = 8'd0;
     // {  row  ,   col  }
     // {4'byyyy, 4'bxxxx}
     case (op_func)
@@ -465,9 +466,9 @@ always @(*) begin
         end
         R270: begin     // {x, 15-y}
             src_idx[0] = {out_cnt_0_x, ~out_cnt_0_y};
-            src_idx[0] = {out_cnt_0_x, ~out_cnt_0_y};
-            src_idx[0] = {out_cnt_0_x, ~out_cnt_0_y};
-            src_idx[0] = {out_cnt_0_x, ~out_cnt_0_y};
+            src_idx[1] = {out_cnt_1_x, ~out_cnt_1_y};
+            src_idx[2] = {out_cnt_2_x, ~out_cnt_2_y};
+            src_idx[3] = {out_cnt_3_x, ~out_cnt_3_y};
         end
         RS: begin
             src_idx[0] = (out_cnt_0_x < 4'd5) ? {out_cnt_0_y, (4'd4 - out_cnt_0_x)} : {out_cnt_0_y, (out_cnt_0_x - 4'd5)};
@@ -512,10 +513,13 @@ always @(*) begin
             src_idx[3] = {out_cnt_3[7:6], out_cnt_3[5], out_cnt_3[1], out_cnt_3[3], out_cnt_3[2], out_cnt_3[4], out_cnt_3[0]};
         end
         MO8: begin
-            src_idx[0] = {  out_cnt[7],   out_cnt[5],   out_cnt[3],   out_cnt[1],   out_cnt[6],   out_cnt[4],   out_cnt[2],   out_cnt[0]};
-            src_idx[1] = {out_cnt_1[7], out_cnt_1[5], out_cnt_1[3], out_cnt_1[1], out_cnt_1[6], out_cnt_1[4], out_cnt_1[2], out_cnt_1[0]};
-            src_idx[2] = {out_cnt_2[7], out_cnt_2[5], out_cnt_2[3], out_cnt_2[1], out_cnt_2[6], out_cnt_2[4], out_cnt_2[2], out_cnt_2[0]};
-            src_idx[3] = {out_cnt_3[7], out_cnt_3[5], out_cnt_3[3], out_cnt_3[1], out_cnt_3[6], out_cnt_3[4], out_cnt_3[2], out_cnt_3[0]};
+            src_idx[0] = {  out_cnt[7:6],   out_cnt[4],   out_cnt[1],   out_cnt[3],   out_cnt[5],   out_cnt[2],   out_cnt[0]};
+            src_idx[1] = {out_cnt_1[7:6], out_cnt_1[4], out_cnt_1[1], out_cnt_1[3], out_cnt_1[5], out_cnt_1[2], out_cnt_1[0]};
+            src_idx[2] = {out_cnt_2[7:6], out_cnt_2[4], out_cnt_2[1], out_cnt_2[3], out_cnt_2[5], out_cnt_2[2], out_cnt_2[0]};
+            src_idx[3] = {out_cnt_3[7:6], out_cnt_3[4], out_cnt_3[1], out_cnt_3[3], out_cnt_3[5], out_cnt_3[2], out_cnt_3[0]};
+        end
+        default: begin
+            for (i = 0; i < 8; i = i + 1) src_idx[i] = 8'd0;
         end
     endcase
 end
@@ -532,7 +536,7 @@ end
 // MEM input
 // -----------------------------------------------------
 
-wire [1:0] current_cnt = (current_state == S_INIT_SRAM) ? init_cnt_d1[1:0] : out_cnt_d1[1:0];  // _d1 ???????
+// wire [1:0] current_cnt = (current_state == S_INIT_SRAM) ? init_cnt_d1[1:0] : out_cnt_d1[1:0];  // _d1 ???????
 
 // reg        mem0_web, mem1_web, mem2_web, mem3_web;
 // reg        mem4_web, mem5_web;
@@ -552,10 +556,10 @@ always @(*) begin
             1: mem1_web = MEM_WRITE;
             2: mem2_web = MEM_WRITE;
             3: mem3_web = MEM_WRITE;
-            4: if (current_cnt[0]) mem4_web = MEM_WRITE;
-            5: if (current_cnt[0]) mem5_web = MEM_WRITE;
-            6: if (current_cnt[1] & current_cnt[0]) mem6_web = MEM_WRITE;
-            7: if (current_cnt[1] & current_cnt[0]) mem7_web = MEM_WRITE;
+            4: /*if (current_cnt[0])*/ mem4_web = MEM_WRITE;
+            5: /*if (current_cnt[0])*/ mem5_web = MEM_WRITE;
+            6: /*if (current_cnt[1] & current_cnt[0])*/ mem6_web = MEM_WRITE;
+            7: /*if (current_cnt[1] & current_cnt[0])*/ mem7_web = MEM_WRITE;
         endcase
     end
 end
@@ -585,7 +589,7 @@ always @(*) begin
     case (current_state)
         S_INIT_SRAM: mem_offset = init_mem_offset;
         S_READ:      mem_offset = read_cnt;
-        S_CAL_WRITE: mem_offset = out_cnt_d1;
+        S_CAL_WRITE: mem_offset = out_cnt_d1[7:0];
         default:     mem_offset = 8'd0;
     endcase
 end
@@ -596,6 +600,7 @@ always @(*) begin
         S_INIT_SRAM: mem_in_data = {in_data_reg[0], in_data_reg[1], in_data_reg[2], in_data_reg[3]};
         // S_READ:      mem_in_data = 
         S_CAL_WRITE: mem_in_data = {result_pixel[0], result_pixel[1], result_pixel[2], result_pixel[3]};
+        // S_CAL_WRITE: mem_in_data = {result_pixel[3], result_pixel[2], result_pixel[1], result_pixel[0]};        // test pattern
         default:     mem_in_data = 32'd0;
     endcase
 end

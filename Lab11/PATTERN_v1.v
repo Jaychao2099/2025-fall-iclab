@@ -7,10 +7,13 @@
 
 `ifdef RTL
 	`define CYCLE_TIME  20.0
+    `define GTE_CORE u_GTE
 `elsif GATE
     `define CYCLE_TIME  20.0
+    `define GTE_CORE u_GTE
 `elsif POST
     `define CYCLE_TIME  20.0
+    `define GTE_CORE u_CHIP.CORE
 `endif
 
 module PATTERN(
@@ -31,8 +34,8 @@ module PATTERN(
 /*
 You should fetch the data in SRAMs first and then check answer!
 Example code:
-	golden_ans = u_GTE.MEM7.Memory[ 5 ];  (used in 01_RTL / 03_GATE simulation)
-	golden_ans = u_CHIP.MEM7.Memory[ 5 ]; (used in 06_POST simulation)
+	golden_ans = TESTBED.u_GTE.MEM7.Memory[ 5 ];  (used in 01_RTL / 03_GATE simulation)
+	golden_ans = TESTBED.u_CHIP.CORE.MEM7.Memory[ 5 ]; (used in 06_POST simulation)
 */
 
 // ========================================
@@ -136,19 +139,6 @@ task init_luts_task;
         {zz4_r[12],zz4_c[12]} = {1,3}; {zz4_r[13],zz4_c[13]} = {2,3}; {zz4_r[14],zz4_c[14]} = {3,2}; {zz4_r[15],zz4_c[15]} = {3,3};
 
         // --- 8x8 Zig-Zag (ZZ8) ---
-        // Standard JPEG ZigZag table
-        // Generating algorithmically here to save space, but hardcoding is safer.
-        // Using a known sequence for 8x8:
-        // 0,1,8,16,9,2,3,10,17,24,32,25,18,11,4,5,12,19,26,33,40,48,41,34,27,20,13,6,7,14,21,28,35,42,49,56,57,50,43,36,29,22,15,23,30,37,44,51,58,59,52,45,38,31,39,46,53,60,61,54,47,55,62,63
-        // Map linear index to (r,c)
-        // I will implement a quick helper loop to fill this or just use a fixed array.
-        // Since I cannot use a large int array initializer easily in standard Verilog without many lines,
-        // I will use a simplified generation logic or just manual assignment for brevity in this response format
-        // but ensure correctness.
-        // (For brevity, I'll use a hardcoded initialization for first few and a placeholder logic for full,
-        // but effectively in a real project I'd paste the full table).
-        // Let's implement the standard ZigZag traversal logic:
-        idx = 0;
         for(integer sum=0; sum<=14; sum=sum+1) begin
              if(sum%2 == 0) begin // Up-Right
                  for(integer x=sum; x>=0; x=x-1) begin
@@ -263,22 +253,7 @@ endtask
 task wait_busy_task;
     begin
         latency = 0;
-        // Wait for busy to rise (it might rise immediately or 1 cycle later)
-        // Spec: busy tied low for at least one cycle after finish.
-        // We count latency from falling edge of in_valid_cmd to falling edge of busy?
-        // Spec Point 4: "latency is the clock cycles between the falling edge of the last cycle of in_valid_cmd and the negative edge of the first cycle of busy."
-        // Wait, "falling edge of in_valid_cmd" -> we just passed it.
-        // "negative edge of the first cycle of busy" -> wait, busy goes high then low. The END of busy.
-        
-        // while(busy === 0) begin
-        //      latency = latency + 1;
-        //      @(negedge clk);
-        //      if (latency > 5000) begin
-        //          $display("ERROR: Latency Exceeded 5000 cycles waiting for busy to rise");
-        //          $finish;
-        //      end
-        // end
-        
+        wait(busy === 1);
         while(busy === 1) begin
             latency = latency + 1;
             @(negedge clk);
@@ -478,44 +453,26 @@ task read_dut_sram;
     integer linear_pixel_idx_in_group;
     reg [31:0] raw_word;
     begin
-        // Define hierarchy paths
-        // Assuming top module instance name is 'u_GTE' for RTL/GATE
-        // For POST, usually 'u_CHIP' or similar. 
-        // Using `ifdef to switch hierarchy prefix.
-        
-        `ifdef POST
-             // Example path for Post-Sim
-             #0; // Ensure event ordering
-             // NOTE: Adjust 'u_CHIP' if your top module instance name is different in Testbed
-        `else
-             // Example path for RTL
-             #0;
-        `endif
-        
         if(idx < 16) begin // MEM0: Images 0-15. Width 8.
             word_addr = idx*256 + r*16 + c;
-            `ifdef POST
-                val = u_CHIP.MEM0.Memory[word_addr];
-            `else
-                val = u_GTE.MEM0.Memory[word_addr];
-            `endif
+            val = `GTE_CORE.MEM0.Memory[word_addr];
         end 
         else if (idx < 32) begin // MEM1
             word_addr = (idx-16)*256 + r*16 + c;
-            `ifdef POST val = u_CHIP.MEM1.Memory[word_addr]; `else val = u_GTE.MEM1.Memory[word_addr]; `endif
+            val = `GTE_CORE.MEM1.Memory[word_addr];
         end
         else if (idx < 48) begin // MEM2
             word_addr = (idx-32)*256 + r*16 + c;
-            `ifdef POST val = u_CHIP.MEM2.Memory[word_addr]; `else val = u_GTE.MEM2.Memory[word_addr]; `endif
+            val = `GTE_CORE.MEM2.Memory[word_addr];
         end
         else if (idx < 64) begin // MEM3
             word_addr = (idx-48)*256 + r*16 + c;
-            `ifdef POST val = u_CHIP.MEM3.Memory[word_addr]; `else val = u_GTE.MEM3.Memory[word_addr]; `endif
+            val = `GTE_CORE.MEM3.Memory[word_addr];
         end
         else if (idx < 80) begin // MEM4: Width 16 (2 pixels).
             linear_pixel_idx_in_group = (idx-64)*256 + r*16 + c;
             word_addr = linear_pixel_idx_in_group / 2;
-            `ifdef POST raw_word = u_CHIP.MEM4.Memory[word_addr]; `else raw_word = u_GTE.MEM4.Memory[word_addr]; `endif
+            raw_word = `GTE_CORE.MEM4.Memory[word_addr];
             // If col%2==0 -> MSB (assuming big endian storage based on spec fig 19: [0][0] at high?)
             // Spec Fig 19: Addr 0 Data: {image[0][0], image[0][1]}
             // So [15:8] is pixel 0 (col 0), [7:0] is pixel 1 (col 1).
@@ -525,22 +482,14 @@ task read_dut_sram;
         else if (idx < 96) begin // MEM5
             linear_pixel_idx_in_group = (idx-80)*256 + r*16 + c;
             word_addr = linear_pixel_idx_in_group / 2;
-            `ifdef POST
-                raw_word = u_CHIP.MEM5.Memory[word_addr];
-            `else
-                raw_word = u_GTE.MEM5.Memory[word_addr];
-            `endif
+            raw_word = `GTE_CORE.MEM5.Memory[word_addr];
             if (linear_pixel_idx_in_group % 2 == 0) val = raw_word[15:8];
             else val = raw_word[7:0];
         end
         else if (idx < 112) begin // MEM6: Width 32 (4 pixels).
             linear_pixel_idx_in_group = (idx-96)*256 + r*16 + c;
             word_addr = linear_pixel_idx_in_group / 4;
-            `ifdef POST
-                raw_word = u_CHIP.MEM6.Memory[word_addr];
-            `else
-                raw_word = u_GTE.MEM6.Memory[word_addr];
-            `endif
+            raw_word = `GTE_CORE.MEM6.Memory[word_addr];
             // Spec Fig 20: Addr 0: {img[0], img[1], img[2], img[3]}
             // [31:24]=0, [23:16]=1, [15:8]=2, [7:0]=3
             case(linear_pixel_idx_in_group % 4)
@@ -553,11 +502,7 @@ task read_dut_sram;
         else begin // MEM7
             linear_pixel_idx_in_group = (idx-112)*256 + r*16 + c;
             word_addr = linear_pixel_idx_in_group / 4;
-            `ifdef POST
-                raw_word = u_CHIP.MEM7.Memory[word_addr];
-            `else
-                raw_word = u_GTE.MEM7.Memory[word_addr];
-            `endif
+            raw_word = `GTE_CORE.MEM7.Memory[word_addr];
             case(linear_pixel_idx_in_group % 4)
                 0: val = raw_word[31:24];
                 1: val = raw_word[23:16];
