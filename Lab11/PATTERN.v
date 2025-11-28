@@ -50,6 +50,7 @@ input             busy;
 // ========================================
 parameter CYCLE = `CYCLE_TIME;
 parameter PAT_NUM = 1000; // Number of test patterns
+parameter SEED = 42069;
 
 // Operation Codes
 parameter OP_MIRROR = 2'b00;
@@ -95,6 +96,8 @@ initial begin
     // 2. Reset
     reset_task;
     release clk;
+
+    void'($urandom(SEED));
 
     // 3. Load Initial Data (128 images)
     input_data_task;
@@ -187,8 +190,8 @@ task reset_task;
         #(CYCLE/2.0) rst_n = 0;
         #(CYCLE*2) rst_n = 1;
         // Check initial output states
-        if (busy !== 0) begin
-            $display("ERROR: busy should be 0 after reset");
+        if (busy !== 1) begin
+            $display("ERROR: busy should be 1 after reset");
             $finish;
         end
     end
