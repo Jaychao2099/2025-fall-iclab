@@ -245,9 +245,10 @@ end
 
 // reg [7:0] in_data [0:3];
 always @(*) begin
+    in_data = in_data_reg;
     if (in_valid_data) begin
         case (init_mem_num)
-            0,1,2,3: in_data[0]                = data;
+            0,1,2,3: in_data[0]             = data;
             4,5:     in_data[init_cnt[0]]   = data;
             default: in_data[init_cnt[1:0]] = data;
         endcase
