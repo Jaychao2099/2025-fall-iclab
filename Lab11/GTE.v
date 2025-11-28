@@ -5,6 +5,16 @@
 //    Module Name : GTE
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+// Finished:
+//      calculate index logic
+//      FSM
+//      MEM control at init     (addr, data, web)
+//      MEM control at read
+//      MEM control at write
+
+// TODO: 
+//      
+
 module GTE(
     // input signals
     clk,
@@ -35,29 +45,95 @@ output reg         busy;
 // parameter & integer
 //==================================================================
 
+parameter MEM_WRITE = 1'b0;
+parameter MEM_READ  = 1'b1;
+
+parameter S_IDLE        = 2'd0;
+parameter S_INIT_SRAM   = 2'd1;
+parameter S_READ        = 2'd2;
+parameter S_CAL_WRITE   = 2'd3;
+
+parameter MX    = 4'd0;
+parameter MY    = 4'd1;
+parameter TRP   = 4'd2;
+parameter STRP  = 4'd3;
+parameter R90   = 4'd4;
+parameter R180  = 4'd5;
+parameter R270  = 4'd6;
+
+parameter RS    = 4'd8;
+parameter LS    = 4'd9;
+parameter US    = 4'd10;
+parameter DS    = 4'd11;
+parameter ZZ4   = 4'd12;
+parameter ZZ8   = 4'd13;
+parameter MO4   = 4'd14;
+parameter MO8   = 4'd15;
+
 
 //==================================================================
 // reg & wire
 //==================================================================
 
 // -----------------------------------------------------
+// FSM
+// -----------------------------------------------------
+reg [1:0] current_state, next_state;
+
+// -----------------------------------------------------
+// init SRAM
+// -----------------------------------------------------
+reg [14:0] init_cnt;
+
+wire [2:0] init_mem_num;
+wire [3:0] init_mem_idx;
+wire [7:0] init_mem_offset;
+
+reg [7:0] in_data_reg [0:3];
+
+// -----------------------------------------------------
+// read / write SRAM
+// -----------------------------------------------------
+reg [7:0] read_cnt, read_cnt_d1_0;      // 0~255
+reg [7:0] img_buffer [0:255];
+
+reg [17:0] cmd_reg;
+wire [3:0] op_func;
+wire [6:0] ms, md;
+
+wire [2:0] r_mem_num, w_mem_num;
+wire [3:0] r_mem_idx, w_mem_idx;
+
+// -----------------------------------------------------
+// calulation / output
+// -----------------------------------------------------
+reg [7:0] out_cnt, out_cnt_d1;      // 0~255
+reg [7:0] src_idx [0:3];    // 0~255
+reg [7:0] result_pixel [0:3];
+
+// -----------------------------------------------------
 // MEM
 // -----------------------------------------------------
+reg [2:0] mem_num;
+reg [3:0] mem_idx;
+reg [7:0] mem_offset;
+
+reg [31:0] mem_in_data;  // 4 * 8
 
 // MEM_0, MEM_1, MEM_2, MEM_3: 8-bit width, 4096 depth
-wire        mem0_web, mem1_web, mem2_web, mem3_web;
+reg         mem0_web, mem1_web, mem2_web, mem3_web;
 wire [11:0] mem0_addr, mem1_addr, mem2_addr, mem3_addr;
 wire  [7:0] mem0_din, mem1_din, mem2_din, mem3_din;
 wire  [7:0] mem0_dout, mem1_dout, mem2_dout, mem3_dout;
 
 // MEM_4, MEM_5: 16-bit width, 2048 depth
-wire        mem4_web, mem5_web;
+reg         mem4_web, mem5_web;
 wire [10:0] mem4_addr, mem5_addr;
 wire [15:0] mem4_din, mem5_din;
 wire [15:0] mem4_dout, mem5_dout;
 
 // MEM_6, MEM_7: 32-bit width, 1024 depth
-wire        mem6_web, mem7_web;
+reg         mem6_web, mem7_web;
 wire  [9:0] mem6_addr, mem7_addr;
 wire [31:0] mem6_din, mem7_din;
 wire [31:0] mem6_dout, mem7_dout;
@@ -66,10 +142,418 @@ wire [31:0] mem6_dout, mem7_dout;
 // design
 //==================================================================
 
+// -----------------------------------------------------
+// FSM
+// -----------------------------------------------------
+
+// reg [1:0] current_state;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) current_state <= S_IDLE;
+    else current_state <= next_state;
+end
+
+// reg [1:0] current_state, next_state;
+always @(*) begin
+    case (current_state)
+        S_IDLE: begin
+            if      (in_valid_data)      next_state = S_INIT_SRAM;
+            else if (in_valid_cmd) begin
+                if (cmd[13:7] == old_ms) next_state = S_CAL_WRITE;
+                else                     next_state = S_READ;
+            end
+            else                         next_state = S_IDLE;
+        end
+        S_INIT_SRAM: begin
+            if (init_cnt == 15'd32767) next_state = S_IDLE;
+            else                       next_state = S_INIT_SRAM;
+        end
+        S_READ: begin
+            if (r_byte == 2'd1 && read_cnt == 8'd255 ||
+                r_byte == 2'd2 && read_cnt == 8'd254 ||
+                r_byte == 2'd3 && read_cnt == 8'd252) next_state = S_CAL_WRITE;
+            else next_state = S_READ;
+        end
+        S_CAL_WRITE: begin
+            if (w_byte == 2'd1 && out_cnt == 8'd255 ||
+                w_byte == 2'd2 && out_cnt == 8'd254 ||
+                w_byte == 2'd3 && out_cnt == 8'd252) next_state = S_IDLE;
+            else next_state = S_CAL_WRITE;
+        end
+        default: next_state = current_state;        // no used
+    endcase
+end
+
+reg [1:0] r_byte;
+reg [1:0] w_byte;
+
+// reg [1:0] r_byte;
+always @(*) begin
+    if      (ms >= 7'd64 && ms < 7'd96) r_byte = 1'b2;
+    else if (ms >= 7'd96)               r_byte = 2'b3;
+    else                                r_byte = 2'd1;
+end
+
+// reg [1:0] r_byte;
+always @(*) begin
+    if      (md >= 7'd64 && md < 7'd96) w_byte = 1'b2;
+    else if (md >= 7'd96)               w_byte = 2'b3;
+    else                                w_byte = 2'd1;
+end
+
+// -----------------------------------------------------
+// init SRAM
+// -----------------------------------------------------
+
+// 0 ~ 32767
+// 111111111111111  15-bit
+// reg [14:0] init_cnt;
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)        init_cnt <= 15'd0;
+    else if (in_valid_data) init_cnt <= init_cnt + 15'd1;
+end
+
+// wire [2:0] init_mem_num;
+// wire [3:0] init_mem_idx;
+// wire [7:0] init_mem_offset;
+assign init_mem_num    = init_cnt[14:12];   // for which mem "init write" write enable
+assign init_mem_idx    = init_cnt[11:8];
+assign init_mem_offset = init_cnt[7:0];
 
 
+// reg [7:0] in_data_reg [0:3];
+always @(posedge clk) begin
+    if (in_valid_data) begin
+        in_data_reg[init_cnt[1:0]] <= data;
+    end
+end
 
+// -----------------------------------------------------
+// read / write SRAM
+// -----------------------------------------------------
 
+// reg [17:0] cmd_reg;
+always @(posedge clk) begin
+    if (in_valid_cmd) cmd_reg <= cmd;
+end
+
+// wire [3:0] op_func;
+// wire [6:0] ms, md;
+assign op_func  = cmd_reg[17:14];
+assign ms       = cmd_reg[13:7];
+assign md       = cmd_reg[6:0];
+
+// wire [2:0] r_mem_num, w_mem_num;
+// wire [3:0] r_mem_idx, w_mem_idx;
+assign r_mem_num = ms[6:4]; // 3-bit    for "read" which mem into img_buffer
+assign r_mem_idx = ms[3:0]; // 4-bit
+
+assign w_mem_num = md[6:4]; // 3-bit    for which mem "write" enable
+assign w_mem_idx = md[3:0]; // 4-bit
+
+// reg [7:0] read_cnt;      // 0~255
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)                  read_cnt <= 8'd0;
+    else if (current_state == S_READ) read_cnt <= read_cnt + r_byte;
+end
+
+// reg [7:0] read_cnt_d1_0;      // 0~255
+always @(posedge clk) begin
+    read_cnt_d1_0 <= read_cnt;
+end
+
+wire [7:0] read_cnt_d1_1 = read_cnt_d1_0 + 8'd1;
+wire [7:0] read_cnt_d1_2 = read_cnt_d1_0 + 8'd2;
+wire [7:0] read_cnt_d1_3 = read_cnt_d1_0 + 8'd3;
+
+// reg [7:0] img_buffer [0:255]
+always @(posedge clk) begin
+    if (current_state == S_READ) begin
+        case (r_mem_num)
+            0: img_buffer[read_cnt_d1_0] <= mem0_dout;
+            1: img_buffer[read_cnt_d1_0] <= mem1_dout;
+            2: img_buffer[read_cnt_d1_0] <= mem2_dout;
+            3: img_buffer[read_cnt_d1_0] <= mem3_dout;
+            4: begin
+                img_buffer[read_cnt_d1_0] <= mem4_dout[15:8];
+                img_buffer[read_cnt_d1_1] <= mem4_dout[7:0];
+            end
+            5: begin
+                img_buffer[read_cnt_d1_0] <= mem5_dout[15:8];
+                img_buffer[read_cnt_d1_1] <= mem5_dout[7:0];
+            end
+            6: begin
+                img_buffer[read_cnt_d1_0] <= mem6_dout[31:24];
+                img_buffer[read_cnt_d1_1] <= mem6_dout[23:16];
+                img_buffer[read_cnt_d1_2] <= mem6_dout[15:8];
+                img_buffer[read_cnt_d1_3] <= mem6_dout[7:0];
+            end
+            default: begin  // 7
+                img_buffer[read_cnt_d1_0] <= mem7_dout[31:24];
+                img_buffer[read_cnt_d1_1] <= mem7_dout[23:16];
+                img_buffer[read_cnt_d1_2] <= mem7_dout[15:8];
+                img_buffer[read_cnt_d1_3] <= mem7_dout[7:0];
+            end
+        endcase
+    end
+end
+
+// -----------------------------------------------------
+// calulation / output
+// -----------------------------------------------------
+
+// reg [7:0] out_cnt;      // 0~255
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)                       out_cnt <= 8'd0;
+    else if (current_state == S_CAL_WRITE) out_cnt <= out_cnt + w_byte;
+end
+
+wire [7:0] out_cnt_1 = out_cnt + 8'd1;
+wire [7:0] out_cnt_2 = out_cnt + 8'd2;
+wire [7:0] out_cnt_3 = out_cnt + 8'd3;
+
+function [7:0] get_zz4_idx;
+    input [7:0] out_idx;
+    begin
+        case(out_idx)
+            8'd0: get_zz4_idx = 8'd0; 	8'd1: get_zz4_idx = 8'd1; 	8'd2: get_zz4_idx = 8'd16; 	8'd3: get_zz4_idx = 8'd32; 	8'd4: get_zz4_idx = 8'd4; 	8'd5: get_zz4_idx = 8'd5; 	8'd6: get_zz4_idx = 8'd20; 	8'd7: get_zz4_idx = 8'd36; 	8'd8: get_zz4_idx = 8'd8; 	8'd9: get_zz4_idx = 8'd9; 	8'd10: get_zz4_idx = 8'd24; 	8'd11: get_zz4_idx = 8'd40; 	8'd12: get_zz4_idx = 8'd12; 	8'd13: get_zz4_idx = 8'd13; 	8'd14: get_zz4_idx = 8'd28; 	8'd15: get_zz4_idx = 8'd44; 
+            8'd16: get_zz4_idx = 8'd17; 	8'd17: get_zz4_idx = 8'd2; 	8'd18: get_zz4_idx = 8'd3; 	8'd19: get_zz4_idx = 8'd18; 	8'd20: get_zz4_idx = 8'd21; 	8'd21: get_zz4_idx = 8'd6; 	8'd22: get_zz4_idx = 8'd7; 	8'd23: get_zz4_idx = 8'd22; 	8'd24: get_zz4_idx = 8'd25; 	8'd25: get_zz4_idx = 8'd10; 	8'd26: get_zz4_idx = 8'd11; 	8'd27: get_zz4_idx = 8'd26; 	8'd28: get_zz4_idx = 8'd29; 	8'd29: get_zz4_idx = 8'd14; 	8'd30: get_zz4_idx = 8'd15; 	8'd31: get_zz4_idx = 8'd30; 
+            8'd32: get_zz4_idx = 8'd33; 	8'd33: get_zz4_idx = 8'd48; 	8'd34: get_zz4_idx = 8'd49; 	8'd35: get_zz4_idx = 8'd34; 	8'd36: get_zz4_idx = 8'd37; 	8'd37: get_zz4_idx = 8'd52; 	8'd38: get_zz4_idx = 8'd53; 	8'd39: get_zz4_idx = 8'd38; 	8'd40: get_zz4_idx = 8'd41; 	8'd41: get_zz4_idx = 8'd56; 	8'd42: get_zz4_idx = 8'd57; 	8'd43: get_zz4_idx = 8'd42; 	8'd44: get_zz4_idx = 8'd45; 	8'd45: get_zz4_idx = 8'd60; 	8'd46: get_zz4_idx = 8'd61; 	8'd47: get_zz4_idx = 8'd46; 
+            8'd48: get_zz4_idx = 8'd19; 	8'd49: get_zz4_idx = 8'd35; 	8'd50: get_zz4_idx = 8'd50; 	8'd51: get_zz4_idx = 8'd51; 	8'd52: get_zz4_idx = 8'd23; 	8'd53: get_zz4_idx = 8'd39; 	8'd54: get_zz4_idx = 8'd54; 	8'd55: get_zz4_idx = 8'd55; 	8'd56: get_zz4_idx = 8'd27; 	8'd57: get_zz4_idx = 8'd43; 	8'd58: get_zz4_idx = 8'd58; 	8'd59: get_zz4_idx = 8'd59; 	8'd60: get_zz4_idx = 8'd31; 	8'd61: get_zz4_idx = 8'd47; 	8'd62: get_zz4_idx = 8'd62; 	8'd63: get_zz4_idx = 8'd63; 
+            8'd64: get_zz4_idx = 8'd64; 	8'd65: get_zz4_idx = 8'd65; 	8'd66: get_zz4_idx = 8'd80; 	8'd67: get_zz4_idx = 8'd96; 	8'd68: get_zz4_idx = 8'd68; 	8'd69: get_zz4_idx = 8'd69; 	8'd70: get_zz4_idx = 8'd84; 	8'd71: get_zz4_idx = 8'd100; 	8'd72: get_zz4_idx = 8'd72; 	8'd73: get_zz4_idx = 8'd73; 	8'd74: get_zz4_idx = 8'd88; 	8'd75: get_zz4_idx = 8'd104; 	8'd76: get_zz4_idx = 8'd76; 	8'd77: get_zz4_idx = 8'd77; 	8'd78: get_zz4_idx = 8'd92; 	8'd79: get_zz4_idx = 8'd108; 
+            8'd80: get_zz4_idx = 8'd81; 	8'd81: get_zz4_idx = 8'd66; 	8'd82: get_zz4_idx = 8'd67; 	8'd83: get_zz4_idx = 8'd82; 	8'd84: get_zz4_idx = 8'd85; 	8'd85: get_zz4_idx = 8'd70; 	8'd86: get_zz4_idx = 8'd71; 	8'd87: get_zz4_idx = 8'd86; 	8'd88: get_zz4_idx = 8'd89; 	8'd89: get_zz4_idx = 8'd74; 	8'd90: get_zz4_idx = 8'd75; 	8'd91: get_zz4_idx = 8'd90; 	8'd92: get_zz4_idx = 8'd93; 	8'd93: get_zz4_idx = 8'd78; 	8'd94: get_zz4_idx = 8'd79; 	8'd95: get_zz4_idx = 8'd94; 
+            8'd96: get_zz4_idx = 8'd97; 	8'd97: get_zz4_idx = 8'd112; 	8'd98: get_zz4_idx = 8'd113; 	8'd99: get_zz4_idx = 8'd98; 	8'd100: get_zz4_idx = 8'd101; 	8'd101: get_zz4_idx = 8'd116; 	8'd102: get_zz4_idx = 8'd117; 	8'd103: get_zz4_idx = 8'd102; 	8'd104: get_zz4_idx = 8'd105; 	8'd105: get_zz4_idx = 8'd120; 	8'd106: get_zz4_idx = 8'd121; 	8'd107: get_zz4_idx = 8'd106; 	8'd108: get_zz4_idx = 8'd109; 	8'd109: get_zz4_idx = 8'd124; 	8'd110: get_zz4_idx = 8'd125; 	8'd111: get_zz4_idx = 8'd110; 
+            8'd112: get_zz4_idx = 8'd83; 	8'd113: get_zz4_idx = 8'd99; 	8'd114: get_zz4_idx = 8'd114; 	8'd115: get_zz4_idx = 8'd115; 	8'd116: get_zz4_idx = 8'd87; 	8'd117: get_zz4_idx = 8'd103; 	8'd118: get_zz4_idx = 8'd118; 	8'd119: get_zz4_idx = 8'd119; 	8'd120: get_zz4_idx = 8'd91; 	8'd121: get_zz4_idx = 8'd107; 	8'd122: get_zz4_idx = 8'd122; 	8'd123: get_zz4_idx = 8'd123; 	8'd124: get_zz4_idx = 8'd95; 	8'd125: get_zz4_idx = 8'd111; 	8'd126: get_zz4_idx = 8'd126; 	8'd127: get_zz4_idx = 8'd127; 
+            8'd128: get_zz4_idx = 8'd128; 	8'd129: get_zz4_idx = 8'd129; 	8'd130: get_zz4_idx = 8'd144; 	8'd131: get_zz4_idx = 8'd160; 	8'd132: get_zz4_idx = 8'd132; 	8'd133: get_zz4_idx = 8'd133; 	8'd134: get_zz4_idx = 8'd148; 	8'd135: get_zz4_idx = 8'd164; 	8'd136: get_zz4_idx = 8'd136; 	8'd137: get_zz4_idx = 8'd137; 	8'd138: get_zz4_idx = 8'd152; 	8'd139: get_zz4_idx = 8'd168; 	8'd140: get_zz4_idx = 8'd140; 	8'd141: get_zz4_idx = 8'd141; 	8'd142: get_zz4_idx = 8'd156; 	8'd143: get_zz4_idx = 8'd172; 
+            8'd144: get_zz4_idx = 8'd145; 	8'd145: get_zz4_idx = 8'd130; 	8'd146: get_zz4_idx = 8'd131; 	8'd147: get_zz4_idx = 8'd146; 	8'd148: get_zz4_idx = 8'd149; 	8'd149: get_zz4_idx = 8'd134; 	8'd150: get_zz4_idx = 8'd135; 	8'd151: get_zz4_idx = 8'd150; 	8'd152: get_zz4_idx = 8'd153; 	8'd153: get_zz4_idx = 8'd138; 	8'd154: get_zz4_idx = 8'd139; 	8'd155: get_zz4_idx = 8'd154; 	8'd156: get_zz4_idx = 8'd157; 	8'd157: get_zz4_idx = 8'd142; 	8'd158: get_zz4_idx = 8'd143; 	8'd159: get_zz4_idx = 8'd158; 
+            8'd160: get_zz4_idx = 8'd161; 	8'd161: get_zz4_idx = 8'd176; 	8'd162: get_zz4_idx = 8'd177; 	8'd163: get_zz4_idx = 8'd162; 	8'd164: get_zz4_idx = 8'd165; 	8'd165: get_zz4_idx = 8'd180; 	8'd166: get_zz4_idx = 8'd181; 	8'd167: get_zz4_idx = 8'd166; 	8'd168: get_zz4_idx = 8'd169; 	8'd169: get_zz4_idx = 8'd184; 	8'd170: get_zz4_idx = 8'd185; 	8'd171: get_zz4_idx = 8'd170; 	8'd172: get_zz4_idx = 8'd173; 	8'd173: get_zz4_idx = 8'd188; 	8'd174: get_zz4_idx = 8'd189; 	8'd175: get_zz4_idx = 8'd174; 
+            8'd176: get_zz4_idx = 8'd147; 	8'd177: get_zz4_idx = 8'd163; 	8'd178: get_zz4_idx = 8'd178; 	8'd179: get_zz4_idx = 8'd179; 	8'd180: get_zz4_idx = 8'd151; 	8'd181: get_zz4_idx = 8'd167; 	8'd182: get_zz4_idx = 8'd182; 	8'd183: get_zz4_idx = 8'd183; 	8'd184: get_zz4_idx = 8'd155; 	8'd185: get_zz4_idx = 8'd171; 	8'd186: get_zz4_idx = 8'd186; 	8'd187: get_zz4_idx = 8'd187; 	8'd188: get_zz4_idx = 8'd159; 	8'd189: get_zz4_idx = 8'd175; 	8'd190: get_zz4_idx = 8'd190; 	8'd191: get_zz4_idx = 8'd191; 
+            8'd192: get_zz4_idx = 8'd192; 	8'd193: get_zz4_idx = 8'd193; 	8'd194: get_zz4_idx = 8'd208; 	8'd195: get_zz4_idx = 8'd224; 	8'd196: get_zz4_idx = 8'd196; 	8'd197: get_zz4_idx = 8'd197; 	8'd198: get_zz4_idx = 8'd212; 	8'd199: get_zz4_idx = 8'd228; 	8'd200: get_zz4_idx = 8'd200; 	8'd201: get_zz4_idx = 8'd201; 	8'd202: get_zz4_idx = 8'd216; 	8'd203: get_zz4_idx = 8'd232; 	8'd204: get_zz4_idx = 8'd204; 	8'd205: get_zz4_idx = 8'd205; 	8'd206: get_zz4_idx = 8'd220; 	8'd207: get_zz4_idx = 8'd236; 
+            8'd208: get_zz4_idx = 8'd209; 	8'd209: get_zz4_idx = 8'd194; 	8'd210: get_zz4_idx = 8'd195; 	8'd211: get_zz4_idx = 8'd210; 	8'd212: get_zz4_idx = 8'd213; 	8'd213: get_zz4_idx = 8'd198; 	8'd214: get_zz4_idx = 8'd199; 	8'd215: get_zz4_idx = 8'd214; 	8'd216: get_zz4_idx = 8'd217; 	8'd217: get_zz4_idx = 8'd202; 	8'd218: get_zz4_idx = 8'd203; 	8'd219: get_zz4_idx = 8'd218; 	8'd220: get_zz4_idx = 8'd221; 	8'd221: get_zz4_idx = 8'd206; 	8'd222: get_zz4_idx = 8'd207; 	8'd223: get_zz4_idx = 8'd222; 
+            8'd224: get_zz4_idx = 8'd225; 	8'd225: get_zz4_idx = 8'd240; 	8'd226: get_zz4_idx = 8'd241; 	8'd227: get_zz4_idx = 8'd226; 	8'd228: get_zz4_idx = 8'd229; 	8'd229: get_zz4_idx = 8'd244; 	8'd230: get_zz4_idx = 8'd245; 	8'd231: get_zz4_idx = 8'd230; 	8'd232: get_zz4_idx = 8'd233; 	8'd233: get_zz4_idx = 8'd248; 	8'd234: get_zz4_idx = 8'd249; 	8'd235: get_zz4_idx = 8'd234; 	8'd236: get_zz4_idx = 8'd237; 	8'd237: get_zz4_idx = 8'd252; 	8'd238: get_zz4_idx = 8'd253; 	8'd239: get_zz4_idx = 8'd238; 
+            8'd240: get_zz4_idx = 8'd211; 	8'd241: get_zz4_idx = 8'd227; 	8'd242: get_zz4_idx = 8'd242; 	8'd243: get_zz4_idx = 8'd243; 	8'd244: get_zz4_idx = 8'd215; 	8'd245: get_zz4_idx = 8'd231; 	8'd246: get_zz4_idx = 8'd246; 	8'd247: get_zz4_idx = 8'd247; 	8'd248: get_zz4_idx = 8'd219; 	8'd249: get_zz4_idx = 8'd235; 	8'd250: get_zz4_idx = 8'd250; 	8'd251: get_zz4_idx = 8'd251; 	8'd252: get_zz4_idx = 8'd223; 	8'd253: get_zz4_idx = 8'd239; 	8'd254: get_zz4_idx = 8'd254; 	8'd255: get_zz4_idx = 8'd255; 
+            default: get_zz4_idx = 8'd0;    // no used
+        endcase
+    end
+endfunction
+
+function [7:0] get_zz8_idx;
+    input [7:0] out_idx;
+    begin
+        case(out_idx)
+            8'd0: get_zz8_idx = 8'd0; 	8'd1: get_zz8_idx = 8'd1; 	8'd2: get_zz8_idx = 8'd16; 	8'd3: get_zz8_idx = 8'd32; 	8'd4: get_zz8_idx = 8'd17; 	8'd5: get_zz8_idx = 8'd2; 	8'd6: get_zz8_idx = 8'd3; 	8'd7: get_zz8_idx = 8'd18; 	8'd8: get_zz8_idx = 8'd8; 	8'd9: get_zz8_idx = 8'd9; 	8'd10: get_zz8_idx = 8'd24; 	8'd11: get_zz8_idx = 8'd40; 	8'd12: get_zz8_idx = 8'd25; 	8'd13: get_zz8_idx = 8'd10; 	8'd14: get_zz8_idx = 8'd11; 	8'd15: get_zz8_idx = 8'd26; 
+            8'd16: get_zz8_idx = 8'd33; 	8'd17: get_zz8_idx = 8'd48; 	8'd18: get_zz8_idx = 8'd64; 	8'd19: get_zz8_idx = 8'd49; 	8'd20: get_zz8_idx = 8'd34; 	8'd21: get_zz8_idx = 8'd19; 	8'd22: get_zz8_idx = 8'd4; 	8'd23: get_zz8_idx = 8'd5; 	8'd24: get_zz8_idx = 8'd41; 	8'd25: get_zz8_idx = 8'd56; 	8'd26: get_zz8_idx = 8'd72; 	8'd27: get_zz8_idx = 8'd57; 	8'd28: get_zz8_idx = 8'd42; 	8'd29: get_zz8_idx = 8'd27; 	8'd30: get_zz8_idx = 8'd12; 	8'd31: get_zz8_idx = 8'd13; 
+            8'd32: get_zz8_idx = 8'd20; 	8'd33: get_zz8_idx = 8'd35; 	8'd34: get_zz8_idx = 8'd50; 	8'd35: get_zz8_idx = 8'd65; 	8'd36: get_zz8_idx = 8'd80; 	8'd37: get_zz8_idx = 8'd96; 	8'd38: get_zz8_idx = 8'd81; 	8'd39: get_zz8_idx = 8'd66; 	8'd40: get_zz8_idx = 8'd28; 	8'd41: get_zz8_idx = 8'd43; 	8'd42: get_zz8_idx = 8'd58; 	8'd43: get_zz8_idx = 8'd73; 	8'd44: get_zz8_idx = 8'd88; 	8'd45: get_zz8_idx = 8'd104; 	8'd46: get_zz8_idx = 8'd89; 	8'd47: get_zz8_idx = 8'd74; 
+            8'd48: get_zz8_idx = 8'd51; 	8'd49: get_zz8_idx = 8'd36; 	8'd50: get_zz8_idx = 8'd21; 	8'd51: get_zz8_idx = 8'd6; 	8'd52: get_zz8_idx = 8'd7; 	8'd53: get_zz8_idx = 8'd22; 	8'd54: get_zz8_idx = 8'd37; 	8'd55: get_zz8_idx = 8'd52; 	8'd56: get_zz8_idx = 8'd59; 	8'd57: get_zz8_idx = 8'd44; 	8'd58: get_zz8_idx = 8'd29; 	8'd59: get_zz8_idx = 8'd14; 	8'd60: get_zz8_idx = 8'd15; 	8'd61: get_zz8_idx = 8'd30; 	8'd62: get_zz8_idx = 8'd45; 	8'd63: get_zz8_idx = 8'd60; 
+            8'd64: get_zz8_idx = 8'd67; 	8'd65: get_zz8_idx = 8'd82; 	8'd66: get_zz8_idx = 8'd97; 	8'd67: get_zz8_idx = 8'd112; 	8'd68: get_zz8_idx = 8'd113; 	8'd69: get_zz8_idx = 8'd98; 	8'd70: get_zz8_idx = 8'd83; 	8'd71: get_zz8_idx = 8'd68; 	8'd72: get_zz8_idx = 8'd75; 	8'd73: get_zz8_idx = 8'd90; 	8'd74: get_zz8_idx = 8'd105; 	8'd75: get_zz8_idx = 8'd120; 	8'd76: get_zz8_idx = 8'd121; 	8'd77: get_zz8_idx = 8'd106; 	8'd78: get_zz8_idx = 8'd91; 	8'd79: get_zz8_idx = 8'd76; 
+            8'd80: get_zz8_idx = 8'd53; 	8'd81: get_zz8_idx = 8'd38; 	8'd82: get_zz8_idx = 8'd23; 	8'd83: get_zz8_idx = 8'd39; 	8'd84: get_zz8_idx = 8'd54; 	8'd85: get_zz8_idx = 8'd69; 	8'd86: get_zz8_idx = 8'd84; 	8'd87: get_zz8_idx = 8'd99; 	8'd88: get_zz8_idx = 8'd61; 	8'd89: get_zz8_idx = 8'd46; 	8'd90: get_zz8_idx = 8'd31; 	8'd91: get_zz8_idx = 8'd47; 	8'd92: get_zz8_idx = 8'd62; 	8'd93: get_zz8_idx = 8'd77; 	8'd94: get_zz8_idx = 8'd92; 	8'd95: get_zz8_idx = 8'd107; 
+            8'd96: get_zz8_idx = 8'd114; 	8'd97: get_zz8_idx = 8'd115; 	8'd98: get_zz8_idx = 8'd100; 	8'd99: get_zz8_idx = 8'd85; 	8'd100: get_zz8_idx = 8'd70; 	8'd101: get_zz8_idx = 8'd55; 	8'd102: get_zz8_idx = 8'd71; 	8'd103: get_zz8_idx = 8'd86; 	8'd104: get_zz8_idx = 8'd122; 	8'd105: get_zz8_idx = 8'd123; 	8'd106: get_zz8_idx = 8'd108; 	8'd107: get_zz8_idx = 8'd93; 	8'd108: get_zz8_idx = 8'd78; 	8'd109: get_zz8_idx = 8'd63; 	8'd110: get_zz8_idx = 8'd79; 	8'd111: get_zz8_idx = 8'd94; 
+            8'd112: get_zz8_idx = 8'd101; 	8'd113: get_zz8_idx = 8'd116; 	8'd114: get_zz8_idx = 8'd117; 	8'd115: get_zz8_idx = 8'd102; 	8'd116: get_zz8_idx = 8'd87; 	8'd117: get_zz8_idx = 8'd103; 	8'd118: get_zz8_idx = 8'd118; 	8'd119: get_zz8_idx = 8'd119; 	8'd120: get_zz8_idx = 8'd109; 	8'd121: get_zz8_idx = 8'd124; 	8'd122: get_zz8_idx = 8'd125; 	8'd123: get_zz8_idx = 8'd110; 	8'd124: get_zz8_idx = 8'd95; 	8'd125: get_zz8_idx = 8'd111; 	8'd126: get_zz8_idx = 8'd126; 	8'd127: get_zz8_idx = 8'd127; 
+            8'd128: get_zz8_idx = 8'd128; 	8'd129: get_zz8_idx = 8'd129; 	8'd130: get_zz8_idx = 8'd144; 	8'd131: get_zz8_idx = 8'd160; 	8'd132: get_zz8_idx = 8'd145; 	8'd133: get_zz8_idx = 8'd130; 	8'd134: get_zz8_idx = 8'd131; 	8'd135: get_zz8_idx = 8'd146; 	8'd136: get_zz8_idx = 8'd136; 	8'd137: get_zz8_idx = 8'd137; 	8'd138: get_zz8_idx = 8'd152; 	8'd139: get_zz8_idx = 8'd168; 	8'd140: get_zz8_idx = 8'd153; 	8'd141: get_zz8_idx = 8'd138; 	8'd142: get_zz8_idx = 8'd139; 	8'd143: get_zz8_idx = 8'd154; 
+            8'd144: get_zz8_idx = 8'd161; 	8'd145: get_zz8_idx = 8'd176; 	8'd146: get_zz8_idx = 8'd192; 	8'd147: get_zz8_idx = 8'd177; 	8'd148: get_zz8_idx = 8'd162; 	8'd149: get_zz8_idx = 8'd147; 	8'd150: get_zz8_idx = 8'd132; 	8'd151: get_zz8_idx = 8'd133; 	8'd152: get_zz8_idx = 8'd169; 	8'd153: get_zz8_idx = 8'd184; 	8'd154: get_zz8_idx = 8'd200; 	8'd155: get_zz8_idx = 8'd185; 	8'd156: get_zz8_idx = 8'd170; 	8'd157: get_zz8_idx = 8'd155; 	8'd158: get_zz8_idx = 8'd140; 	8'd159: get_zz8_idx = 8'd141; 
+            8'd160: get_zz8_idx = 8'd148; 	8'd161: get_zz8_idx = 8'd163; 	8'd162: get_zz8_idx = 8'd178; 	8'd163: get_zz8_idx = 8'd193; 	8'd164: get_zz8_idx = 8'd208; 	8'd165: get_zz8_idx = 8'd224; 	8'd166: get_zz8_idx = 8'd209; 	8'd167: get_zz8_idx = 8'd194; 	8'd168: get_zz8_idx = 8'd156; 	8'd169: get_zz8_idx = 8'd171; 	8'd170: get_zz8_idx = 8'd186; 	8'd171: get_zz8_idx = 8'd201; 	8'd172: get_zz8_idx = 8'd216; 	8'd173: get_zz8_idx = 8'd232; 	8'd174: get_zz8_idx = 8'd217; 	8'd175: get_zz8_idx = 8'd202; 
+            8'd176: get_zz8_idx = 8'd179; 	8'd177: get_zz8_idx = 8'd164; 	8'd178: get_zz8_idx = 8'd149; 	8'd179: get_zz8_idx = 8'd134; 	8'd180: get_zz8_idx = 8'd135; 	8'd181: get_zz8_idx = 8'd150; 	8'd182: get_zz8_idx = 8'd165; 	8'd183: get_zz8_idx = 8'd180; 	8'd184: get_zz8_idx = 8'd187; 	8'd185: get_zz8_idx = 8'd172; 	8'd186: get_zz8_idx = 8'd157; 	8'd187: get_zz8_idx = 8'd142; 	8'd188: get_zz8_idx = 8'd143; 	8'd189: get_zz8_idx = 8'd158; 	8'd190: get_zz8_idx = 8'd173; 	8'd191: get_zz8_idx = 8'd188; 
+            8'd192: get_zz8_idx = 8'd195; 	8'd193: get_zz8_idx = 8'd210; 	8'd194: get_zz8_idx = 8'd225; 	8'd195: get_zz8_idx = 8'd240; 	8'd196: get_zz8_idx = 8'd241; 	8'd197: get_zz8_idx = 8'd226; 	8'd198: get_zz8_idx = 8'd211; 	8'd199: get_zz8_idx = 8'd196; 	8'd200: get_zz8_idx = 8'd203; 	8'd201: get_zz8_idx = 8'd218; 	8'd202: get_zz8_idx = 8'd233; 	8'd203: get_zz8_idx = 8'd248; 	8'd204: get_zz8_idx = 8'd249; 	8'd205: get_zz8_idx = 8'd234; 	8'd206: get_zz8_idx = 8'd219; 	8'd207: get_zz8_idx = 8'd204; 
+            8'd208: get_zz8_idx = 8'd181; 	8'd209: get_zz8_idx = 8'd166; 	8'd210: get_zz8_idx = 8'd151; 	8'd211: get_zz8_idx = 8'd167; 	8'd212: get_zz8_idx = 8'd182; 	8'd213: get_zz8_idx = 8'd197; 	8'd214: get_zz8_idx = 8'd212; 	8'd215: get_zz8_idx = 8'd227; 	8'd216: get_zz8_idx = 8'd189; 	8'd217: get_zz8_idx = 8'd174; 	8'd218: get_zz8_idx = 8'd159; 	8'd219: get_zz8_idx = 8'd175; 	8'd220: get_zz8_idx = 8'd190; 	8'd221: get_zz8_idx = 8'd205; 	8'd222: get_zz8_idx = 8'd220; 	8'd223: get_zz8_idx = 8'd235; 
+            8'd224: get_zz8_idx = 8'd242; 	8'd225: get_zz8_idx = 8'd243; 	8'd226: get_zz8_idx = 8'd228; 	8'd227: get_zz8_idx = 8'd213; 	8'd228: get_zz8_idx = 8'd198; 	8'd229: get_zz8_idx = 8'd183; 	8'd230: get_zz8_idx = 8'd199; 	8'd231: get_zz8_idx = 8'd214; 	8'd232: get_zz8_idx = 8'd250; 	8'd233: get_zz8_idx = 8'd251; 	8'd234: get_zz8_idx = 8'd236; 	8'd235: get_zz8_idx = 8'd221; 	8'd236: get_zz8_idx = 8'd206; 	8'd237: get_zz8_idx = 8'd191; 	8'd238: get_zz8_idx = 8'd207; 	8'd239: get_zz8_idx = 8'd222; 
+            8'd240: get_zz8_idx = 8'd229; 	8'd241: get_zz8_idx = 8'd244; 	8'd242: get_zz8_idx = 8'd245; 	8'd243: get_zz8_idx = 8'd230; 	8'd244: get_zz8_idx = 8'd215; 	8'd245: get_zz8_idx = 8'd231; 	8'd246: get_zz8_idx = 8'd246; 	8'd247: get_zz8_idx = 8'd247; 	8'd248: get_zz8_idx = 8'd237; 	8'd249: get_zz8_idx = 8'd252; 	8'd250: get_zz8_idx = 8'd253; 	8'd251: get_zz8_idx = 8'd238; 	8'd252: get_zz8_idx = 8'd223; 	8'd253: get_zz8_idx = 8'd239; 	8'd254: get_zz8_idx = 8'd254; 	8'd255: get_zz8_idx = 8'd255; 
+            default: get_zz8_idx = 8'd0;    // no used
+        endcase
+    end
+endfunction
+
+// x = i%16
+// y = i/16
+// matrix(a, b) = buffer[(a)+(b)*16]
+
+wire [3:0] out_cnt_0_x = out_cnt[3:0];
+wire [3:0] out_cnt_0_y = out_cnt[7:4];
+
+wire [3:0] out_cnt_1_x = out_cnt_1[3:0];
+wire [3:0] out_cnt_1_y = out_cnt_1[7:4];
+
+wire [3:0] out_cnt_2_x = out_cnt_2[3:0];
+wire [3:0] out_cnt_2_y = out_cnt_2[7:4];
+
+wire [3:0] out_cnt_3_x = out_cnt_3[3:0];
+wire [3:0] out_cnt_3_y = out_cnt_3[7:4];
+
+// reg [7:0] src_idx [0:3];
+always @(*) begin
+    integer i;
+    for (i = 0; i < 4; i = i + 1) src_idx[i] = 8'd0;
+    // {  row  ,   col  }
+    // {4'byyyy, 4'bxxxx}
+    case (op_func)
+        MX: begin       // {15-y, x}
+            src_idx[0] = {~out_cnt_0_y, out_cnt_0_x};
+            src_idx[1] = {~out_cnt_1_y, out_cnt_1_x};
+            src_idx[2] = {~out_cnt_2_y, out_cnt_2_x};
+            src_idx[3] = {~out_cnt_3_y, out_cnt_3_x};
+        end
+        MY: begin       // {y, 15-x}
+            src_idx[0] = {out_cnt_0_y, ~out_cnt_0_x};
+            src_idx[1] = {out_cnt_1_y, ~out_cnt_1_x};
+            src_idx[2] = {out_cnt_2_y, ~out_cnt_2_x};
+            src_idx[3] = {out_cnt_3_y, ~out_cnt_3_x};
+        end
+        TRP: begin      // {x, y}
+            src_idx[0] = {out_cnt_0_x, out_cnt_0_y};
+            src_idx[1] = {out_cnt_1_x, out_cnt_1_y};
+            src_idx[2] = {out_cnt_2_x, out_cnt_2_y};
+            src_idx[3] = {out_cnt_3_x, out_cnt_3_y};
+        end
+        STRP: begin     // {15-x, 15-y}
+            src_idx[0] = {~out_cnt_0_x, ~out_cnt_0_y};
+            src_idx[1] = {~out_cnt_1_x, ~out_cnt_1_y};
+            src_idx[2] = {~out_cnt_2_x, ~out_cnt_2_y};
+            src_idx[3] = {~out_cnt_3_x, ~out_cnt_3_y};
+        end
+        R90: begin      // {15-x, y}
+            src_idx[0] = {~out_cnt_0_x, out_cnt_0_y};
+            src_idx[1] = {~out_cnt_1_x, out_cnt_1_y};
+            src_idx[2] = {~out_cnt_2_x, out_cnt_2_y};
+            src_idx[3] = {~out_cnt_3_x, out_cnt_3_y};
+        end
+        R180: begin     // 255-cnt
+            src_idx[0] = ~out_cnt;
+            src_idx[1] = ~out_cnt_1;
+            src_idx[2] = ~out_cnt_2;
+            src_idx[3] = ~out_cnt_3;
+        end
+        R270: begin     // {x, 15-y}
+            src_idx[0] = {out_cnt_0_x, ~out_cnt_0_y};
+            src_idx[0] = {out_cnt_0_x, ~out_cnt_0_y};
+            src_idx[0] = {out_cnt_0_x, ~out_cnt_0_y};
+            src_idx[0] = {out_cnt_0_x, ~out_cnt_0_y};
+        end
+        RS: begin
+            src_idx[0] = (out_cnt_0_x < 4'd5) ? {out_cnt_0_y, (4'd4 - out_cnt_0_x)} : {out_cnt_0_y, (out_cnt_0_x - 4'd5)};
+            src_idx[1] = (out_cnt_1_x < 4'd5) ? {out_cnt_1_y, (4'd4 - out_cnt_1_x)} : {out_cnt_1_y, (out_cnt_1_x - 4'd5)};
+            src_idx[2] = (out_cnt_2_x < 4'd5) ? {out_cnt_2_y, (4'd4 - out_cnt_2_x)} : {out_cnt_2_y, (out_cnt_2_x - 4'd5)};
+            src_idx[3] = (out_cnt_3_x < 4'd5) ? {out_cnt_3_y, (4'd4 - out_cnt_3_x)} : {out_cnt_3_y, (out_cnt_3_x - 4'd5)};
+        end
+        LS: begin
+            src_idx[0] = (out_cnt_0_x > 4'd10) ? {out_cnt_0_y, (4'd26 - out_cnt_0_x)} : {out_cnt_0_y, (out_cnt_0_x + 4'd5)};
+            src_idx[1] = (out_cnt_1_x > 4'd10) ? {out_cnt_1_y, (4'd26 - out_cnt_1_x)} : {out_cnt_1_y, (out_cnt_1_x + 4'd5)};
+            src_idx[2] = (out_cnt_2_x > 4'd10) ? {out_cnt_2_y, (4'd26 - out_cnt_2_x)} : {out_cnt_2_y, (out_cnt_2_x + 4'd5)};
+            src_idx[3] = (out_cnt_3_x > 4'd10) ? {out_cnt_3_y, (4'd26 - out_cnt_3_x)} : {out_cnt_3_y, (out_cnt_3_x + 4'd5)};
+        end
+        US: begin
+            src_idx[0] = (out_cnt_0_y > 4'd10) ? {(4'd26 - out_cnt_0_y), out_cnt_0_x} : {(out_cnt_0_y + 4'd5), out_cnt_0_x};
+            src_idx[1] = (out_cnt_1_y > 4'd10) ? {(4'd26 - out_cnt_1_y), out_cnt_1_x} : {(out_cnt_1_y + 4'd5), out_cnt_1_x};
+            src_idx[2] = (out_cnt_2_y > 4'd10) ? {(4'd26 - out_cnt_2_y), out_cnt_2_x} : {(out_cnt_2_y + 4'd5), out_cnt_2_x};
+            src_idx[3] = (out_cnt_3_y > 4'd10) ? {(4'd26 - out_cnt_3_y), out_cnt_3_x} : {(out_cnt_3_y + 4'd5), out_cnt_3_x};
+        end
+        DS: begin
+            src_idx[0] = (out_cnt_0_y < 4'd5) ? {(4'd4 - out_cnt_0_y), out_cnt_0_x} : {(out_cnt_0_y - 4'd5), out_cnt_0_x};
+            src_idx[1] = (out_cnt_1_y < 4'd5) ? {(4'd4 - out_cnt_1_y), out_cnt_1_x} : {(out_cnt_1_y - 4'd5), out_cnt_1_x};
+            src_idx[2] = (out_cnt_2_y < 4'd5) ? {(4'd4 - out_cnt_2_y), out_cnt_2_x} : {(out_cnt_2_y - 4'd5), out_cnt_2_x};
+            src_idx[3] = (out_cnt_3_y < 4'd5) ? {(4'd4 - out_cnt_3_y), out_cnt_3_x} : {(out_cnt_3_y - 4'd5), out_cnt_3_x};
+        end
+        ZZ4: begin
+            rc_idx[0] = get_zz4_idx(out_cnt);
+            rc_idx[1] = get_zz4_idx(out_cnt_1);
+            rc_idx[2] = get_zz4_idx(out_cnt_2);
+            rc_idx[3] = get_zz4_idx(out_cnt_3);
+        end
+        ZZ8: begin
+            rc_idx[0] = get_zz8_idx(out_cnt);
+            rc_idx[1] = get_zz8_idx(out_cnt_1);
+            rc_idx[2] = get_zz8_idx(out_cnt_2);
+            rc_idx[3] = get_zz8_idx(out_cnt_3);
+        end
+        MO4: begin
+            src_idx[0] = {  out_cnt[7:6],   out_cnt[5],   out_cnt[1],   out_cnt[3],   out_cnt[2],   out_cnt[4],   out_cnt[0]};
+            src_idx[1] = {out_cnt_1[7:6], out_cnt_1[5], out_cnt_1[1], out_cnt_1[3], out_cnt_1[2], out_cnt_1[4], out_cnt_1[0]};
+            src_idx[2] = {out_cnt_2[7:6], out_cnt_2[5], out_cnt_2[1], out_cnt_2[3], out_cnt_2[2], out_cnt_2[4], out_cnt_2[0]};
+            src_idx[3] = {out_cnt_3[7:6], out_cnt_3[5], out_cnt_3[1], out_cnt_3[3], out_cnt_3[2], out_cnt_3[4], out_cnt_3[0]};
+        end
+        MO8: begin
+            src_idx[0] = {  out_cnt[7],   out_cnt[5],   out_cnt[3],   out_cnt[1],   out_cnt[6],   out_cnt[4],   out_cnt[2],   out_cnt[0]};
+            src_idx[1] = {out_cnt_1[7], out_cnt_1[5], out_cnt_1[3], out_cnt_1[1], out_cnt_1[6], out_cnt_1[4], out_cnt_1[2], out_cnt_1[0]};
+            src_idx[2] = {out_cnt_2[7], out_cnt_2[5], out_cnt_2[3], out_cnt_2[1], out_cnt_2[6], out_cnt_2[4], out_cnt_2[2], out_cnt_2[0]};
+            src_idx[3] = {out_cnt_3[7], out_cnt_3[5], out_cnt_3[3], out_cnt_3[1], out_cnt_3[6], out_cnt_3[4], out_cnt_3[2], out_cnt_3[0]};
+        end
+    endcase
+end
+
+// reg [7:0] result_pixel [0:3];
+always @(posedge clk) begin
+    result_pixel[0] <= img_buffer[src_idx[0]];
+    result_pixel[1] <= img_buffer[src_idx[1]];
+    result_pixel[2] <= img_buffer[src_idx[2]];
+    result_pixel[3] <= img_buffer[src_idx[3]];
+end
+
+// -----------------------------------------------------
+// MEM input
+// -----------------------------------------------------
+
+// reg        mem0_web, mem1_web, mem2_web, mem3_web;
+// reg        mem4_web, mem5_web;
+// reg        mem6_web, mem7_web;
+always @(*) begin
+    mem0_web = MEM_READ;
+    mem1_web = MEM_READ;
+    mem2_web = MEM_READ;
+    mem3_web = MEM_READ;
+    mem4_web = MEM_READ;
+    mem5_web = MEM_READ;
+    mem6_web = MEM_READ;
+    mem7_web = MEM_READ;
+    if (current_state == S_INIT_SRAM || current_state == S_CAL_WRITE) begin
+        case (mem_num)
+            0: mem0_web = MEM_WRITE;
+            1: mem1_web = MEM_WRITE;
+            2: mem2_web = MEM_WRITE;
+            3: mem3_web = MEM_WRITE;
+            4: mem4_web = MEM_WRITE;
+            5: mem5_web = MEM_WRITE;
+            6: mem6_web = MEM_WRITE;
+            7: mem7_web = MEM_WRITE;
+        endcase
+    end
+end
+
+// reg [2:0] mem_num;
+always @(*) begin
+    case (current_state)
+        S_INIT_SRAM: mem_num = init_mem_num;
+        // S_READ:      mem_num = r_mem_num;    all mem is MEM_READ already
+        S_CAL_WRITE: mem_num = w_mem_num;
+        default:     mem_num = 3'd0;
+    endcase
+end
+
+// reg [3:0] mem_idx;
+always @(*) begin
+    case (current_state)
+        S_INIT_SRAM: mem_idx = init_mem_idx;
+        S_READ:      mem_idx = r_mem_idx;
+        S_CAL_WRITE: mem_idx = w_mem_idx;
+        default:     mem_idx = 4'd0;
+    endcase
+end
+
+// reg [7:0] mem_offset;
+always @(*) begin
+    case (current_state)
+        S_INIT_SRAM: mem_offset = init_mem_offset;
+        S_READ:      mem_offset = read_cnt;
+        S_CAL_WRITE: mem_offset = out_cnt;
+        default:     mem_offset = 8'd0;
+    endcase
+end
+
+// reg [31:0] mem_in_data;
+always @(*) begin
+    case (current_state)
+        S_INIT_SRAM: mem_in_data = {in_data_reg[0], in_data_reg[1], in_data_reg[2], in_data_reg[3]};
+        // S_READ:      mem_in_data = 
+        S_CAL_WRITE: mem_in_data = {result_pixel[0], result_pixel[1], result_pixel[2], result_pixel[3]};
+        default:     mem_in_data = 32'd0;
+    endcase
+end
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /* 
@@ -81,37 +565,41 @@ wire [31:0] mem6_dout, mem7_dout;
 */
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // SRAM-related signals assignments
-assign mem0_addr = 
-assign mem0_web  = 
-assign mem0_din  = 
-
-assign mem1_addr = 
-assign mem1_web  = 
-assign mem1_din  = 
-
-assign mem2_addr = 
-assign mem2_web  = 
-assign mem2_din  = 
-
-assign mem3_addr = 
-assign mem3_web  = 
-assign mem3_din  = 
-
-assign mem4_addr = 
-assign mem4_web  = 
-assign mem4_din  = 
-
-assign mem5_addr = 
-assign mem5_web  = 
-assign mem5_din  = 
-
-assign mem6_addr = 
-assign mem6_web  = 
-assign mem6_din  = 
-
-assign mem7_addr = 
-assign mem7_web  = 
-assign mem7_din  = 
+///////////////////////////////
+// 0~15
+assign mem0_addr = {mem_idx, mem_offset}; // 12 = 4 + 8
+// assign mem0_web  = 
+assign mem0_din  = mem_in_data[31:24];
+// 16~31
+assign mem1_addr = {mem_idx, mem_offset}; // 12 = 4 + 8
+// assign mem1_web  = 
+assign mem1_din  = mem_in_data[31:24];
+// 32~47
+assign mem2_addr = {mem_idx, mem_offset}; // 12 = 4 + 8
+// assign mem2_web  = 
+assign mem2_din  = mem_in_data[31:24];
+// 48~63
+assign mem3_addr = {mem_idx, mem_offset}; // 12 = 4 + 8
+// assign mem3_web  = 
+assign mem3_din  = mem_in_data[31:24];
+///////////////////////////////
+// 64~79
+assign mem4_addr = {mem_idx, mem_offset[7:1]};    // 11 = 4 + 7
+// assign mem4_web  = 
+assign mem4_din  = mem_in_data[31:16];
+// 80~95
+assign mem5_addr = {mem_idx, mem_offset[7:1]};    // 11 = 4 + 7
+// assign mem5_web  = 
+assign mem5_din  = mem_in_data[31:16];
+///////////////////////////////
+// 96~111
+assign mem6_addr = {mem_idx, mem_offset[7:2]};    // 10 = 4 + 6
+// assign mem6_web  = 
+assign mem6_din  = mem_in_data;
+// 112~127
+assign mem7_addr = {mem_idx, mem_offset[7:2]};    // 10 = 4 + 6
+// assign mem7_web  = 
+assign mem7_din  = mem_in_data;
 
 // MEM_0, MEM_1, MEM_2, MEM_3, MEM_4, MEM_5, MEM_6, MEM_7 instantiation
 SUMA180_4096X8X1BM4 MEM0(
