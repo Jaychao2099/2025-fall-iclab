@@ -537,8 +537,6 @@ end
 // MEM input
 // -----------------------------------------------------
 
-// wire [1:0] current_cnt = (current_state == S_INIT_SRAM) ? init_cnt_d1[1:0] : out_cnt_d1[1:0];  // _d1 ???????
-
 // reg        mem0_web, mem1_web, mem2_web, mem3_web;
 // reg        mem4_web, mem5_web;
 // reg        mem6_web, mem7_web;
@@ -557,10 +555,10 @@ always @(*) begin
             1: mem1_web = MEM_WRITE;
             2: mem2_web = MEM_WRITE;
             3: mem3_web = MEM_WRITE;
-            4: /*if (current_cnt[0])*/ mem4_web = MEM_WRITE;
-            5: /*if (current_cnt[0])*/ mem5_web = MEM_WRITE;
-            6: /*if (current_cnt[1] & current_cnt[0])*/ mem6_web = MEM_WRITE;
-            7: /*if (current_cnt[1] & current_cnt[0])*/ mem7_web = MEM_WRITE;
+            4: mem4_web = MEM_WRITE;
+            5: mem5_web = MEM_WRITE;
+            6: mem6_web = MEM_WRITE;
+            7: mem7_web = MEM_WRITE;
         endcase
     end
 end
@@ -601,7 +599,6 @@ always @(*) begin
         S_INIT_SRAM: mem_in_data = {in_data_reg[0], in_data_reg[1], in_data_reg[2], in_data_reg[3]};
         // S_READ:      mem_in_data = 
         S_CAL_WRITE: mem_in_data = {result_pixel[0], result_pixel[1], result_pixel[2], result_pixel[3]};
-        // S_CAL_WRITE: mem_in_data = {result_pixel[3], result_pixel[2], result_pixel[1], result_pixel[0]};        // test pattern
         default:     mem_in_data = 32'd0;
     endcase
 end
