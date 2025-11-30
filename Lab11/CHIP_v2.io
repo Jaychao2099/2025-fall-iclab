@@ -24,149 +24,138 @@
 
 (iopad
     (top
-        # Total: 23 Pads (11 Signals, 12 Power)
-        # Power Group 1
+        # Total: ~24 Pads
+        # -------------------------------------------------------------
+        # CRITICAL REGION: CLOCK & BUSY, slove BUSY Time Slack, hope so...
+        # -------------------------------------------------------------
         (inst  name="VDDP0"           place_status=placed)
         (inst  name="GNDP0"           place_status=placed)
+        (inst  name="I_CLK"           place_status=placed)
+        (inst  name="I_RST"           place_status=placed)
+        
+        (inst  name="I_BUSY"          place_status=placed)
+        
         (inst  name="VDDC0"           place_status=placed)
         (inst  name="GNDC0"           place_status=placed)
         
-        # System Signals
-        (inst  name="I_CLK"           place_status=placed)
-        (inst  name="I_RST"           place_status=placed)
-        (inst  name="I_IN_VALID_DATA" place_status=placed)
-        
-        # Power Group 2
+        # System Control Start
+        (inst  name="I_IN_VALID_CMD"  place_status=placed)
         (inst  name="VDDP1"           place_status=placed)
         (inst  name="GNDP1"           place_status=placed)
+        
+        # Distribute some CMDs here to balance
+        (inst  name="I_CMD0"          place_status=placed)
+        (inst  name="I_CMD1"          place_status=placed)
         (inst  name="VDDC1"           place_status=placed)
         (inst  name="GNDC1"           place_status=placed)
-        
-        # Data Signals 0-3
-        (inst  name="I_DATA_0"        place_status=placed)
-        (inst  name="I_DATA_1"        place_status=placed)
-        (inst  name="I_DATA_2"        place_status=placed)
-        (inst  name="I_DATA_3"        place_status=placed)
-        
-        # Power Group 3
+        (inst  name="I_CMD2"          place_status=placed)
+        (inst  name="I_CMD3"          place_status=placed)
         (inst  name="VDDP2"           place_status=placed)
         (inst  name="GNDP2"           place_status=placed)
         (inst  name="VDDC2"           place_status=placed)
         (inst  name="GNDC2"           place_status=placed)
-        
-        # Data Signals 4-7
-        (inst  name="I_DATA_4"        place_status=placed)
-        (inst  name="I_DATA_5"        place_status=placed)
-        (inst  name="I_DATA_6"        place_status=placed)
-        (inst  name="I_DATA_7"        place_status=placed)
     )
-    (right
-        # Total: 24 Pads (10 Signals, 14 Power)
-        # Power Group
+    (left
+        # Total: ~22 Pads
+        # -------------------------------------------------------------
+        # DATA REGION
+        # -------------------------------------------------------------
         (inst  name="VDDP3"           place_status=placed)
         (inst  name="GNDP3"           place_status=placed)
+        (inst  name="I_IN_VALID_DATA" place_status=placed)
+        
         (inst  name="VDDC3"           place_status=placed)
         (inst  name="GNDC3"           place_status=placed)
         
-        # Control & CMD Low
-        (inst  name="I_IN_VALID_CMD"  place_status=placed)
-        (inst  name="I_CMD_0"         place_status=placed)
-        (inst  name="I_CMD_1"         place_status=placed)
-
-        # Power Group
+        (inst  name="I_DATA0"         place_status=placed)
+        (inst  name="I_DATA1"         place_status=placed)
         (inst  name="VDDP4"           place_status=placed)
         (inst  name="GNDP4"           place_status=placed)
+        
+        (inst  name="I_DATA2"         place_status=placed)
+        (inst  name="I_DATA3"         place_status=placed)
         (inst  name="VDDC4"           place_status=placed)
         (inst  name="GNDC4"           place_status=placed)
         
-        # CMD
-        (inst  name="I_CMD_2"         place_status=placed)
-        (inst  name="I_CMD_3"         place_status=placed)
-        (inst  name="I_CMD_4"         place_status=placed)
-        
-        # Power Group
+        (inst  name="I_DATA4"         place_status=placed)
+        (inst  name="I_DATA5"         place_status=placed)
         (inst  name="VDDP5"           place_status=placed)
         (inst  name="GNDP5"           place_status=placed)
+        
+        (inst  name="I_DATA6"         place_status=placed)
+        (inst  name="I_DATA7"         place_status=placed)
         (inst  name="VDDC5"           place_status=placed)
         (inst  name="GNDC5"           place_status=placed)
-        (inst  name="VDDC6"           place_status=placed)
-        (inst  name="GNDC6"           place_status=placed)
-
-        # CMD
-        (inst  name="I_CMD_5"         place_status=placed)
-        (inst  name="I_CMD_6"         place_status=placed)
-        (inst  name="I_CMD_7"         place_status=placed)
-        (inst  name="I_CMD_8"         place_status=placed)
     )
-    (bottom
-        # Total: 25 Pads (9 Signals, 16 Power)
-        # Power Group
+    (right
+        # Total: ~23 Pads
+        # -------------------------------------------------------------
+        # COMMAND REGION (PART 1)
+        # -------------------------------------------------------------
         (inst  name="VDDP6"           place_status=placed)
         (inst  name="GNDP6"           place_status=placed)
+        (inst  name="VDDC6"           place_status=placed)
+        (inst  name="GNDC6"           place_status=placed)
+        
+        (inst  name="I_CMD4"          place_status=placed)
+        (inst  name="I_CMD5"          place_status=placed)
+        (inst  name="I_CMD6"          place_status=placed)
+        
+        (inst  name="VDDP7"           place_status=placed)
+        (inst  name="GNDP7"           place_status=placed)
         (inst  name="VDDC7"           place_status=placed)
         (inst  name="GNDC7"           place_status=placed)
         
-        # CMD Mid
-        (inst  name="I_CMD_9"         place_status=placed)
-        (inst  name="I_CMD_10"        place_status=placed)
-        (inst  name="I_CMD_11"        place_status=placed)
-
-        # Power Group
-        (inst  name="VDDP7"           place_status=placed)
-        (inst  name="GNDP7"           place_status=placed)
-        (inst  name="VDDC8"           place_status=placed)
-        (inst  name="GNDC8"           place_status=placed)
+        (inst  name="I_CMD7"          place_status=placed)
+        (inst  name="I_CMD8"          place_status=placed)
+        (inst  name="I_CMD9"          place_status=placed)
+        (inst  name="I_CMD10"         place_status=placed)
         
-        # CMD
-        (inst  name="I_CMD_12"        place_status=placed)
-        (inst  name="I_CMD_13"        place_status=placed)
-        (inst  name="I_CMD_14"        place_status=placed)
-        
-        # Power Group
         (inst  name="VDDP8"           place_status=placed)
         (inst  name="GNDP8"           place_status=placed)
+        (inst  name="VDDC8"           place_status=placed)
+        (inst  name="GNDC8"           place_status=placed)
         (inst  name="VDDC9"           place_status=placed)
         (inst  name="GNDC9"           place_status=placed)
-
-        # CMD High
-        (inst  name="I_CMD_15"        place_status=placed)
-        (inst  name="I_CMD_16"        place_status=placed)
-        (inst  name="I_CMD_17"        place_status=placed)
-        
-        # Power Group
+    )
+    (bottom
+        # Total: ~24 Pads
+        # -------------------------------------------------------------
+        # COMMAND REGION (PART 2)
+        # -------------------------------------------------------------
         (inst  name="VDDP9"           place_status=placed)
         (inst  name="GNDP9"           place_status=placed)
         (inst  name="VDDC10"          place_status=placed)
         (inst  name="GNDC10"          place_status=placed)
-    )
-    (left
-        # Total: 21 Pads (1 Signal, 20 Power)
-        # NOTE: This side has extra power pads to balance the count
+        
+        (inst  name="I_CMD11"         place_status=placed)
+        (inst  name="I_CMD12"         place_status=placed)
+        (inst  name="I_CMD13"         place_status=placed)
+        
         (inst  name="VDDP10"          place_status=placed)
         (inst  name="GNDP10"          place_status=placed)
         (inst  name="VDDC11"          place_status=placed)
         (inst  name="GNDC11"          place_status=placed)
         
-        # Output Signal
-        (inst  name="I_BUSY"          place_status=placed)
+        (inst  name="I_CMD14"         place_status=placed)
+        (inst  name="I_CMD15"         place_status=placed)
+        (inst  name="I_CMD16"         place_status=placed)
+        (inst  name="I_CMD17"         place_status=placed)
         
-        # Remaining Power Pads
         (inst  name="VDDP11"          place_status=placed)
         (inst  name="GNDP11"          place_status=placed)
         (inst  name="VDDC12"          place_status=placed)
         (inst  name="GNDC12"          place_status=placed)
-        
-        (inst  name="VDDC13"          place_status=placed)
-        (inst  name="GNDC13"          place_status=placed)
-        
         (inst  name="VDDP12"          place_status=placed)
         (inst  name="GNDP12"          place_status=placed)
         
+        # Fill remaining Core Power
+        (inst  name="VDDC13"          place_status=placed)
+        (inst  name="GNDC13"          place_status=placed)
         (inst  name="VDDC14"          place_status=placed)
         (inst  name="GNDC14"          place_status=placed)
         (inst  name="VDDC15"          place_status=placed)
         (inst  name="GNDC15"          place_status=placed)
-        
         (inst  name="VDDC16"          place_status=placed)
         (inst  name="GNDC16"          place_status=placed)
         (inst  name="VDDC17"          place_status=placed)
