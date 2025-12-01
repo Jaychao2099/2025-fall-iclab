@@ -24,132 +24,101 @@
 
 (iopad
     (top
-        # Total: ~24 Pads
-        # -------------------------------------------------------------
-        # CRITICAL REGION: CLOCK & BUSY, slove BUSY Time Slack, hope so...
-        # -------------------------------------------------------------
         (inst  name="VDDP0"           place_status=placed)
         (inst  name="GNDP0"           place_status=placed)
-        (inst  name="I_CLK"           place_status=placed)
-        (inst  name="I_RST"           place_status=placed)
-        
-        (inst  name="I_BUSY"          place_status=placed)
-        
-        (inst  name="VDDC0"           place_status=placed)
-        (inst  name="GNDC0"           place_status=placed)
-        
-        # System Control Start
         (inst  name="I_IN_VALID_CMD"  place_status=placed)
-        (inst  name="VDDP1"           place_status=placed)
-        (inst  name="GNDP1"           place_status=placed)
-        
-        # Distribute some CMDs here to balance
         (inst  name="I_CMD0"          place_status=placed)
         (inst  name="I_CMD1"          place_status=placed)
-        (inst  name="VDDC1"           place_status=placed)
-        (inst  name="GNDC1"           place_status=placed)
+        (inst  name="VDDC0"           place_status=placed)
+        (inst  name="GNDC0"           place_status=placed)
         (inst  name="I_CMD2"          place_status=placed)
         (inst  name="I_CMD3"          place_status=placed)
+        (inst  name="VDDP1"           place_status=placed)
+        (inst  name="GNDP1"           place_status=placed)
+        (inst  name="I_CLK"           place_status=placed)
+        (inst  name="I_BUSY"          place_status=placed)
+        (inst  name="I_RST"           place_status=placed)
+        (inst  name="VDDC1"           place_status=placed)
+        (inst  name="GNDC1"           place_status=placed)
         (inst  name="VDDP2"           place_status=placed)
         (inst  name="GNDP2"           place_status=placed)
         (inst  name="VDDC2"           place_status=placed)
         (inst  name="GNDC2"           place_status=placed)
+        
+		(endspace gap=50)
     )
     (left
-        # Total: ~22 Pads
-        # -------------------------------------------------------------
-        # DATA REGION
-        # -------------------------------------------------------------
         (inst  name="VDDP3"           place_status=placed)
         (inst  name="GNDP3"           place_status=placed)
         (inst  name="I_IN_VALID_DATA" place_status=placed)
-        
         (inst  name="VDDC3"           place_status=placed)
         (inst  name="GNDC3"           place_status=placed)
-        
         (inst  name="I_DATA0"         place_status=placed)
         (inst  name="I_DATA1"         place_status=placed)
         (inst  name="VDDP4"           place_status=placed)
         (inst  name="GNDP4"           place_status=placed)
-        
         (inst  name="I_DATA2"         place_status=placed)
         (inst  name="I_DATA3"         place_status=placed)
         (inst  name="VDDC4"           place_status=placed)
         (inst  name="GNDC4"           place_status=placed)
-        
         (inst  name="I_DATA4"         place_status=placed)
         (inst  name="I_DATA5"         place_status=placed)
         (inst  name="VDDP5"           place_status=placed)
         (inst  name="GNDP5"           place_status=placed)
-        
         (inst  name="I_DATA6"         place_status=placed)
         (inst  name="I_DATA7"         place_status=placed)
         (inst  name="VDDC5"           place_status=placed)
         (inst  name="GNDC5"           place_status=placed)
+        
+		(endspace gap=50)
     )
     (right
-        # Total: ~23 Pads
-        # -------------------------------------------------------------
-        # COMMAND REGION (PART 1)
-        # -------------------------------------------------------------
         (inst  name="VDDP6"           place_status=placed)
         (inst  name="GNDP6"           place_status=placed)
         (inst  name="VDDC6"           place_status=placed)
         (inst  name="GNDC6"           place_status=placed)
-        
         (inst  name="I_CMD4"          place_status=placed)
         (inst  name="I_CMD5"          place_status=placed)
         (inst  name="I_CMD6"          place_status=placed)
-        
         (inst  name="VDDP7"           place_status=placed)
         (inst  name="GNDP7"           place_status=placed)
         (inst  name="VDDC7"           place_status=placed)
         (inst  name="GNDC7"           place_status=placed)
-        
         (inst  name="I_CMD7"          place_status=placed)
         (inst  name="I_CMD8"          place_status=placed)
         (inst  name="I_CMD9"          place_status=placed)
         (inst  name="I_CMD10"         place_status=placed)
-        
         (inst  name="VDDP8"           place_status=placed)
         (inst  name="GNDP8"           place_status=placed)
         (inst  name="VDDC8"           place_status=placed)
         (inst  name="GNDC8"           place_status=placed)
         (inst  name="VDDC9"           place_status=placed)
         (inst  name="GNDC9"           place_status=placed)
+        
+		(endspace gap=50)
     )
     (bottom
-        # Total: ~24 Pads
-        # -------------------------------------------------------------
-        # COMMAND REGION (PART 2)
-        # -------------------------------------------------------------
         (inst  name="VDDP9"           place_status=placed)
         (inst  name="GNDP9"           place_status=placed)
         (inst  name="VDDC10"          place_status=placed)
         (inst  name="GNDC10"          place_status=placed)
-        
         (inst  name="I_CMD11"         place_status=placed)
         (inst  name="I_CMD12"         place_status=placed)
         (inst  name="I_CMD13"         place_status=placed)
-        
         (inst  name="VDDP10"          place_status=placed)
         (inst  name="GNDP10"          place_status=placed)
         (inst  name="VDDC11"          place_status=placed)
         (inst  name="GNDC11"          place_status=placed)
-        
         (inst  name="I_CMD14"         place_status=placed)
         (inst  name="I_CMD15"         place_status=placed)
         (inst  name="I_CMD16"         place_status=placed)
         (inst  name="I_CMD17"         place_status=placed)
-        
         (inst  name="VDDP11"          place_status=placed)
         (inst  name="GNDP11"          place_status=placed)
         (inst  name="VDDC12"          place_status=placed)
         (inst  name="GNDC12"          place_status=placed)
         (inst  name="VDDP12"          place_status=placed)
         (inst  name="GNDP12"          place_status=placed)
-        
-        # Fill remaining Core Power
         (inst  name="VDDC13"          place_status=placed)
         (inst  name="GNDC13"          place_status=placed)
         (inst  name="VDDC14"          place_status=placed)
@@ -160,6 +129,8 @@
         (inst  name="GNDC16"          place_status=placed)
         (inst  name="VDDC17"          place_status=placed)
         (inst  name="GNDC17"          place_status=placed)
+        
+		(endspace gap=50)
     )
 	(topright
         (inst  name="topright"        cell="CORNERD" )
