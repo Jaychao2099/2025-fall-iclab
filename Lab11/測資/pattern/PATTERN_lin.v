@@ -5,13 +5,13 @@
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 `ifdef RTL
-    `define CYCLE_TIME  8
+    `define CYCLE_TIME  5.4
     `define GTE_CORE u_GTE
 `elsif GATE
-    `define CYCLE_TIME  8
+    `define CYCLE_TIME  5.4
     `define GTE_CORE u_GTE
 `elsif POST
-    `define CYCLE_TIME  20.0
+    `define CYCLE_TIME  12.0
     `define GTE_CORE u_CHIP.CORE
 `endif
 

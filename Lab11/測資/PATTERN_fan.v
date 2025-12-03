@@ -6,9 +6,9 @@
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 `ifdef RTL
-    `define CYCLE_TIME  20.0
+    `define CYCLE_TIME  5.4
 `elsif GATE
-    `define CYCLE_TIME  6.0
+    `define CYCLE_TIME  5.4
 `elsif POST
     `define CYCLE_TIME  12.0
 `endif
