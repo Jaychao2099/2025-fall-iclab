@@ -63,6 +63,24 @@ STA CORE(
 //     Ex: XMD    I_CLK ( .O(C_clk),          .I(clk),            .PU(1'b0), .PD(1'b0), .SMT(1'b0));
 //==================================================================
 // You need to finish this part
+XMD I_CLK      ( .O(C_clk),          .I(clk),            .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_RST      ( .O(C_rst_n),        .I(rst_n),          .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_IN_VALID ( .O(C_in_valid),     .I(in_valid),       .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+
+XMD I_DELAY_0 ( .O(C_delay[0]), .I(delay[0]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_DELAY_1 ( .O(C_delay[1]), .I(delay[1]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_DELAY_2 ( .O(C_delay[2]), .I(delay[2]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_DELAY_3 ( .O(C_delay[3]), .I(delay[3]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+
+XMD I_SOURCE_0 ( .O(C_source[0]), .I(source[0]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_SOURCE_1 ( .O(C_source[1]), .I(source[1]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_SOURCE_2 ( .O(C_source[2]), .I(source[2]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_SOURCE_3 ( .O(C_source[3]), .I(source[3]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+
+XMD I_DESTINATION_0 ( .O(C_destination[0]), .I(destination[0]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_DESTINATION_1 ( .O(C_destination[1]), .I(destination[1]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_DESTINATION_2 ( .O(C_destination[2]), .I(destination[2]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
+XMD I_DESTINATION_3 ( .O(C_destination[3]), .I(destination[3]), .PU(1'b0), .PD(1'b0), .SMT(1'b0));
 
 //==================================================================
 // OUTPUT PAD
@@ -70,6 +88,24 @@ STA CORE(
 //     Ex: YA2GSD  O_VALID (.I(C_out_valid),   .O(out_valid),    .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
 //==================================================================
 // You need to finish this part
+// output        out_valid;
+// output [7:0]  worst_delay;
+// output [3:0]  path;
+YA2GSD  O_VALID (.I(C_out_valid), .O(out_valid), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+
+YA2GSD  O_WORST_DELAY_0 (.I(C_worst_delay[0]), .O(worst_delay[0]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_DELAY_1 (.I(C_worst_delay[1]), .O(worst_delay[1]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_DELAY_2 (.I(C_worst_delay[2]), .O(worst_delay[2]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_DELAY_3 (.I(C_worst_delay[3]), .O(worst_delay[3]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_DELAY_4 (.I(C_worst_delay[4]), .O(worst_delay[4]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_DELAY_5 (.I(C_worst_delay[5]), .O(worst_delay[5]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_DELAY_6 (.I(C_worst_delay[6]), .O(worst_delay[6]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_DELAY_7 (.I(C_worst_delay[7]), .O(worst_delay[7]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+
+YA2GSD  O_WORST_PATH_0 (.I(C_path[0]), .O(path[0]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_PATH_1 (.I(C_path[1]), .O(path[1]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_PATH_2 (.I(C_path[2]), .O(path[2]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
+YA2GSD  O_WORST_PATH_3 (.I(C_path[3]), .O(path[3]), .E(1'b1), .E2(1'b1), .E4(1'b1), .E8(1'b0), .SR(1'b0));
 
 //==================================================================
 // I/O power 3.3V pads x? (DVDD + DGND)
@@ -78,6 +114,44 @@ STA CORE(
 //    Ex2: GNDIOD         GNDP0 ();
 //==================================================================
 // You need to finish this part
+VCC3IOD VDDP0 ();
+GNDIOD  GNDP0 ();
+
+VCC3IOD VDDP1 ();
+GNDIOD  GNDP1 ();
+
+VCC3IOD VDDP2 ();
+GNDIOD  GNDP2 ();
+
+VCC3IOD VDDP3 ();
+GNDIOD  GNDP3 ();
+
+VCC3IOD VDDP4 ();
+GNDIOD  GNDP4 ();
+
+VCC3IOD VDDP5 ();
+GNDIOD  GNDP5 ();
+
+VCC3IOD VDDP6 ();
+GNDIOD  GNDP6 ();
+
+VCC3IOD VDDP7 ();
+GNDIOD  GNDP7 ();
+
+VCC3IOD VDDP8 ();
+GNDIOD  GNDP8 ();
+
+VCC3IOD VDDP9 ();
+GNDIOD  GNDP9 ();
+
+VCC3IOD VDDP10 ();
+GNDIOD  GNDP10 ();
+
+VCC3IOD VDDP11 ();
+GNDIOD  GNDP11 ();
+
+VCC3IOD VDDP12 ();
+GNDIOD  GNDP12 ();
 
 //==================================================================
 // Core power 1.8V pads x? (VDD + GND)
@@ -86,6 +160,77 @@ STA CORE(
 //    Ex2: GNDKD       GNDC0 ();
 //==================================================================
 // You need to finish this part
+VCCKD VDDC0 ();
+GNDKD GNDC0 ();
+
+VCCKD VDDC1 ();
+GNDKD GNDC1 ();
+
+VCCKD VDDC2 ();
+GNDKD GNDC2 ();
+
+VCCKD VDDC3 ();
+GNDKD GNDC3 ();
+
+VCCKD VDDC4 ();
+GNDKD GNDC4 ();
+
+VCCKD VDDC5 ();
+GNDKD GNDC5 ();
+
+VCCKD VDDC6 ();
+GNDKD GNDC6 ();
+
+VCCKD VDDC7 ();
+GNDKD GNDC7 ();
+
+VCCKD VDDC8 ();
+GNDKD GNDC8 ();
+
+VCCKD VDDC9 ();
+GNDKD GNDC9 ();
+
+VCCKD VDDC10 ();
+GNDKD GNDC10 ();
+
+VCCKD VDDC11 ();
+GNDKD GNDC11 ();
+
+VCCKD VDDC12 ();
+GNDKD GNDC12 ();
+
+VCCKD VDDC13 ();
+GNDKD GNDC13 ();
+
+VCCKD VDDC14 ();
+GNDKD GNDC14 ();
+
+VCCKD VDDC15 ();
+GNDKD GNDC15 ();
+
+VCCKD VDDC16 ();
+GNDKD GNDC16 ();
+
+VCCKD VDDC17 ();
+GNDKD GNDC17 ();
+
+VCCKD VDDC18 ();
+GNDKD GNDC18 ();
+
+VCCKD VDDC19 ();
+GNDKD GNDC19 ();
+
+VCCKD VDDC20 ();
+GNDKD GNDC20 ();
+
+VCCKD VDDC21 ();
+GNDKD GNDC21 ();
+
+VCCKD VDDC22 ();
+GNDKD GNDC22 ();
+
+VCCKD VDDC23 ();
+GNDKD GNDC23 ();
 
 endmodule
 
