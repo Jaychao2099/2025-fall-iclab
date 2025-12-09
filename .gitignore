@@ -1,4 +1,8 @@
 .vscode/
+申請資料/
+考古題/
+B/
+
 .DS_Store
 *.xlsx
 *.csv
@@ -12,5 +16,6 @@
 *.jpeg
 *.m4a
 *.mp3
-B/
-*禁抄襲*
+*禁*
+*.docx
+*.pptx
