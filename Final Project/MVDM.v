@@ -1,3 +1,12 @@
+// done:
+//      FSM
+//      input ---> mem
+//      mem   ---> concat_32
+
+// TODO:
+//      concat_32 ---> L0_15x15
+
+
 module MVDM(
     // input signals
     clk,
@@ -23,11 +32,6 @@ output reg out_sad;
 //                   Reg/Wire
 //=======================================================
 
-
-//=======================================================
-//                   Design
-//=======================================================
-
 parameter S_IDLE        = 0;
 parameter S_W_SRAM      = 1;
 parameter S_MV          = 2;
@@ -40,6 +44,26 @@ parameter S_P2_CAL      = 8;
 parameter S_OUTPUT      = 9;
 
 reg [3:0] current_state, next_state;
+
+reg [15:0] input_cnt;
+reg [3:0]  input2_cnt;
+
+reg current_img;
+reg [6:0] current_row;
+reg [2:0] current_block;
+
+parameter READ  = 1'b1;
+parameter WRITE = 1'b0;
+
+reg web;
+reg [7:0] mem_din [0:15], mem_dout [0:15];
+
+
+//=======================================================
+//                   Design
+//=======================================================
+
+// --------------------------- FSM ---------------------------
 
 // reg [3:0] current_state
 always @(posedge clk or negedge rst_n) begin
@@ -65,57 +89,293 @@ always @(*) begin
         end
         // P1
         S_P1_READ_L0: begin
-            if (read_cnt == 4'd15) next_state = S_P1_READ_L1;   // 16 pixel in 1 read
+            if (read_cnt == 5'd30) next_state = S_P1_READ_L1;   // 16 pixel in 1 read
             else                   next_state = S_P1_READ_L0;
         end
         S_P1_READ_L1: begin
-            if (read_cnt == 4'd15) next_state = S_P1_CAL;
+            if (read_cnt == 5'd30) next_state = S_P1_CAL;
             else                   next_state = S_P1_READ_L1;
         end
         S_P1_CAL: begin
             if (cal_done) next_state = S_P2_READ_L0;
             else          next_state = S_P1_CAL;
         end
-        // P2
-        S_P2_READ_L0: begin
-            if (read_cnt == 4'd15) next_state = S_P2_READ_L1;   // 16 pixel in 1 read
-            else                   next_state = S_P2_READ_L0;
-        end
-        S_P2_READ_L1: begin
-            if (read_cnt == 4'd15) next_state = S_P2_CAL;
-            else                   next_state = S_P2_READ_L1;
-        end
-        S_P2_CAL: begin
-            if (cal_done) next_state = S_OUTPUT;
-            else          next_state = S_P2_CAL;
-        end
-        S_OUTPUT: begin
-            if (out_cnt == 6'd56) next_state = S_IDLE;
-            else                  next_state = S_OUTPUT;
-        end
+        // // P2
+        // S_P2_READ_L0: begin
+        //     if (read_cnt == 5'd30) next_state = S_P2_READ_L1;   // 16 pixel in 1 read
+        //     else                   next_state = S_P2_READ_L0;
+        // end
+        // S_P2_READ_L1: begin
+        //     if (read_cnt == 5'd30) next_state = S_P2_CAL;
+        //     else                   next_state = S_P2_READ_L1;
+        // end
+        // S_P2_CAL: begin
+        //     if (cal_done) next_state = S_OUTPUT;
+        //     else          next_state = S_P2_CAL;
+        // end
+        // S_OUTPUT: begin
+        //     if (out_cnt == 6'd56) next_state = S_IDLE;
+        //     else                  next_state = S_OUTPUT;
+        // end
         default: next_state = current_state;
     endcase
 end
 
+// --------------------------- input ---------------------------
+
+// reg [15:0] input_cnt;
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)                input_cnt <= 16'd0;
+    else if (current_state == S_MV) input_cnt <= 16'd0;
+    else if (in_valid)              input_cnt <= input_cnt + 16'd1;
+end
+
+// reg [3:0]  input2_cnt;
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)                        input2_cnt <= 4'd0;
+    else if (current_state == S_P1_READ_L0) input2_cnt <= 4'd0;
+    else if (in_valid2)                     input2_cnt <= input2_cnt + 4'd1;
+end
+
+reg [6:0] p1_L0_x, p1_L0_y;
+reg [6:0] p1_L1_x, p1_L1_y;
+
+reg [6:0] p2_L0_x, p2_L0_y;
+reg [6:0] p2_L1_x, p2_L1_y;
+
+
+reg p1_L0_frac_x, p1_L0_frac_y;
+reg p1_L1_frac_x, p1_L1_frac_y;
+
+reg p2_L0_frac_x, p2_L0_frac_y;
+reg p2_L1_frac_x, p2_L1_frac_y;
+
+always @(posedge clk) begin
+    if (in_valid2) begin
+        case (input2_cnt)
+            0:       begin p1_L0_x <= in_data[7:1]; p1_L0_frac_x <= in_data[0]; end
+            1:       begin p1_L0_y <= in_data[7:1]; p1_L0_frac_y <= in_data[0]; end
+            2:       begin p1_L1_x <= in_data[7:1]; p1_L1_frac_x <= in_data[0]; end
+            3:       begin p1_L1_y <= in_data[7:1]; p1_L1_frac_y <= in_data[0]; end
+
+            4:       begin p2_L0_x <= in_data[7:1]; p2_L0_frac_x <= in_data[0]; end
+            5:       begin p2_L0_y <= in_data[7:1]; p2_L0_frac_y <= in_data[0]; end
+            6:       begin p2_L1_x <= in_data[7:1]; p2_L1_frac_x <= in_data[0]; end
+            default: begin p2_L1_y <= in_data[7:1]; p2_L1_frac_y <= in_data[0]; end
+        endcase
+    end
+end
+
+
+reg [6:0] p1_L0_x_sub2, p1_L0_y_sub2;
+reg [6:0] p1_L1_x_sub2, p1_L1_y_sub2;
+reg [6:0] p2_L0_x_sub2, p2_L0_y_sub2;
+reg [6:0] p2_L1_x_sub2, p2_L1_y_sub2;
+
+always @(*) begin
+    p1_L0_x_sub2 = (p1_L0_x > 7'd2) ? (p1_L0_x - 7'd2) : (7'd0);   // (|p1_L0_x[6:2])
+    p1_L0_y_sub2 = (p1_L0_y > 7'd2) ? (p1_L0_y - 7'd2) : (7'd0);
+    p1_L1_x_sub2 = (p1_L1_x > 7'd2) ? (p1_L1_x - 7'd2) : (7'd0);
+    p1_L1_y_sub2 = (p1_L1_y > 7'd2) ? (p1_L1_y - 7'd2) : (7'd0);
+    p2_L0_x_sub2 = (p2_L0_x > 7'd2) ? (p2_L0_x - 7'd2) : (7'd0);
+    p2_L0_y_sub2 = (p2_L0_y > 7'd2) ? (p2_L0_y - 7'd2) : (7'd0);
+    p2_L1_x_sub2 = (p2_L1_x > 7'd2) ? (p2_L1_x - 7'd2) : (7'd0);
+    p2_L1_y_sub2 = (p2_L1_y > 7'd2) ? (p2_L1_y - 7'd2) : (7'd0);
+end
+
+// --------------------------- matrix for calculate ---------------------------
+
+reg [4:0] read_cnt;
+reg [4:0] read_cnt_d1;
+
+reg [7:0] L0_15x15 [0:224];
+reg [7:0] L1_15x15 [0:224];
+
+reg [3:0] current_state_d1;
+
+// reg [3:0] map_idx_x;   // 0~15
+
+reg [7:0] concat_32 [0:31], concat_32_reg [0:31];
+
+// reg [7:0] concat_32_reg [0:31];
+always @(posedge clk) begin
+    concat_32_reg <= concat_32;
+end
+
+// reg [7:0] concat_32 [0:31];
+always @(*) begin
+    integer i;
+    concat_32 = concat_32_reg;
+    case (current_state)
+        S_P1_READ_L0: begin
+            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d1[0], 4'b0} + i] = mem_dout[8*i+7:8*i];
+            case (p1_L0_x)
+                0: begin
+                    concat_32[0] = concat_32[2];
+                    concat_32[1] = concat_32[2];
+                end
+                1: begin
+                    concat_32[0] = concat_32[1];
+                end
+                116: begin
+                    concat_32[14] = concat_32[13];
+                end
+                117: begin
+                    concat_32[14] = concat_32[12];
+                    concat_32[13] = concat_32[12];
+                end
+            endcase
+        end
+        S_P1_READ_L1: begin
+            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d1[0], 4'b0} + i] = mem_dout[8*i+7:8*i];
+            case (p1_L1_x)
+                0: begin
+                    concat_32[0] = concat_32[2];
+                    concat_32[1] = concat_32[2];
+                end
+                1: begin
+                    concat_32[0] = concat_32[1];
+                end
+                116: begin
+                    concat_32[14] = concat_32[13];
+                end
+                117: begin
+                    concat_32[14] = concat_32[12];
+                    concat_32[13] = concat_32[12];
+                end
+            endcase
+        end
+        S_P1_READ_L0: begin
+            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d1[0], 4'b0} + i] = mem_dout[8*i+7:8*i];
+            case (p2_L0_x)
+                0: begin
+                    concat_32[0] = concat_32[2];
+                    concat_32[1] = concat_32[2];
+                end
+                1: begin
+                    concat_32[0] = concat_32[1];
+                end
+                116: begin
+                    concat_32[14] = concat_32[13];
+                end
+                117: begin
+                    concat_32[14] = concat_32[12];
+                    concat_32[13] = concat_32[12];
+                end
+            endcase
+        end
+        S_p2_READ_L1: begin
+            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d1[0], 4'b0} + i] = mem_dout[8*i+7:8*i];
+            case (p2_L1_x)
+                0: begin
+                    concat_32[0] = concat_32[2];
+                    concat_32[1] = concat_32[2];
+                end
+                1: begin
+                    concat_32[0] = concat_32[1];
+                end
+                116: begin
+                    concat_32[14] = concat_32[13];
+                end
+                117: begin
+                    concat_32[14] = concat_32[12];
+                    concat_32[13] = concat_32[12];
+                end
+            endcase
+        end
+    endcase
+end
+
+always @(posedge clk) begin
+    integer i;
+    if (current_state_d1 == S_P1_READ_L0) begin
+        for (i = 0; i < 16; i = i + 1) begin
+            L0_15x15[ + /*i*/] <= concat_32[];    // ?????
+        end
+    end
+end
+
+
+// --------------------------- output ---------------------------
+
+// output reg out_valid;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) out_valid <= 1'b0;
+end
+
+// output reg out_sad;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) out_sad <= 1'b0;
+end
 
 //=======================================================
 //                   MEM
 //=======================================================
 
-reg current_img;
-reg [4:0] current_row, current_col;
+assign 
 
-reg [7:0] mem_din [0:15], mem_dout [0:15];
+// Address = row * 8 + (col / 16)
+// Address = row * 8 + block
 
+assign 
 
-MEM_INTERFACE sram_1 (.image(current_img), .row(current_row), .col(current_col), .Dout(mem_dout), .Din(mem_din), .clk(clk), .WEB());
+// reg current_img;
+// reg [6:0] current_row;
+// reg [2:0] current_block;
+always @(posedge clk) begin
+    if (in_data) begin
+        current_img   <= input_cnt[14];
+        current_row   <= input_cnt[13:7];
+        current_block <= input_cnt[6:4];
+        // {current_img, current_row, current_block} <= input_cnt[14:4];
+    end
+    else begin
+        case (current_state)
+            S_P1_READ_L0: begin
+                current_img   <= 1'b0;
+                current_row   <= p1_L0_y_sub2      + {3'd0, read_cnt[4:1] & ((p1_L0_y + read_cnt) > 1)};
+                current_block <= p1_L0_x_sub2[6:4] + {2'b0, read_cnt[0]};
+            end
+            S_P1_READ_L1: begin
+                current_img   <= 1'b1;
+                current_row   <= p1_L1_y_sub2      + {3'd0, read_cnt[4:1] & ((p1_L1_y + read_cnt) > 1)};
+                current_block <= p1_L1_x_sub2[6:4] + {2'b0, read_cnt[0]};
+            end
+            S_P1_READ_L0: begin
+                current_img   <= 1'b0;
+                current_row   <= p2_L0_y_sub2      + {3'd0, read_cnt[4:1] & ((p2_L0_y + read_cnt) > 1)};
+                current_block <= p2_L0_x_sub2[6:4] + {2'b0, read_cnt[0]};
+            end
+            S_p2_READ_L1: begin
+                current_img   <= 1'b1;
+                current_row   <= p2_L1_y_sub2      + {3'd0, read_cnt[4:1] & ((p2_L1_y + read_cnt) > 1)};
+                current_block <= p2_L1_x_sub2[6:4] + {2'b0, read_cnt[0]};
+            end
+            default: 
+        endcase
+    end
+end
+
+// reg web;
+always @(posedge clk) begin
+    if (current_state == S_W_SRAM && (&input_cnt[3:0])) web <= WRITE;
+    else web <= READ;
+end
+
+// reg [7:0] mem_din [0:15]
+always @(posedge clk) begin
+    mem_din[input_cnt[3:0]] <= in_data[8:1];
+end
+
+// reg [7:0] mem_dout [0:15]
+MEM_INTERFACE sram_1 (.image(current_img), .row(current_row), .block(current_block), .Dout(mem_dout), .Din(mem_din), .clk(clk), .WEB(web));
 
 endmodule
 
 module MEM_INTERFACE (
     input       image,
-    input [4:0] row,
-    input [4:0] col,
+    input [6:0] row,    // 0~127
+    input [2:0] block,  // 0~7
     output [7:0] Dout [0:15],
     input  [7:0] Din  [0:15],
     input clk,
@@ -123,8 +383,8 @@ module MEM_INTERFACE (
 );
 
 SRAM_16_PIXEL_2048 sram (
-    .A0(col[0]),.A1(col[1]),.A2(col[2]),.A3(col[3]),.A4(col[4]), 
-    .A5(row[0]),.A6(row[1]),.A7(row[2]),.A8(row[3]),.A9(row[4]),
+    .A0(block[0]),.A1(block[1]),.A2(block[2]),
+    .A3(row[0]),.A4(row[1]),.A5(row[2]),.A6(row[3]),.A7(row[4]),.A8(row[5]),.A9(row[6]),
     .A10(image),
     
     .DO0(Dout[0][0]),.DO1(Dout[0][1]),.DO2(Dout[0][2]),.DO3(Dout[0][3]),.DO4(Dout[0][4]),.DO5(Dout[0][5]),.DO6(Dout[0][6]),.DO7(Dout[0][7]),
