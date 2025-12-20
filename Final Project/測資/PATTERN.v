@@ -35,9 +35,9 @@ always	#(CYCLE/2.0) clk = ~clk; //clock
 // ========================================
 integer input_file, output_file;
 integer i, j, k;
-integer total_latency;
+integer total_latency = 0;
 integer local_latency;
-integer PATNUM = 1;
+integer PATNUM = 50;
 integer pat_cnt, set_cnt;
 integer out_cycle_cnt;
 
@@ -63,6 +63,7 @@ initial begin
             input_set_task;
             wait_out_task;
             check_ans_task;
+            $display("\033[0;32m        PATTERN %d SET %d PASS!,  cycle: %5d         \033[0m", pat_cnt, set_cnt, local_latency);
             total_latency = total_latency + local_latency;
             repeat($urandom_range(3, 6)) @(negedge clk);
         end
@@ -148,7 +149,7 @@ end endtask
 
 task check_ans_task; begin
     golden_out_ans = 56'b0;
-    k = $fscanf(output_file, "%d %d %d %d", golden_out_ans[55:52], golden_out_ans[51:28], golden_out_ans[27:24], golden_out_ans[23:0]);
+    k = $fscanf(output_file, "%d %d %d %d", golden_out_ans[27:24], golden_out_ans[23:0], golden_out_ans[55:52], golden_out_ans[51:28]);
     for (i = 0; i < 56; i = i + 1) begin // 56 cycle
         if (out_sad !== golden_out_ans[i]) begin
             $display("\033[31m        PATTERN %d Failed!         \033[0m", pat_cnt);
@@ -159,6 +160,9 @@ task check_ans_task; begin
             #(100);
             $finish;
         end
+        else begin
+            // $display("PATTERN %d SET %d PASS!,  cycle: %5d", pat_cnt, set_cnt, local_latency);
+        end
         @(negedge clk);
     end
 end endtask
@@ -167,11 +171,32 @@ task pass_task; begin
     $display("*************************************************************************");
     $display("*                Congratulations!                                       *");
     $display("*                Your execution cycles = %5d cycles                     *", total_latency);
+    $display("*                Average cycles of a set = %5d cycles                   *", total_latency/(PATNUM*64));
     $display("*                Your clock period = %.1f ns                            *", CYCLE);
     $display("*************************************************************************");
 	$display("==========================================================================================");
     $finish;
 end endtask
+
+always @(*) begin
+	if(out_valid === 1'b0 && rst_n === 1'b1) begin
+		if(out_sad !== 0) begin
+			$display("\033[31m \033[5m out_valid == 1'b0         out_sad !==0 \033[0m");
+			$display("==========================================================================================");
+			$finish;
+		end
+	end
+end
+
+always @(*) begin
+	if(out_valid === 1'b1) begin
+		if(in_valid === 1'b1) begin
+			$display("\033[31m \033[5m  out_valid == 1'b1      in_valid == 1'b1  \033[0m");
+			$display("==========================================================================================");
+			$finish;
+		end
+	end
+end
 
 endmodule
 
