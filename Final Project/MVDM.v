@@ -2,10 +2,10 @@
 //      FSM
 //      input ---> mem
 //      mem   ---> concat_32
+//      concat_32 ---> L0_15x16
 
 // TODO:
-//      concat_32 ---> L0_15x15
-
+//      pipeline
 
 module MVDM(
     // input signals
@@ -43,11 +43,28 @@ parameter S_P2_READ_L1  = 7;
 parameter S_P2_CAL      = 8;
 parameter S_OUTPUT      = 9;
 
+// --------------------------- FSM ---------------------------
 reg [3:0] current_state, next_state;
 
+// --------------------------- input ---------------------------
 reg [15:0] input_cnt;
 reg [3:0]  input2_cnt;
 
+// --------------------------- matrix for calculate ---------------------------
+reg [4:0] read_cnt;     // 0~29
+reg [4:0] read_cnt_d1, read_cnt_d2;
+
+reg [7:0] L0_15x16 [0:240];
+reg [7:0] L1_15x16 [0:240];
+
+reg [3:0] current_state_d1, current_state_d2;
+
+reg [7:0] concat_32 [0:31], concat_32_reg [0:31];
+
+reg [6:0] now_L0_x, now_L0_x_sub2;
+reg [6:0] now_L1_x, now_L1_x_sub2;
+
+// --------------------------- memory ---------------------------
 reg current_img;
 reg [6:0] current_row;
 reg [2:0] current_block;
@@ -57,7 +74,6 @@ parameter WRITE = 1'b0;
 
 reg web;
 reg [7:0] mem_din [0:15], mem_dout [0:15];
-
 
 //=======================================================
 //                   Design
@@ -80,26 +96,26 @@ always @(*) begin
             else                next_state = S_IDLE;
         end
         S_W_SRAM: begin
-            if (input_cnt == 16'd32768) next_state = S_IDLE;    // 15'd32767 ??
+            if (input_cnt == 16'd32767) next_state = S_IDLE;    // 15'd32767 ??
             else                        next_state = S_W_SRAM;
         end
         S_MV: begin
-            if (input2_cnt == 4'd8) next_state = S_P1_READ_L0;  // 3'd7?
+            if (input2_cnt == 4'd7) next_state = S_P1_READ_L0;  // 3'd7?
             else                    next_state = S_MV;
         end
         // P1
         S_P1_READ_L0: begin
-            if (read_cnt == 5'd30) next_state = S_P1_READ_L1;   // 16 pixel in 1 read
+            if (read_cnt == 5'd29) next_state = S_P1_READ_L1;   // 16 pixel in 1 read
             else                   next_state = S_P1_READ_L0;
         end
         S_P1_READ_L1: begin
-            if (read_cnt == 5'd30) next_state = S_P1_CAL;
+            if (read_cnt == 5'd29) next_state = S_P1_CAL;
             else                   next_state = S_P1_READ_L1;
         end
-        S_P1_CAL: begin
-            if (cal_done) next_state = S_P2_READ_L0;
-            else          next_state = S_P1_CAL;
-        end
+        // S_P1_CAL: begin
+        //     if (cal_done) next_state = S_P2_READ_L0;
+        //     else          next_state = S_P1_CAL;
+        // end
         // // P2
         // S_P2_READ_L0: begin
         //     if (read_cnt == 5'd30) next_state = S_P2_READ_L1;   // 16 pixel in 1 read
@@ -173,7 +189,7 @@ reg [6:0] p2_L0_x_sub2, p2_L0_y_sub2;
 reg [6:0] p2_L1_x_sub2, p2_L1_y_sub2;
 
 always @(*) begin
-    p1_L0_x_sub2 = (p1_L0_x > 7'd2) ? (p1_L0_x - 7'd2) : (7'd0);   // (|p1_L0_x[6:2])
+    p1_L0_x_sub2 = (p1_L0_x > 7'd2) ? (p1_L0_x - 7'd2) : (7'd0);
     p1_L0_y_sub2 = (p1_L0_y > 7'd2) ? (p1_L0_y - 7'd2) : (7'd0);
     p1_L1_x_sub2 = (p1_L1_x > 7'd2) ? (p1_L1_x - 7'd2) : (7'd0);
     p1_L1_y_sub2 = (p1_L1_y > 7'd2) ? (p1_L1_y - 7'd2) : (7'd0);
@@ -185,17 +201,29 @@ end
 
 // --------------------------- matrix for calculate ---------------------------
 
-reg [4:0] read_cnt;
-reg [4:0] read_cnt_d1;
+// reg [4:0] read_cnt;     // 0~29
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)            read_cnt <= 5'd0;
+    else if (read_cnt == 5'd29) read_cnt <= 5'd0;
+    else begin
+        case (current_state)
+            S_P1_READ_L0, S_P1_READ_L1, S_P2_READ_L0, S_P2_READ_L1: read_cnt <= read_cnt + 5'd1;
+        endcase
+    end
+end
 
-reg [7:0] L0_15x15 [0:224];
-reg [7:0] L1_15x15 [0:224];
+// reg [4:0] read_cnt_d1;
+always @(posedge clk) begin
+    read_cnt_d1 <= read_cnt;
+    read_cnt_d2 <= read_cnt_d1;
+end
 
-reg [3:0] current_state_d1;
+// reg [3:0] current_state_d1;
+always @(posedge clk) begin
+    current_state_d1 <= current_state;
+    current_state_d2 <= current_state_d1;
+end
 
-// reg [3:0] map_idx_x;   // 0~15
-
-reg [7:0] concat_32 [0:31], concat_32_reg [0:31];
 
 // reg [7:0] concat_32_reg [0:31];
 always @(posedge clk) begin
@@ -206,92 +234,98 @@ end
 always @(*) begin
     integer i;
     concat_32 = concat_32_reg;
-    case (current_state)
+    case (current_state_d2)
         S_P1_READ_L0: begin
-            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d1[0], 4'b0} + i] = mem_dout[8*i+7:8*i];
-            case (p1_L0_x)
-                0: begin
-                    concat_32[0] = concat_32[2];
-                    concat_32[1] = concat_32[2];
-                end
-                1: begin
-                    concat_32[0] = concat_32[1];
-                end
-                116: begin
-                    concat_32[14] = concat_32[13];
-                end
-                117: begin
-                    concat_32[14] = concat_32[12];
-                    concat_32[13] = concat_32[12];
-                end
-            endcase
+            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d2[0], 4'b0} + i] = mem_dout[i];
         end
         S_P1_READ_L1: begin
-            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d1[0], 4'b0} + i] = mem_dout[8*i+7:8*i];
-            case (p1_L1_x)
-                0: begin
-                    concat_32[0] = concat_32[2];
-                    concat_32[1] = concat_32[2];
-                end
-                1: begin
-                    concat_32[0] = concat_32[1];
-                end
-                116: begin
-                    concat_32[14] = concat_32[13];
-                end
-                117: begin
-                    concat_32[14] = concat_32[12];
-                    concat_32[13] = concat_32[12];
-                end
-            endcase
+            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d2[0], 4'b0} + i] = mem_dout[i];
         end
         S_P1_READ_L0: begin
-            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d1[0], 4'b0} + i] = mem_dout[8*i+7:8*i];
-            case (p2_L0_x)
-                0: begin
-                    concat_32[0] = concat_32[2];
-                    concat_32[1] = concat_32[2];
-                end
-                1: begin
-                    concat_32[0] = concat_32[1];
-                end
-                116: begin
-                    concat_32[14] = concat_32[13];
-                end
-                117: begin
-                    concat_32[14] = concat_32[12];
-                    concat_32[13] = concat_32[12];
-                end
-            endcase
+            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d2[0], 4'b0} + i] = mem_dout[i];
         end
-        S_p2_READ_L1: begin
-            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d1[0], 4'b0} + i] = mem_dout[8*i+7:8*i];
-            case (p2_L1_x)
-                0: begin
-                    concat_32[0] = concat_32[2];
-                    concat_32[1] = concat_32[2];
-                end
-                1: begin
-                    concat_32[0] = concat_32[1];
-                end
-                116: begin
-                    concat_32[14] = concat_32[13];
-                end
-                117: begin
-                    concat_32[14] = concat_32[12];
-                    concat_32[13] = concat_32[12];
-                end
-            endcase
+        S_P2_READ_L1: begin
+            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d2[0], 4'b0} + i] = mem_dout[i];
         end
     endcase
 end
 
-always @(posedge clk) begin
-    integer i;
-    if (current_state_d1 == S_P1_READ_L0) begin
-        for (i = 0; i < 16; i = i + 1) begin
-            L0_15x15[ + /*i*/] <= concat_32[];    // ?????
+// reg [6:0] now_L0_x, now_L0_x_sub2;
+always @(*) begin
+    case (current_state_d2)
+        S_P1_READ_L0: begin
+            now_L0_x      = p1_L0_x;
+            now_L0_x_sub2 = p1_L0_x_sub2;
         end
+        default: begin
+        // S_P2_READ_L0: begin
+            now_L0_x      = p2_L0_x;
+            now_L0_x_sub2 = p2_L0_x_sub2;
+        end
+    endcase
+end
+
+// reg [6:0] now_L1_x, now_L1_x_sub2;
+always @(*) begin
+    case (current_state_d2)
+        S_P1_READ_L1: begin
+            now_L1_x      = p1_L1_x;
+            now_L1_x_sub2 = p1_L1_x_sub2;
+        end
+        default: begin
+        // S_P2_READ_L1: begin
+            now_L1_x      = p2_L1_x;
+            now_L1_x_sub2 = p2_L1_x_sub2;
+        end
+    endcase
+end
+
+// reg [7:0] L0_15x16 [0:240];
+// reg [7:0] L1_15x16 [0:240];
+always @(posedge clk) begin
+    if (read_cnt_d2[0]) begin
+        case (current_state_d2)
+            S_P1_READ_L0, S_P2_READ_L0: begin
+                case (now_L0_x)
+                    0: begin
+                        L0_15x16[{read_cnt_d2[4:1],4'd0}]       <= concat_32[0];
+                        L0_15x16[{read_cnt_d2[4:1],4'd1}]       <= concat_32[0];
+                        L0_15x16[{read_cnt_d2[4:1],4'd2} +: 13] <= concat_32[0:12];
+                    end
+                    1: begin
+                        L0_15x16[{read_cnt_d2[4:1],4'd0}]       <= concat_32[0];
+                        L0_15x16[{read_cnt_d2[4:1],4'd1} +: 14] <= concat_32[0:13];
+                    end
+                    116: begin
+                        L0_15x16[{read_cnt_d2[4:1],4'd0} +: 14] <= concat_32[2:15];
+                        L0_15x16[{read_cnt_d2[4:1],4'd14}]      <= concat_32[15];
+                    end
+                    default: begin
+                        L0_15x16[{read_cnt_d2[4:1],4'd0} +: 15] <= concat_32[now_L0_x_sub2[3:0] +: 15];     // [(read_cnt_d2/2 * 16) +: 15]
+                    end
+                endcase
+            end
+            S_P1_READ_L1, S_P2_READ_L1: begin
+                case (now_L1_x)
+                    0: begin
+                        L1_15x16[{read_cnt_d2[4:1],4'd0}]       <= concat_32[0];
+                        L1_15x16[{read_cnt_d2[4:1],4'd1}]       <= concat_32[0];
+                        L1_15x16[{read_cnt_d2[4:1],4'd2} +: 13] <= concat_32[0:12];
+                    end
+                    1: begin
+                        L1_15x16[{read_cnt_d2[4:1],4'd0}]       <= concat_32[0];
+                        L1_15x16[{read_cnt_d2[4:1],4'd1} +: 14] <= concat_32[0:13];
+                    end
+                    116: begin
+                        L1_15x16[{read_cnt_d2[4:1],4'd0} +: 14] <= concat_32[2:15];
+                        L1_15x16[{read_cnt_d2[4:1],4'd14}]      <= concat_32[15];
+                    end
+                    default: begin
+                        L1_15x16[{read_cnt_d2[4:1],4'd0} +: 15] <= concat_32[now_L1_x_sub2[3:0] +: 15];     // [(read_cnt_d2/2 * 16) +: 15]
+                    end
+                endcase
+            end
+        endcase
     end
 end
 
@@ -312,53 +346,52 @@ end
 //                   MEM
 //=======================================================
 
-assign 
-
 // Address = row * 8 + (col / 16)
 // Address = row * 8 + block
-
-assign 
 
 // reg current_img;
 // reg [6:0] current_row;
 // reg [2:0] current_block;
-always @(posedge clk) begin
-    if (in_data) begin
-        current_img   <= input_cnt[14];
-        current_row   <= input_cnt[13:7];
-        current_block <= input_cnt[6:4];
-        // {current_img, current_row, current_block} <= input_cnt[14:4];
+always @(posedge clk or negedge rst_n) begin     // TODO: combine p1, p2 using now_...
+    if (!rst_n) begin
+        {current_img, current_row, current_block} <= 11'd0;
+    end
+    else if (in_valid) begin
+        // current_img   <= input_cnt[14];
+        // current_row   <= input_cnt[13:7];
+        // current_block <= input_cnt[6:4];
+        {current_img, current_row, current_block} <= input_cnt[14:4];
     end
     else begin
         case (current_state)
             S_P1_READ_L0: begin
                 current_img   <= 1'b0;
-                current_row   <= p1_L0_y_sub2      + {3'd0, read_cnt[4:1] & ((p1_L0_y + read_cnt) > 1)};
+                current_row   <= p1_L0_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p1_L0_y + read_cnt) > 1)}}};
                 current_block <= p1_L0_x_sub2[6:4] + {2'b0, read_cnt[0]};
             end
             S_P1_READ_L1: begin
                 current_img   <= 1'b1;
-                current_row   <= p1_L1_y_sub2      + {3'd0, read_cnt[4:1] & ((p1_L1_y + read_cnt) > 1)};
+                current_row   <= p1_L1_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p1_L1_y + read_cnt) > 1)}}};
                 current_block <= p1_L1_x_sub2[6:4] + {2'b0, read_cnt[0]};
             end
             S_P1_READ_L0: begin
                 current_img   <= 1'b0;
-                current_row   <= p2_L0_y_sub2      + {3'd0, read_cnt[4:1] & ((p2_L0_y + read_cnt) > 1)};
+                current_row   <= p2_L0_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p2_L0_y + read_cnt) > 1)}}};
                 current_block <= p2_L0_x_sub2[6:4] + {2'b0, read_cnt[0]};
             end
-            S_p2_READ_L1: begin
+            S_P2_READ_L1: begin
                 current_img   <= 1'b1;
-                current_row   <= p2_L1_y_sub2      + {3'd0, read_cnt[4:1] & ((p2_L1_y + read_cnt) > 1)};
+                current_row   <= p2_L1_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p2_L1_y + read_cnt) > 1)}}};
                 current_block <= p2_L1_x_sub2[6:4] + {2'b0, read_cnt[0]};
             end
-            default: 
         endcase
     end
 end
 
 // reg web;
-always @(posedge clk) begin
-    if (current_state == S_W_SRAM && (&input_cnt[3:0])) web <= WRITE;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) web <= READ;
+    else if (current_state == S_W_SRAM && (&input_cnt[3:0])) web <= WRITE;
     else web <= READ;
 end
 
