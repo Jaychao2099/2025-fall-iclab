@@ -3,9 +3,10 @@
 //      input ---> mem
 //      mem   ---> concat_32
 //      concat_32 ---> L0_15x16
+//      interpolation
 
 // TODO:
-//      pipeline
+//      make pipeline
 
 module MVDM(
     // input signals
@@ -32,6 +33,8 @@ output reg out_sad;
 //                   Reg/Wire
 //=======================================================
 
+genvar k;
+
 parameter S_IDLE        = 0;
 parameter S_W_SRAM      = 1;
 parameter S_MV          = 2;
@@ -54,8 +57,8 @@ reg [3:0]  input2_cnt;
 reg [4:0] read_cnt;     // 0~29
 reg [4:0] read_cnt_d1, read_cnt_d2;
 
-reg [7:0] L0_15x16 [0:240];
-reg [7:0] L1_15x16 [0:240];
+reg [7:0] L0_15x16 [0:239];
+reg [7:0] L1_15x16 [0:239];
 
 reg [3:0] current_state_d1, current_state_d2;
 
@@ -63,6 +66,46 @@ reg [7:0] concat_32 [0:31], concat_32_reg [0:31];
 
 reg [6:0] now_L0_x, now_L0_x_sub2;
 reg [6:0] now_L1_x, now_L1_x_sub2;
+
+// --------------------------- calculate pipeline ---------------------------
+// ----------- stage 1 -----------
+reg [3:0] L0_search_point;    // 0~8
+reg [3:0] L1_search_point;    // 8~0
+
+reg [5:0] L0_search_point_offset;       // 0,1,2, 16,17,18, 32,33,34
+reg [5:0] L1_search_point_offset;       // 0,1,2, 16,17,18, 32,33,34
+reg [7:0] L0_array_idx;
+reg [7:0] L1_array_idx;
+
+reg [3:0] cal_cnt;
+
+reg now_L0_frac_x;
+reg now_L0_frac_y;
+reg now_L1_frac_x;
+reg now_L1_frac_y;
+
+reg [7:0] L0_ip_result [0:3], L1_ip_result [0:3];      // 0~255
+reg signed [8:0] residual [0:3];
+
+// ----------- stage 2 -----------
+reg [1:0] stage_2_cnt; // 0~3
+// -1020 ~ 1020
+// 10000000100
+// 01111111100
+reg signed [10:0] tmp_4x4 [0:15];    // 11-bit
+
+// ----------- stage 3 -----------
+wire cal_done;
+reg [1:0] stage_2_cnt_d1; // 0~3
+reg [3:0] stage_3_cnt; // 0~8
+
+reg signed [12:0] hadamard [0:15], hadamard_abs [0:15];
+reg [23:0] SATD;     // 0 ~ ?
+reg [23:0] SATD_p1_final, SATD_p2_final;     // 0 ~ ?
+reg [3:0] search_point_final_p1, search_point_final_p2;  // 0 ~ 8
+
+// --------------------------- output ---------------------------
+reg [5:0] out_cnt;    // 0~55
 
 // --------------------------- memory ---------------------------
 reg current_img;
@@ -100,39 +143,39 @@ always @(*) begin
             else                        next_state = S_W_SRAM;
         end
         S_MV: begin
-            if (input2_cnt == 4'd7) next_state = S_P1_READ_L0;  // 3'd7?
+            if (input2_cnt == 4'd7) next_state = S_P1_READ_L1;  // 3'd7?
             else                    next_state = S_MV;
         end
         // P1
         S_P1_READ_L0: begin
-            if (read_cnt == 5'd29) next_state = S_P1_READ_L1;   // 16 pixel in 1 read
+            if (read_cnt == 5'd29) next_state = S_P1_CAL;       // 16 pixel in 1 read
             else                   next_state = S_P1_READ_L0;
         end
         S_P1_READ_L1: begin
-            if (read_cnt == 5'd29) next_state = S_P1_CAL;
+            if (read_cnt == 5'd29) next_state = S_P1_READ_L0;
             else                   next_state = S_P1_READ_L1;
         end
-        // S_P1_CAL: begin
-        //     if (cal_done) next_state = S_P2_READ_L0;
-        //     else          next_state = S_P1_CAL;
-        // end
-        // // P2
-        // S_P2_READ_L0: begin
-        //     if (read_cnt == 5'd30) next_state = S_P2_READ_L1;   // 16 pixel in 1 read
-        //     else                   next_state = S_P2_READ_L0;
-        // end
-        // S_P2_READ_L1: begin
-        //     if (read_cnt == 5'd30) next_state = S_P2_CAL;
-        //     else                   next_state = S_P2_READ_L1;
-        // end
-        // S_P2_CAL: begin
-        //     if (cal_done) next_state = S_OUTPUT;
-        //     else          next_state = S_P2_CAL;
-        // end
-        // S_OUTPUT: begin
-        //     if (out_cnt == 6'd56) next_state = S_IDLE;
-        //     else                  next_state = S_OUTPUT;
-        // end
+        S_P1_CAL: begin
+            if (cal_done) next_state = S_P2_READ_L1;
+            else          next_state = S_P1_CAL;
+        end
+        // P2
+        S_P2_READ_L0: begin
+            if (read_cnt == 5'd29) next_state = S_P2_CAL;       // 16 pixel in 1 read
+            else                   next_state = S_P2_READ_L0;
+        end
+        S_P2_READ_L1: begin
+            if (read_cnt == 5'd29) next_state = S_P2_READ_L0;
+            else                   next_state = S_P2_READ_L1;
+        end
+        S_P2_CAL: begin
+            if (cal_done) next_state = S_OUTPUT;
+            else          next_state = S_P2_CAL;
+        end
+        S_OUTPUT: begin
+            if (out_cnt == 6'd55) next_state = S_IDLE;
+            else                  next_state = S_OUTPUT;
+        end
         default: next_state = current_state;
     endcase
 end
@@ -166,6 +209,11 @@ reg p1_L1_frac_x, p1_L1_frac_y;
 reg p2_L0_frac_x, p2_L0_frac_y;
 reg p2_L1_frac_x, p2_L1_frac_y;
 
+// reg p1_L0_frac_x, p1_L0_frac_y;
+// reg p1_L1_frac_x, p1_L1_frac_y;
+
+// reg p2_L0_frac_x, p2_L0_frac_y;
+// reg p2_L1_frac_x, p2_L1_frac_y;
 always @(posedge clk) begin
     if (in_valid2) begin
         case (input2_cnt)
@@ -235,17 +283,8 @@ always @(*) begin
     integer i;
     concat_32 = concat_32_reg;
     case (current_state_d2)
-        S_P1_READ_L0: begin
-            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d2[0], 4'b0} + i] = mem_dout[i];
-        end
-        S_P1_READ_L1: begin
-            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d2[0], 4'b0} + i] = mem_dout[i];
-        end
-        S_P1_READ_L0: begin
-            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d2[0], 4'b0} + i] = mem_dout[i];
-        end
-        S_P2_READ_L1: begin
-            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d2[0], 4'b0} + i] = mem_dout[i];
+        S_P1_READ_L0, S_P1_READ_L1, S_P2_READ_L0, S_P2_READ_L1: begin
+            for (i = 0; i < 16; i = i + 1) concat_32[{read_cnt_d2[0], i[3:0]}] = mem_dout[i];
         end
     endcase
 end
@@ -258,7 +297,6 @@ always @(*) begin
             now_L0_x_sub2 = p1_L0_x_sub2;
         end
         default: begin
-        // S_P2_READ_L0: begin
             now_L0_x      = p2_L0_x;
             now_L0_x_sub2 = p2_L0_x_sub2;
         end
@@ -273,15 +311,14 @@ always @(*) begin
             now_L1_x_sub2 = p1_L1_x_sub2;
         end
         default: begin
-        // S_P2_READ_L1: begin
             now_L1_x      = p2_L1_x;
             now_L1_x_sub2 = p2_L1_x_sub2;
         end
     endcase
 end
 
-// reg [7:0] L0_15x16 [0:240];
-// reg [7:0] L1_15x16 [0:240];
+// reg [7:0] L0_15x16 [0:239];
+// reg [7:0] L1_15x16 [0:239];
 always @(posedge clk) begin
     if (read_cnt_d2[0]) begin
         case (current_state_d2)
@@ -329,17 +366,305 @@ always @(posedge clk) begin
     end
 end
 
+// --------------------------- calculate pipeline ---------------------------
+
+// ----------- stage 1 -----------
+// L0 buffer  ---(4 interpolation)---> 4 pixel
+// L1 buffer  ---(4 interpolation)---> 4 pixel
+
+// reg [3:0] cal_cnt;       // 0~15
+always @(posedge clk) begin
+    case (current_state)
+        S_IDLE:             cal_cnt <= 4'd0;
+        S_P1_CAL, S_P2_CAL: cal_cnt <= cal_cnt + 4'd1;
+    endcase
+end
+
+// reg [3:0] L0_search_point;    // 0~8
+always @(posedge clk) begin
+    case (current_state)
+        S_IDLE:             L0_search_point <= 4'd0;
+        S_P1_CAL, S_P2_CAL: if (cal_cnt == 4'd15) L0_search_point <= L0_search_point + 4'd1;
+    endcase
+end
+
+// reg [3:0] L1_search_point;    // 8~0
+always @(posedge clk) begin
+    case (current_state)
+        S_IDLE:             L1_search_point <= 4'd8;
+        S_P1_CAL, S_P2_CAL: if (cal_cnt == 4'd15) L1_search_point <= L1_search_point - 4'd1;
+    endcase
+end
+
+// reg [5:0] L0_search_point_offset;       // 0,1,2, 16,17,18, 32,33,34
+always @(*) begin
+    case (L0_search_point)  // 0~8
+        0: L0_search_point_offset = 0;
+        1: L0_search_point_offset = 1;
+        2: L0_search_point_offset = 2;
+        
+        3: L0_search_point_offset = 16;
+        4: L0_search_point_offset = 17;
+        5: L0_search_point_offset = 18;
+        
+        6: L0_search_point_offset = 32;
+        7: L0_search_point_offset = 33;
+        default: L0_search_point_offset = 34;
+    endcase
+end
+
+// reg [5:0] L1_search_point_offset;       // 0,1,2, 16,17,18, 32,33,34
+always @(*) begin
+    case (L1_search_point)  // 8~0
+        0: L1_search_point_offset = 0;
+        1: L1_search_point_offset = 1;
+        2: L1_search_point_offset = 2;
+        
+        3: L1_search_point_offset = 16;
+        4: L1_search_point_offset = 17;
+        5: L1_search_point_offset = 18;
+        
+        6: L1_search_point_offset = 32;
+        7: L1_search_point_offset = 33;
+        default: L1_search_point_offset = 34;
+    endcase
+end
+
+// reg [7:0] L0_array_idx;
+always @(*) begin
+    case (cal_cnt)
+        0: L0_array_idx = 0  + L0_search_point_offset;
+        1: L0_array_idx = 16 + L0_search_point_offset;
+        2: L0_array_idx = 32 + L0_search_point_offset;
+        3: L0_array_idx = 48 + L0_search_point_offset;
+
+        4: L0_array_idx = 4  + L0_search_point_offset;
+        5: L0_array_idx = 20 + L0_search_point_offset;
+        6: L0_array_idx = 36 + L0_search_point_offset;
+        7: L0_array_idx = 52 + L0_search_point_offset;
+
+        8: L0_array_idx  = 64 + L0_search_point_offset;
+        9: L0_array_idx  = 80 + L0_search_point_offset;
+        10: L0_array_idx = 96 + L0_search_point_offset;
+        11: L0_array_idx = 112 + L0_search_point_offset;
+
+        12: L0_array_idx = 68 + L0_search_point_offset;
+        13: L0_array_idx = 84 + L0_search_point_offset;
+        14: L0_array_idx = 100 + L0_search_point_offset;
+        default: L0_array_idx = 116 + L0_search_point_offset;
+    endcase
+end
+
+// reg [7:0] L1_array_idx;
+always @(*) begin
+    case (cal_cnt)
+        0: L1_array_idx = 0  + L1_search_point_offset;
+        1: L1_array_idx = 16 + L1_search_point_offset;
+        2: L1_array_idx = 32 + L1_search_point_offset;
+        3: L1_array_idx = 48 + L1_search_point_offset;
+
+        4: L1_array_idx = 4  + L1_search_point_offset;
+        5: L1_array_idx = 20 + L1_search_point_offset;
+        6: L1_array_idx = 36 + L1_search_point_offset;
+        7: L1_array_idx = 52 + L1_search_point_offset;
+
+        8: L1_array_idx  = 64 + L1_search_point_offset;
+        9: L1_array_idx  = 80 + L1_search_point_offset;
+        10: L1_array_idx = 96 + L1_search_point_offset;
+        11: L1_array_idx = 112 + L1_search_point_offset;
+
+        12: L1_array_idx = 68 + L1_search_point_offset;
+        13: L1_array_idx = 84 + L1_search_point_offset;
+        14: L1_array_idx = 100 + L1_search_point_offset;
+        default: L1_array_idx = 116 + L1_search_point_offset;
+    endcase
+end
+
+// reg now_L0_frac_x;
+// reg now_L0_frac_y;
+// reg now_L1_frac_x;
+// reg now_L1_frac_y;
+always @(*) begin
+    if (current_state == S_P1_CAL) begin
+        now_L0_frac_x = p1_L0_frac_x;
+        now_L0_frac_y = p1_L0_frac_y;
+        now_L1_frac_x = p1_L1_frac_x;
+        now_L1_frac_y = p1_L1_frac_y;
+    end
+    else begin
+        now_L0_frac_x = p2_L0_frac_x;
+        now_L0_frac_y = p2_L0_frac_y;
+        now_L1_frac_x = p2_L1_frac_x;
+        now_L1_frac_y = p2_L1_frac_y;
+    end
+end
+
+// reg [7:0] L0_ip_result [0:3], L1_ip_result [0:3];      // 0~255
+generate
+    for (k = 0; k < 4; k = k + 1) begin : interpolation_gen_4
+        CLIP_INTERPOLATION L0_clip_ip (
+            .array_0(L0_15x16[(     k + L0_array_idx) +: 6]),
+            .array_1(L0_15x16[(16 + k + L0_array_idx) +: 6]),
+            .array_2(L0_15x16[(32 + k + L0_array_idx) +: 6]),
+            .array_3(L0_15x16[(48 + k + L0_array_idx) +: 6]),
+            .array_4(L0_15x16[(64 + k + L0_array_idx) +: 6]),
+            .array_5(L0_15x16[(80 + k + L0_array_idx) +: 6]),
+            .frac_x(now_L0_frac_x), .frac_y(now_L0_frac_y),
+            
+            .result(L0_ip_result[k])
+        );
+
+        CLIP_INTERPOLATION L1_clip_ip (
+            .array_0(L1_15x16[(     k + L1_array_idx) +: 6]),
+            .array_1(L1_15x16[(16 + k + L1_array_idx) +: 6]),
+            .array_2(L1_15x16[(32 + k + L1_array_idx) +: 6]),
+            .array_3(L1_15x16[(48 + k + L1_array_idx) +: 6]),
+            .array_4(L1_15x16[(64 + k + L1_array_idx) +: 6]),
+            .array_5(L1_15x16[(80 + k + L1_array_idx) +: 6]),
+            .frac_x(now_L1_frac_x), .frac_y(now_L1_frac_y),
+            
+            .result(L1_ip_result[k])
+        );
+    end
+endgenerate
+
+// L0 - L1
+// -255 ~ 255
+// 100000001 ~ 011111111
+// reg signed [8:0] residual [0:3];
+always @(posedge clk) begin
+    integer i;
+    for (i = 0; i < 4; i = i + 1) residual[i] <= $signed({1'b0, L0_ip_result[i]}) - $signed({1'b0, L1_ip_result[i]});
+end
+
+// ----------- stage 2 -----------
+
+// reg [1:0] stage_2_cnt; // 0~3
+always @(posedge clk) begin
+    stage_2_cnt <= cal_cnt[1:0];
+end
+
+// -1020 ~ 1020
+// 10000000100
+// 01111111100
+// reg signed [10:0] tmp_4x4 [0:15];    // 11-bit
+always @(posedge clk) begin
+    tmp_4x4[{stage_2_cnt, 2'd0}] <= residual[0] + residual[1] + residual[2] + residual[3];
+    tmp_4x4[{stage_2_cnt, 2'd1}] <= residual[0] - residual[1] + residual[2] - residual[3];
+    tmp_4x4[{stage_2_cnt, 2'd2}] <= residual[0] + residual[1] - residual[2] - residual[3];
+    tmp_4x4[{stage_2_cnt, 2'd3}] <= residual[0] - residual[1] - residual[2] + residual[3];
+end
+
+// ----------- stage 3 -----------
+
+// reg [1:0] stage_2_cnt_d1; // 0~3
+always @(posedge clk) begin
+    stage_2_cnt_d1 <= stage_2_cnt;
+end
+
+// reg [3:0] stage_3_cnt; // 0~8
+always @(posedge clk or negedge rst_n) begin
+    if      (!rst_n)                 stage_3_cnt <= 4'd0;
+    else if (cal_done)               stage_3_cnt <= 4'd0;
+    else if (stage_2_cnt_d1 == 2'd3) stage_3_cnt <= stage_3_cnt + 4'd1;
+end
+
+function signed [12:0] abs;
+    input signed [12:0] a;  // 13-bit
+    reg signed [12:0] sign;
+    reg [12:0] a_extend;
+    begin
+        sign = {13{a[12]}};
+        abs = (a ^ sign) - sign;
+        // abs = a[12] ? -a : a;
+    end
+endfunction
+
+// reg signed [12:0] hadamard [0:15];
+always @(*) begin
+    hadamard[0] = tmp_4x4[0] + tmp_4x4[4] + tmp_4x4[8] + tmp_4x4[12];
+    hadamard[1] = tmp_4x4[1] + tmp_4x4[5] + tmp_4x4[9] + tmp_4x4[13];
+    hadamard[2] = tmp_4x4[2] + tmp_4x4[6] + tmp_4x4[10] + tmp_4x4[14];
+    hadamard[3] = tmp_4x4[3] + tmp_4x4[7] + tmp_4x4[11] + tmp_4x4[15];
+    hadamard[4] = tmp_4x4[0] - tmp_4x4[4] + tmp_4x4[8] - tmp_4x4[12];
+    hadamard[5] = tmp_4x4[1] - tmp_4x4[5] + tmp_4x4[9] - tmp_4x4[13];
+    hadamard[6] = tmp_4x4[2] - tmp_4x4[6] + tmp_4x4[10] - tmp_4x4[14];
+    hadamard[7] = tmp_4x4[3] - tmp_4x4[7] + tmp_4x4[11] - tmp_4x4[15];
+    hadamard[8] = tmp_4x4[0] + tmp_4x4[4] - tmp_4x4[8] - tmp_4x4[12];
+    hadamard[9] = tmp_4x4[1] + tmp_4x4[5] - tmp_4x4[9] - tmp_4x4[13];
+    hadamard[10] = tmp_4x4[2] + tmp_4x4[6] - tmp_4x4[10] - tmp_4x4[14];
+    hadamard[11] = tmp_4x4[3] + tmp_4x4[7] - tmp_4x4[11] - tmp_4x4[15];
+    hadamard[12] = tmp_4x4[0] - tmp_4x4[4] - tmp_4x4[8] + tmp_4x4[12];
+    hadamard[13] = tmp_4x4[1] - tmp_4x4[5] - tmp_4x4[9] + tmp_4x4[13];
+    hadamard[14] = tmp_4x4[2] - tmp_4x4[6] - tmp_4x4[10] + tmp_4x4[14];
+    hadamard[15] = tmp_4x4[3] - tmp_4x4[7] - tmp_4x4[11] + tmp_4x4[15];
+end
+
+// reg signed [12:0] hadamard_abs [0:15];
+always @(*) begin
+    integer i;
+    for (i = 0; i < 16; i = i + 1) hadamard_abs[i] = abs(hadamard[i]);
+end
+
+// reg [23:0] SATD;     // 0 ~ ?
+always @(*) begin
+    SATD = hadamard_abs[0]  + hadamard_abs[1]  + hadamard_abs[2]  + hadamard_abs[3] + 
+           hadamard_abs[4]  + hadamard_abs[5]  + hadamard_abs[6]  + hadamard_abs[7] + 
+           hadamard_abs[8]  + hadamard_abs[9]  + hadamard_abs[10] + hadamard_abs[11] + 
+           hadamard_abs[12] + hadamard_abs[13] + hadamard_abs[14] + hadamard_abs[15];
+end
+
+// reg [23:0] SATD_p1_final;     // 0 ~ ?
+// reg [3:0] search_point_final_p1;  // 0 ~ 8
+always @(posedge clk) begin
+    if (current_state == S_IDLE) begin
+        SATD_p1_final <= 24'd0;
+        search_point_final_p1 <= 4'd0;
+    end
+    else if (current_state == S_P1_CAL && SATD_p1_final < SATD && stage_2_cnt_d1 == 2'd3) begin
+        SATD_p1_final <= SATD;
+        search_point_final_p1 <= stage_3_cnt;
+    end
+end
+
+// reg [23:0] SATD_p2_final;     // 0 ~ ?
+// reg [3:0] search_point_final_p2;  // 0 ~ 8
+always @(posedge clk) begin
+    if (current_state == S_IDLE) begin
+        SATD_p2_final <= 24'd0;
+        search_point_final_p2 <= 4'd0;
+    end
+    else if (current_state == S_P2_CAL && SATD_p2_final < SATD && stage_2_cnt_d1 == 2'd3) begin
+        SATD_p2_final <= SATD;
+        search_point_final_p2 <= stage_3_cnt;
+    end
+end
+
+// wire cal_done;
+assign cal_done = (stage_3_cnt == 4'd8);
 
 // --------------------------- output ---------------------------
 
+wire [55:0] output_string = {search_point_final_p2, SATD_p2_final, search_point_final_p1, SATD_p1_final};
+
+// reg [5:0] out_cnt;    // 0~55
+always @(posedge clk) begin
+    if (current_state == S_OUTPUT) out_cnt <= out_cnt + 6'd1;
+    else out_cnt <= 6'd0;
+end
+
 // output reg out_valid;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) out_valid <= 1'b0;
+    if      (!rst_n)                   out_valid <= 1'b0;
+    else if (out_cnt == 6'd55)         out_valid <= 1'b0;
+    else if (current_state == S_OUTPUT) out_valid <= 1'b1;
 end
 
 // output reg out_sad;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) out_sad <= 1'b0;
+    if      (!rst_n)                    out_sad <= 1'b0;
+    else if (out_cnt == 6'd55)          out_sad <= 1'b0;
+    else if (current_state == S_OUTPUT) out_sad <= output_string[out_cnt];
 end
 
 //=======================================================
@@ -352,7 +677,7 @@ end
 // reg current_img;
 // reg [6:0] current_row;
 // reg [2:0] current_block;
-always @(posedge clk or negedge rst_n) begin     // TODO: combine p1, p2 using now_...
+always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         {current_img, current_row, current_block} <= 11'd0;
     end
@@ -362,7 +687,7 @@ always @(posedge clk or negedge rst_n) begin     // TODO: combine p1, p2 using n
         // current_block <= input_cnt[6:4];
         {current_img, current_row, current_block} <= input_cnt[14:4];
     end
-    else begin
+    else begin     // TODO: combine p1, p2 using now_...
         case (current_state)
             S_P1_READ_L0: begin
                 current_img   <= 1'b0;
@@ -374,7 +699,7 @@ always @(posedge clk or negedge rst_n) begin     // TODO: combine p1, p2 using n
                 current_row   <= p1_L1_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p1_L1_y + read_cnt) > 1)}}};
                 current_block <= p1_L1_x_sub2[6:4] + {2'b0, read_cnt[0]};
             end
-            S_P1_READ_L0: begin
+            S_P2_READ_L0: begin
                 current_img   <= 1'b0;
                 current_row   <= p2_L0_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p2_L0_y + read_cnt) > 1)}}};
                 current_block <= p2_L0_x_sub2[6:4] + {2'b0, read_cnt[0]};
@@ -456,5 +781,131 @@ SRAM_16_PIXEL_2048 sram (
     .DI120(Din[15][0]),.DI121(Din[15][1]),.DI122(Din[15][2]),.DI123(Din[15][3]),.DI124(Din[15][4]),.DI125(Din[15][5]),.DI126(Din[15][6]),.DI127(Din[15][7]),
     
     .CK(clk),.WEB(WEB),.OE(1'b1),.CS(1'b1));
+
+endmodule
+
+module CLIP_INTERPOLATION (
+    input  [7:0] array_0 [0:5],
+    input  [7:0] array_1 [0:5],
+    input  [7:0] array_2 [0:5],     // MV point == array_2[2]
+    input  [7:0] array_3 [0:5],
+    input  [7:0] array_4 [0:5],
+    input  [7:0] array_5 [0:5],
+    input frac_x,
+    input frac_y,
+    output reg [7:0] result
+);
+
+// 1, -5, 20, 20, -5, 1
+
+// input:  0 ~ 255
+// output: -2550 ~ 10710
+// 111011000001010 ~ 010100111010110
+function signed [14:0] interpolation;
+    input [7:0] array [0:5];
+    reg [7:0] p_m2, p_m1, p_0, p_1, p_2, p_3;
+    reg [8:0] sum_01;
+    reg [8:0] sum_m12;
+    reg [8:0] sum_m23;
+    reg signed [11:0] core;
+    reg signed [14:0] val_mult_5;
+    begin
+        p_m2 = array[0];
+        p_m1 = array[1];
+        p_0 = array[2];
+        p_1 = array[3];
+        p_2 = array[4];
+        p_3 = array[5];
+        sum_01 = p_0 + p_1;
+        sum_m12 = p_m1 + p_2;
+        sum_m23 = p_m2 + p_3;
+
+        core = $signed({1'b0, sum_01, 2'd0}) - $signed({3'b0, sum_m12});
+        val_mult_5 = (core <<< 2) + core;
+        interpolation = val_mult_5 + $signed({6'd0, sum_m23});
+    end
+endfunction
+
+// input:  -2550 ~ 10710
+// output: -214200 ~ 475320
+// 11001011101101001000 ~ 01110100000010111000
+function signed [9:0] clip_interpolation_signed;
+    input signed [14:0] p_m2, p_m1, p_0, p_1, p_2, p_3;
+    reg signed [15:0] sum_01;
+    reg signed [15:0] sum_m12;
+    reg signed [15:0] sum_m23;
+    reg signed [17:0] core;
+    reg signed [19:0] val_mult_5, tmp_result;
+    begin
+        // 21420
+        // 0101001110101100
+        // -5100
+        // 1111110000010100
+        // 16-bit
+        sum_01 = p_0 + p_1;
+        sum_m12 = p_m1 + p_2;
+        sum_m23 = p_m2 + p_3;
+        // 90780
+        // 010110001010011100
+        // -41820
+        // 110101110010100100
+        // 18-bit
+        core = (sum_01 <<< 2) - sum_m12;
+        // 453900
+        // 01101110110100001100
+        // -209110
+        // 11001100111100110100
+        // 20-bit
+        val_mult_5 = (core <<< 2) + core;
+        tmp_result = val_mult_5 + sum_m23 + 20'd512;
+
+        clip_interpolation_signed = tmp_result[19:10];
+    end
+endfunction
+
+wire signed [14:0] ip_0 = interpolation(array_0);
+wire signed [14:0] ip_1 = interpolation(array_1);
+wire signed [14:0] ip_2 = interpolation(array_2);
+wire signed [14:0] ip_3 = interpolation(array_3);
+wire signed [14:0] ip_4 = interpolation(array_4);
+wire signed [14:0] ip_5 = interpolation(array_5);
+
+wire [7:0] vertical_array [0:5];
+assign vertical_array[0] = array_0[2];
+assign vertical_array[1] = array_1[2];
+assign vertical_array[2] = array_2[2];
+assign vertical_array[3] = array_3[2];
+assign vertical_array[4] = array_4[2];
+assign vertical_array[5] = array_5[2];
+
+wire signed [14:0] vertical_ip = interpolation(vertical_array);
+
+wire signed [9:0] clip_hori = (ip_2        + 16) >>> 5;
+wire signed [9:0] clip_vert = (vertical_ip + 16) >>> 5;
+wire signed [9:0] clip_2D_ip = clip_interpolation_signed(ip_0, ip_1, ip_2, ip_3, ip_4, ip_5);
+
+
+always @(*) begin
+    case ({frac_x, frac_y})
+        2'b00: begin        // no interpolation
+            result = array_2[2];
+        end
+        2'b01: begin        // Horizontal
+            if      (clip_hori < 0)   result = 8'd0;
+            else if (clip_hori > 255) result = 8'd255;
+            else                      result = clip_hori;
+        end
+        2'b10: begin        // Vertical
+            if      (clip_vert < 0)   result = 8'd0;
+            else if (clip_vert > 255) result = 8'd255;
+            else                      result = clip_vert;
+        end
+        default: begin      // 2D
+            if      (clip_2D_ip < 0)   result = 8'd0;
+            else if (clip_2D_ip > 255) result = 8'd255;
+            else                       result = clip_2D_ip;
+        end
+    endcase
+end
 
 endmodule
