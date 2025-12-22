@@ -66,11 +66,12 @@ reg [7:0] concat_32 [0:31], concat_32_reg [0:31];
 
 reg [6:0] now_L0_x, now_L0_x_sub2;
 reg [6:0] now_L1_x, now_L1_x_sub2;
+reg [6:0] now_L0_y, now_L0_y_sub2;
+reg [6:0] now_L1_y, now_L1_y_sub2;
 
 // --------------------------- calculate pipeline ---------------------------
 // ----------- stage 1 -----------
-reg [3:0] L0_search_point;    // 0~8
-reg [3:0] L1_search_point;    // 8~0
+reg [3:0] search_point;    // 0~8
 
 reg [5:0] L0_search_point_offset;       // 0,1,2, 16,17,18, 32,33,34
 reg [5:0] L1_search_point_offset;       // 0,1,2, 16,17,18, 32,33,34
@@ -97,11 +98,12 @@ reg signed [10:0] tmp_4x4 [0:15];    // 11-bit
 // ----------- stage 3 -----------
 wire cal_done;
 reg [1:0] stage_2_cnt_d1; // 0~3
-reg [3:0] stage_3_cnt; // 0~8
+reg [5:0] stage_3_cnt; // 0~35 (9 * 4 = 36)
 
 reg signed [12:0] hadamard [0:15], hadamard_abs [0:15];
-reg [23:0] SATD;     // 0 ~ ?
-reg [23:0] SATD_p1_final, SATD_p2_final;     // 0 ~ ?
+reg [23:0] SATD_tmp;
+reg [23:0] SATD, SATD_reg;
+reg [23:0] SATD_p1_final, SATD_p2_final;
 reg [3:0] search_point_final_p1, search_point_final_p2;  // 0 ~ 8
 
 // --------------------------- output ---------------------------
@@ -173,7 +175,7 @@ always @(*) begin
             else          next_state = S_P2_CAL;
         end
         S_OUTPUT: begin
-            if (out_cnt == 6'd55) next_state = S_IDLE;
+            if (out_cnt == 6'd56) next_state = S_IDLE;
             else                  next_state = S_OUTPUT;
         end
         default: next_state = current_state;
@@ -238,13 +240,20 @@ reg [6:0] p2_L1_x_sub2, p2_L1_y_sub2;
 
 always @(*) begin
     p1_L0_x_sub2 = (p1_L0_x > 7'd2) ? (p1_L0_x - 7'd2) : (7'd0);
-    p1_L0_y_sub2 = (p1_L0_y > 7'd2) ? (p1_L0_y - 7'd2) : (7'd0);
+    // p1_L0_y_sub2 = (p1_L0_y > 7'd2) ? (p1_L0_y - 7'd2) : (7'd0);
+    p1_L0_y_sub2 = p1_L0_y - 7'd2;
+
     p1_L1_x_sub2 = (p1_L1_x > 7'd2) ? (p1_L1_x - 7'd2) : (7'd0);
-    p1_L1_y_sub2 = (p1_L1_y > 7'd2) ? (p1_L1_y - 7'd2) : (7'd0);
+    // p1_L1_y_sub2 = (p1_L1_y > 7'd2) ? (p1_L1_y - 7'd2) : (7'd0);
+    p1_L1_y_sub2 = p1_L1_y - 7'd2;
+
     p2_L0_x_sub2 = (p2_L0_x > 7'd2) ? (p2_L0_x - 7'd2) : (7'd0);
-    p2_L0_y_sub2 = (p2_L0_y > 7'd2) ? (p2_L0_y - 7'd2) : (7'd0);
+    // p2_L0_y_sub2 = (p2_L0_y > 7'd2) ? (p2_L0_y - 7'd2) : (7'd0);
+    p2_L0_y_sub2 = p2_L0_y - 7'd2;
+
     p2_L1_x_sub2 = (p2_L1_x > 7'd2) ? (p2_L1_x - 7'd2) : (7'd0);
-    p2_L1_y_sub2 = (p2_L1_y > 7'd2) ? (p2_L1_y - 7'd2) : (7'd0);
+    // p2_L1_y_sub2 = (p2_L1_y > 7'd2) ? (p2_L1_y - 7'd2) : (7'd0);
+    p2_L1_y_sub2 = p2_L1_y - 7'd2;
 end
 
 // --------------------------- matrix for calculate ---------------------------
@@ -291,28 +300,52 @@ end
 
 // reg [6:0] now_L0_x, now_L0_x_sub2;
 always @(*) begin
-    case (current_state_d2)
-        S_P1_READ_L0: begin
-            now_L0_x      = p1_L0_x;
-            now_L0_x_sub2 = p1_L0_x_sub2;
-        end
-        default: begin
-            now_L0_x      = p2_L0_x;
-            now_L0_x_sub2 = p2_L0_x_sub2;
-        end
-    endcase
+    if (current_state == S_P1_READ_L0 || current_state_d2 == S_P1_READ_L0) begin
+        now_L0_x      = p1_L0_x;
+        now_L0_x_sub2 = p1_L0_x_sub2;
+    end
+    else begin
+        now_L0_x      = p2_L0_x;
+        now_L0_x_sub2 = p2_L0_x_sub2;
+    end
 end
 
 // reg [6:0] now_L1_x, now_L1_x_sub2;
 always @(*) begin
-    case (current_state_d2)
-        S_P1_READ_L1: begin
-            now_L1_x      = p1_L1_x;
-            now_L1_x_sub2 = p1_L1_x_sub2;
+    if (current_state == S_P1_READ_L1 || current_state_d2 == S_P1_READ_L1) begin
+        now_L1_x      = p1_L1_x;
+        now_L1_x_sub2 = p1_L1_x_sub2;
+    end
+    else begin
+        now_L1_x      = p2_L1_x;
+        now_L1_x_sub2 = p2_L1_x_sub2;
+    end
+end
+
+// reg [6:0] now_L0_y, now_L0_y_sub2;
+always @(*) begin
+    case (current_state)
+        S_P1_READ_L0: begin
+            now_L0_y      = p1_L0_y;
+            now_L0_y_sub2 = p1_L0_y_sub2;
         end
         default: begin
-            now_L1_x      = p2_L1_x;
-            now_L1_x_sub2 = p2_L1_x_sub2;
+            now_L0_y      = p2_L0_y;
+            now_L0_y_sub2 = p2_L0_y_sub2;
+        end
+    endcase
+end
+
+// reg [6:0] now_L1_y, now_L1_y_sub2;
+always @(*) begin
+    case (current_state)
+        S_P1_READ_L1: begin
+            now_L1_y      = p1_L1_y;
+            now_L1_y_sub2 = p1_L1_y_sub2;
+        end
+        default: begin
+            now_L1_y      = p2_L1_y;
+            now_L1_y_sub2 = p2_L1_y_sub2;
         end
     endcase
 end
@@ -374,59 +407,53 @@ end
 
 // reg [3:0] cal_cnt;       // 0~15
 always @(posedge clk) begin
-    case (current_state)
-        S_IDLE:             cal_cnt <= 4'd0;
-        S_P1_CAL, S_P2_CAL: cal_cnt <= cal_cnt + 4'd1;
-    endcase
+    if      (current_state == S_IDLE || cal_cnt == 4'd0 && search_point == 4'd9) cal_cnt <= 4'd0;
+    else if (current_state == S_P1_CAL || current_state == S_P2_CAL) cal_cnt <= cal_cnt + 4'd1;
+    // case (current_state)
+    //     S_IDLE:             cal_cnt <= 4'd0;
+    //     S_P1_CAL, S_P2_CAL: cal_cnt <= cal_cnt + 4'd1;
+    // endcase
 end
 
-// reg [3:0] L0_search_point;    // 0~8
+// reg [3:0] search_point;    // 0~8
 always @(posedge clk) begin
     case (current_state)
-        S_IDLE:             L0_search_point <= 4'd0;
-        S_P1_CAL, S_P2_CAL: if (cal_cnt == 4'd15) L0_search_point <= L0_search_point + 4'd1;
-    endcase
-end
-
-// reg [3:0] L1_search_point;    // 8~0
-always @(posedge clk) begin
-    case (current_state)
-        S_IDLE:             L1_search_point <= 4'd8;
-        S_P1_CAL, S_P2_CAL: if (cal_cnt == 4'd15) L1_search_point <= L1_search_point - 4'd1;
+        S_P1_CAL, S_P2_CAL: if (cal_cnt == 4'd15) search_point <= search_point + 4'd1;
+        default:            search_point <= 4'd0;
     endcase
 end
 
 // reg [5:0] L0_search_point_offset;       // 0,1,2, 16,17,18, 32,33,34
 always @(*) begin
-    case (L0_search_point)  // 0~8
+    case (search_point)  // 0~8
         0: L0_search_point_offset = 0;
-        1: L0_search_point_offset = 1;
-        2: L0_search_point_offset = 2;
+        1: L0_search_point_offset = 16;
+        2: L0_search_point_offset = 32;
         
-        3: L0_search_point_offset = 16;
+        3: L0_search_point_offset = 1;
         4: L0_search_point_offset = 17;
-        5: L0_search_point_offset = 18;
+        5: L0_search_point_offset = 33;
         
-        6: L0_search_point_offset = 32;
-        7: L0_search_point_offset = 33;
+        6: L0_search_point_offset = 2;
+        7: L0_search_point_offset = 18;
         default: L0_search_point_offset = 34;
     endcase
 end
 
 // reg [5:0] L1_search_point_offset;       // 0,1,2, 16,17,18, 32,33,34
 always @(*) begin
-    case (L1_search_point)  // 8~0
-        0: L1_search_point_offset = 0;
-        1: L1_search_point_offset = 1;
+    case (search_point)  // 8~0
+        0: L1_search_point_offset = 34;
+        1: L1_search_point_offset = 18;
         2: L1_search_point_offset = 2;
         
-        3: L1_search_point_offset = 16;
+        3: L1_search_point_offset = 33;
         4: L1_search_point_offset = 17;
-        5: L1_search_point_offset = 18;
+        5: L1_search_point_offset = 1;
         
         6: L1_search_point_offset = 32;
-        7: L1_search_point_offset = 33;
-        default: L1_search_point_offset = 34;
+        7: L1_search_point_offset = 16;
+        default: L1_search_point_offset = 0;
     endcase
 end
 
@@ -562,11 +589,12 @@ always @(posedge clk) begin
     stage_2_cnt_d1 <= stage_2_cnt;
 end
 
-// reg [3:0] stage_3_cnt; // 0~8
+// reg [5:0] stage_3_cnt; // 0~35 (9 * 4 = 36)
 always @(posedge clk or negedge rst_n) begin
-    if      (!rst_n)                 stage_3_cnt <= 4'd0;
-    else if (cal_done)               stage_3_cnt <= 4'd0;
-    else if (stage_2_cnt_d1 == 2'd3) stage_3_cnt <= stage_3_cnt + 4'd1;
+    if      (!rst_n)                 stage_3_cnt <= 6'd0;
+    else if (cal_done)               stage_3_cnt <= 6'd0;
+    else if ((current_state == S_P1_CAL || current_state == S_P2_CAL) && 
+                stage_2_cnt_d1 == 2'd3) stage_3_cnt <= stage_3_cnt + 6'd1;
 end
 
 function signed [12:0] abs;
@@ -606,24 +634,36 @@ always @(*) begin
     for (i = 0; i < 16; i = i + 1) hadamard_abs[i] = abs(hadamard[i]);
 end
 
-// reg [23:0] SATD;     // 0 ~ ?
+// reg [23:0] SATD_tmp;     // 0 ~ ?    // TODO: remove some bits?
 always @(*) begin
-    SATD = hadamard_abs[0]  + hadamard_abs[1]  + hadamard_abs[2]  + hadamard_abs[3] + 
-           hadamard_abs[4]  + hadamard_abs[5]  + hadamard_abs[6]  + hadamard_abs[7] + 
-           hadamard_abs[8]  + hadamard_abs[9]  + hadamard_abs[10] + hadamard_abs[11] + 
-           hadamard_abs[12] + hadamard_abs[13] + hadamard_abs[14] + hadamard_abs[15];
+    SATD_tmp = hadamard_abs[0]  + hadamard_abs[1]  + hadamard_abs[2]  + hadamard_abs[3] + 
+               hadamard_abs[4]  + hadamard_abs[5]  + hadamard_abs[6]  + hadamard_abs[7] + 
+               hadamard_abs[8]  + hadamard_abs[9]  + hadamard_abs[10] + hadamard_abs[11] + 
+               hadamard_abs[12] + hadamard_abs[13] + hadamard_abs[14] + hadamard_abs[15];
+end
+
+// reg [23:0] SATD_reg;
+always @(posedge clk) begin
+    SATD_reg <= SATD;
+end
+
+// reg [23:0] SATD;
+always @(*) begin
+    if      (stage_2_cnt_d1 == 2'd3)   SATD = SATD_reg + SATD_tmp;
+    else if (stage_3_cnt[1:0] == 2'd0) SATD = 24'd0;
+    else                               SATD = SATD_reg;
 end
 
 // reg [23:0] SATD_p1_final;     // 0 ~ ?
 // reg [3:0] search_point_final_p1;  // 0 ~ 8
 always @(posedge clk) begin
     if (current_state == S_IDLE) begin
-        SATD_p1_final <= 24'd0;
+        SATD_p1_final <= 24'hFFFFFF;
         search_point_final_p1 <= 4'd0;
     end
-    else if (current_state == S_P1_CAL && SATD_p1_final < SATD && stage_2_cnt_d1 == 2'd3) begin
+    else if (current_state == S_P1_CAL && SATD_p1_final > SATD && stage_2_cnt_d1 == 2'd3 && stage_3_cnt[1:0] == 2'd3) begin
         SATD_p1_final <= SATD;
-        search_point_final_p1 <= stage_3_cnt;
+        search_point_final_p1 <= stage_3_cnt[5:2];
     end
 end
 
@@ -631,17 +671,17 @@ end
 // reg [3:0] search_point_final_p2;  // 0 ~ 8
 always @(posedge clk) begin
     if (current_state == S_IDLE) begin
-        SATD_p2_final <= 24'd0;
+        SATD_p2_final <= 24'hFFFFFF;
         search_point_final_p2 <= 4'd0;
     end
-    else if (current_state == S_P2_CAL && SATD_p2_final < SATD && stage_2_cnt_d1 == 2'd3) begin
+    else if (current_state == S_P2_CAL && SATD_p2_final > SATD && stage_2_cnt_d1 == 2'd3 && stage_3_cnt[1:0] == 2'd3) begin
         SATD_p2_final <= SATD;
-        search_point_final_p2 <= stage_3_cnt;
+        search_point_final_p2 <= stage_3_cnt[5:2];
     end
 end
 
 // wire cal_done;
-assign cal_done = (stage_3_cnt == 4'd8);
+assign cal_done = (stage_3_cnt == 6'd36);
 
 // --------------------------- output ---------------------------
 
@@ -656,14 +696,14 @@ end
 // output reg out_valid;
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                   out_valid <= 1'b0;
-    else if (out_cnt == 6'd55)         out_valid <= 1'b0;
+    else if (out_cnt == 6'd56)         out_valid <= 1'b0;
     else if (current_state == S_OUTPUT) out_valid <= 1'b1;
 end
 
 // output reg out_sad;
 always @(posedge clk or negedge rst_n) begin
     if      (!rst_n)                    out_sad <= 1'b0;
-    else if (out_cnt == 6'd55)          out_sad <= 1'b0;
+    else if (out_cnt == 6'd56)          out_sad <= 1'b0;
     else if (current_state == S_OUTPUT) out_sad <= output_string[out_cnt];
 end
 
@@ -687,27 +727,29 @@ always @(posedge clk or negedge rst_n) begin
         // current_block <= input_cnt[6:4];
         {current_img, current_row, current_block} <= input_cnt[14:4];
     end
-    else begin     // TODO: combine p1, p2 using now_...
+    else begin
         case (current_state)
-            S_P1_READ_L0: begin
+            S_P1_READ_L0, S_P2_READ_L0: begin
                 current_img   <= 1'b0;
-                current_row   <= p1_L0_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p1_L0_y + read_cnt) > 1)}}};
-                current_block <= p1_L0_x_sub2[6:4] + {2'b0, read_cnt[0]};
+                case (now_L0_y)
+                    0: current_row <= (read_cnt[4:1] > 2) ? (read_cnt[4:1] - 2) : 7'b0;
+                    1: current_row <= (read_cnt[4:1] > 1) ? (read_cnt[4:1] - 1) : 7'b0;
+                    116: current_row <= (read_cnt[4:1] < 14) ? (114 + read_cnt[4:1]) : 7'd127;
+                    default: current_row <= now_L0_y_sub2 + read_cnt[4:1];
+                endcase
+                // current_row   <= now_L0_y_sub2      + {3'd0, read_cnt[4:1] & {4{((now_L0_y + read_cnt[4:1]) > 2)}}};
+                current_block <= now_L0_x_sub2[6:4] + {2'b0, read_cnt[0]};
             end
-            S_P1_READ_L1: begin
+            S_P1_READ_L1, S_P2_READ_L1: begin
                 current_img   <= 1'b1;
-                current_row   <= p1_L1_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p1_L1_y + read_cnt) > 1)}}};
-                current_block <= p1_L1_x_sub2[6:4] + {2'b0, read_cnt[0]};
-            end
-            S_P2_READ_L0: begin
-                current_img   <= 1'b0;
-                current_row   <= p2_L0_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p2_L0_y + read_cnt) > 1)}}};
-                current_block <= p2_L0_x_sub2[6:4] + {2'b0, read_cnt[0]};
-            end
-            S_P2_READ_L1: begin
-                current_img   <= 1'b1;
-                current_row   <= p2_L1_y_sub2      + {3'd0, read_cnt[4:1] & {4{((p2_L1_y + read_cnt) > 1)}}};
-                current_block <= p2_L1_x_sub2[6:4] + {2'b0, read_cnt[0]};
+                case (now_L1_y)
+                    0: current_row <= (read_cnt[4:1] > 2) ? (read_cnt[4:1] - 2) : 7'b0;
+                    1: current_row <= (read_cnt[4:1] > 1) ? (read_cnt[4:1] - 1) : 7'b0;
+                    116: current_row <= (read_cnt[4:1] < 14) ? (114 + read_cnt[4:1]) : 7'd127;
+                    default: current_row <= now_L1_y_sub2 + read_cnt[4:1];
+                endcase
+                // current_row   <= now_L1_y_sub2      + {3'd0, read_cnt[4:1] & {4{((now_L1_y + read_cnt[4:1]) > 2)}}};
+                current_block <= now_L1_x_sub2[6:4] + {2'b0, read_cnt[0]};
             end
         endcase
     end
@@ -808,7 +850,7 @@ function signed [14:0] interpolation;
     reg [8:0] sum_m12;
     reg [8:0] sum_m23;
     reg signed [11:0] core;
-    reg signed [14:0] val_mult_5;
+    // reg signed [14:0] val_mult_5;
     begin
         p_m2 = array[0];
         p_m1 = array[1];
@@ -821,8 +863,9 @@ function signed [14:0] interpolation;
         sum_m23 = p_m2 + p_3;
 
         core = $signed({1'b0, sum_01, 2'd0}) - $signed({3'b0, sum_m12});
-        val_mult_5 = (core <<< 2) + core;
-        interpolation = val_mult_5 + $signed({6'd0, sum_m23});
+        // val_mult_5 = (core <<< 2) + core;
+        // interpolation = val_mult_5 + $signed({6'd0, sum_m23});
+        interpolation = (core <<< 2) + core + $signed({6'd0, sum_m23});
     end
 endfunction
 
@@ -835,7 +878,8 @@ function signed [9:0] clip_interpolation_signed;
     reg signed [15:0] sum_m12;
     reg signed [15:0] sum_m23;
     reg signed [17:0] core;
-    reg signed [19:0] val_mult_5, tmp_result;
+    // reg signed [19:0] val_mult_5, tmp_result;
+    reg signed [19:0] tmp_result;
     begin
         // 21420
         // 0101001110101100
@@ -856,8 +900,9 @@ function signed [9:0] clip_interpolation_signed;
         // -209110
         // 11001100111100110100
         // 20-bit
-        val_mult_5 = (core <<< 2) + core;
-        tmp_result = val_mult_5 + sum_m23 + 20'd512;
+        // val_mult_5 = (core <<< 2) + core;
+        // tmp_result = val_mult_5 + sum_m23 + $signed(20'd512);
+        tmp_result = (core <<< 2) + core + sum_m23 + $signed(20'd512);
 
         clip_interpolation_signed = tmp_result[19:10];
     end
@@ -884,21 +929,21 @@ wire signed [9:0] clip_hori = (ip_2        + 16) >>> 5;
 wire signed [9:0] clip_vert = (vertical_ip + 16) >>> 5;
 wire signed [9:0] clip_2D_ip = clip_interpolation_signed(ip_0, ip_1, ip_2, ip_3, ip_4, ip_5);
 
-
+// output reg [7:0] result
 always @(*) begin
     case ({frac_x, frac_y})
         2'b00: begin        // no interpolation
             result = array_2[2];
         end
         2'b01: begin        // Horizontal
-            if      (clip_hori < 0)   result = 8'd0;
-            else if (clip_hori > 255) result = 8'd255;
-            else                      result = clip_hori;
-        end
-        2'b10: begin        // Vertical
             if      (clip_vert < 0)   result = 8'd0;
             else if (clip_vert > 255) result = 8'd255;
             else                      result = clip_vert;
+        end
+        2'b10: begin        // Vertical
+            if      (clip_hori < 0)   result = 8'd0;
+            else if (clip_hori > 255) result = 8'd255;
+            else                      result = clip_hori;
         end
         default: begin      // 2D
             if      (clip_2D_ip < 0)   result = 8'd0;
