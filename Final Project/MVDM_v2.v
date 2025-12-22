@@ -4,9 +4,10 @@
 //      mem   ---> concat_32
 //      concat_32 ---> L0_15x16
 //      interpolation
+//      make pipeline
 
 // TODO:
-//      make pipeline
+//      if L0 buffer == L0 old buffer, don't read SRAM
 
 module MVDM(
     // input signals
@@ -52,6 +53,18 @@ reg [3:0] current_state, next_state;
 // --------------------------- input ---------------------------
 reg [15:0] input_cnt;
 reg [3:0]  input2_cnt;
+
+reg [6:0] p1_L0_x, p1_L0_y;
+reg [6:0] p1_L1_x, p1_L1_y;
+
+reg [6:0] p2_L0_x, p2_L0_y;
+reg [6:0] p2_L1_x, p2_L1_y;
+
+reg p1_L0_frac_x, p1_L0_frac_y;
+reg p1_L1_frac_x, p1_L1_frac_y;
+
+reg p2_L0_frac_x, p2_L0_frac_y;
+reg p2_L1_frac_x, p2_L1_frac_y;
 
 // --------------------------- matrix for calculate ---------------------------
 reg [4:0] read_cnt;     // 0~29
@@ -198,19 +211,6 @@ always @(posedge clk or negedge rst_n) begin
     else if (in_valid2)                     input2_cnt <= input2_cnt + 4'd1;
 end
 
-reg [6:0] p1_L0_x, p1_L0_y;
-reg [6:0] p1_L1_x, p1_L1_y;
-
-reg [6:0] p2_L0_x, p2_L0_y;
-reg [6:0] p2_L1_x, p2_L1_y;
-
-
-reg p1_L0_frac_x, p1_L0_frac_y;
-reg p1_L1_frac_x, p1_L1_frac_y;
-
-reg p2_L0_frac_x, p2_L0_frac_y;
-reg p2_L1_frac_x, p2_L1_frac_y;
-
 // reg p1_L0_frac_x, p1_L0_frac_y;
 // reg p1_L1_frac_x, p1_L1_frac_y;
 
@@ -240,19 +240,16 @@ reg [6:0] p2_L1_x_sub2, p2_L1_y_sub2;
 
 always @(*) begin
     p1_L0_x_sub2 = (p1_L0_x > 7'd2) ? (p1_L0_x - 7'd2) : (7'd0);
-    // p1_L0_y_sub2 = (p1_L0_y > 7'd2) ? (p1_L0_y - 7'd2) : (7'd0);
+    // p1_L0_x_sub2 = p1_L0_x - 7'd2;
     p1_L0_y_sub2 = p1_L0_y - 7'd2;
 
     p1_L1_x_sub2 = (p1_L1_x > 7'd2) ? (p1_L1_x - 7'd2) : (7'd0);
-    // p1_L1_y_sub2 = (p1_L1_y > 7'd2) ? (p1_L1_y - 7'd2) : (7'd0);
     p1_L1_y_sub2 = p1_L1_y - 7'd2;
 
     p2_L0_x_sub2 = (p2_L0_x > 7'd2) ? (p2_L0_x - 7'd2) : (7'd0);
-    // p2_L0_y_sub2 = (p2_L0_y > 7'd2) ? (p2_L0_y - 7'd2) : (7'd0);
     p2_L0_y_sub2 = p2_L0_y - 7'd2;
 
     p2_L1_x_sub2 = (p2_L1_x > 7'd2) ? (p2_L1_x - 7'd2) : (7'd0);
-    // p2_L1_y_sub2 = (p2_L1_y > 7'd2) ? (p2_L1_y - 7'd2) : (7'd0);
     p2_L1_y_sub2 = p2_L1_y - 7'd2;
 end
 
@@ -409,17 +406,18 @@ end
 always @(posedge clk) begin
     if      (current_state == S_IDLE || cal_cnt == 4'd0 && search_point == 4'd9) cal_cnt <= 4'd0;
     else if (current_state == S_P1_CAL || current_state == S_P2_CAL) cal_cnt <= cal_cnt + 4'd1;
-    // case (current_state)
-    //     S_IDLE:             cal_cnt <= 4'd0;
-    //     S_P1_CAL, S_P2_CAL: cal_cnt <= cal_cnt + 4'd1;
-    // endcase
 end
 
 // reg [3:0] search_point;    // 0~8
 always @(posedge clk) begin
     case (current_state)
-        S_P1_CAL, S_P2_CAL: if (cal_cnt == 4'd15) search_point <= search_point + 4'd1;
-        default:            search_point <= 4'd0;
+        S_P1_CAL, S_P2_CAL: begin
+            if (cal_cnt == 4'd15) search_point <= search_point + 4'd1;
+            else                  search_point <= search_point;
+        end
+        default: begin
+            search_point <= 4'd0;
+        end
     endcase
 end
 
@@ -737,7 +735,6 @@ always @(posedge clk or negedge rst_n) begin
                     116: current_row <= (read_cnt[4:1] < 14) ? (114 + read_cnt[4:1]) : 7'd127;
                     default: current_row <= now_L0_y_sub2 + read_cnt[4:1];
                 endcase
-                // current_row   <= now_L0_y_sub2      + {3'd0, read_cnt[4:1] & {4{((now_L0_y + read_cnt[4:1]) > 2)}}};
                 current_block <= now_L0_x_sub2[6:4] + {2'b0, read_cnt[0]};
             end
             S_P1_READ_L1, S_P2_READ_L1: begin
@@ -748,7 +745,6 @@ always @(posedge clk or negedge rst_n) begin
                     116: current_row <= (read_cnt[4:1] < 14) ? (114 + read_cnt[4:1]) : 7'd127;
                     default: current_row <= now_L1_y_sub2 + read_cnt[4:1];
                 endcase
-                // current_row   <= now_L1_y_sub2      + {3'd0, read_cnt[4:1] & {4{((now_L1_y + read_cnt[4:1]) > 2)}}};
                 current_block <= now_L1_x_sub2[6:4] + {2'b0, read_cnt[0]};
             end
         endcase
@@ -757,9 +753,9 @@ end
 
 // reg web;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) web <= READ;
+    if      (!rst_n)                                         web <= READ;
     else if (current_state == S_W_SRAM && (&input_cnt[3:0])) web <= WRITE;
-    else web <= READ;
+    else                                                     web <= READ;
 end
 
 // reg [7:0] mem_din [0:15]
@@ -850,7 +846,6 @@ function signed [14:0] interpolation;
     reg [8:0] sum_m12;
     reg [8:0] sum_m23;
     reg signed [11:0] core;
-    // reg signed [14:0] val_mult_5;
     begin
         p_m2 = array[0];
         p_m1 = array[1];
@@ -863,8 +858,6 @@ function signed [14:0] interpolation;
         sum_m23 = p_m2 + p_3;
 
         core = $signed({1'b0, sum_01, 2'd0}) - $signed({3'b0, sum_m12});
-        // val_mult_5 = (core <<< 2) + core;
-        // interpolation = val_mult_5 + $signed({6'd0, sum_m23});
         interpolation = (core <<< 2) + core + $signed({6'd0, sum_m23});
     end
 endfunction
@@ -878,7 +871,6 @@ function signed [9:0] clip_interpolation_signed;
     reg signed [15:0] sum_m12;
     reg signed [15:0] sum_m23;
     reg signed [17:0] core;
-    // reg signed [19:0] val_mult_5, tmp_result;
     reg signed [19:0] tmp_result;
     begin
         // 21420
@@ -895,13 +887,6 @@ function signed [9:0] clip_interpolation_signed;
         // 110101110010100100
         // 18-bit
         core = (sum_01 <<< 2) - sum_m12;
-        // 453900
-        // 01101110110100001100
-        // -209110
-        // 11001100111100110100
-        // 20-bit
-        // val_mult_5 = (core <<< 2) + core;
-        // tmp_result = val_mult_5 + sum_m23 + $signed(20'd512);
         tmp_result = (core <<< 2) + core + sum_m23 + $signed(20'd512);
 
         clip_interpolation_signed = tmp_result[19:10];
