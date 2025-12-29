@@ -23,3 +23,8 @@ ADFP/*
 *.pptx
 *.lib
 *.lef
+*.zip
+*.db
+*.exe
+*.tar*
+*.gz*
