@@ -2,8 +2,10 @@
 申請資料/
 考古題/
 B/
+ADFP/*
 
-.DS_Store
+*.pdf
+*.DS_Store
 *.xlsx
 *.csv
 *.txt
